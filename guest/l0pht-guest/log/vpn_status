@@ -1,0 +1,3 @@
+VPN_STATUS="Connected"
+IS_VPN_CONNECTED=1
+VPN_COUNTRY="US Amercia"

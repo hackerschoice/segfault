@@ -15,9 +15,9 @@
 #ListenAddress 0.0.0.0
 #ListenAddress ::
 
-#HostKey /etc/ssh/ssh_host_rsa_key
-#HostKey /etc/ssh/ssh_host_ecdsa_key
-#HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/l0pht/ssh_host_rsa_key
+HostKey /etc/ssh/l0pht/ssh_host_ecdsa_key
+HostKey /etc/ssh/l0pht/ssh_host_ed25519_key
 
 # Ciphers and keying
 #RekeyLimit default none
@@ -90,6 +90,7 @@ X11Forwarding no
 #X11UseLocalhost yes
 #PermitTTY yes
 PrintMotd no
+AcceptEnv LID
 #PrintLastLog yes
 #TCPKeepAlive yes
 #PermitUserEnvironment no

@@ -10,7 +10,6 @@ sed -i 's/user\:!/user\:$6$nND1o68YSDG8heUr$wx\/FpC3\/TCZlhs3LsJ7ll5YVlPfICNN7yH
 # docker inside vmbox from shared host drive (rwxrwx--- root:vobxsf)
 chown -R root:root /etc/ssh && \
 chmod 700 /etc/ssh && \
-chmod 600 /etc/ssh/ssh_* && \
 chown root:root /bin/l0phtsh && \
 chmod 755 /bin/l0phtsh && \
 chmod 755 /bin /etc && \

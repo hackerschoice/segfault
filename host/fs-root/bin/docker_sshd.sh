@@ -1,6 +1,18 @@
 #! /bin/bash
 
 # This is the entry point for L0PHT-HOST (e.g. host/Dockerfile)
+# Fix ownership if mounted from within vbox
+[[ -e /etc/ssh/l0pht/ssh_host_rsa_key ]] || {
+	echo -e \
+"\033[1;31mSSH Key not found in /etc/ssh/l0pht\033[00m. You must create them first and the
+start docker with the additional '-v' option below:
+
+mkdir -p ~/l0pht/cfg/etc/ssh && ssh-keygen -A ~/l0pht/cfg && \\
+docker run --r -p 22:2222 -v /var/run/docker.sock:/var/run/docker.sock \\
+	-v ~/l0pht/etc/ssh:/etc/ssh/l0pht:ro \\
+	--name l0pht-host -it l0pth-host"
+	exit 255
+}
 
 # The owner of the original socket is not known at 'docker build' time. Thus 
 # we need to dynamically add it so that the shell started by SSHD can

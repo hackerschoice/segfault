@@ -22,3 +22,17 @@ graph TD;
 
 Cluster can be deployed in various regions for less latency.
 
+Helpful links
+1. https://github.com/nicolaka/netshoot
+1. https://www.linuxserver.io/
+1. https://jordanelver.co.uk/blog/2019/06/03/routing-docker-traffic-through-a-vpn-connection/ 
+1. https://hub.docker.com/r/alexaso/dnsmasq-dnscrypt
+
+VPN Providers:
+1. ProtonVPN
+1. NordVPN
+1. https://www.cryptostorm.is/
+
+Hosting providers:
+1. https://www.linode.com/
+1. https://1984hosting.com/

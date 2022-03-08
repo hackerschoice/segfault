@@ -1,0 +1,25 @@
+version: "3.1"
+services:
+    dns-doh:
+      container_name: cloudflared
+      image: crazymax/cloudflared
+      restart: always
+      networks:
+        - dns
+
+    dnsmasq:
+      container_name: dnsmasq
+      image: 4km3/dnsmasq:2.85-r2
+      cap_add:
+        - NET_ADMIN
+      command: ["--no-resolv", "--domain-needed", "--server=172.18.0.2#5053"]
+      ports:
+        - "53:53/udp"
+      networks:
+        - dns
+      restart: always
+      depends_on:
+        - dns-doh
+
+networks:
+  dns:

@@ -1,17 +1,11 @@
 #! /bin/bash -r
 
 # This is called by SSHD inside L0PHT-HOST docker.
-# Redirects not allowed in restricted shells. Execute tty in unrestricted shell
-# (one day a clever hacker will exploit this)
+# Find out if SSHD allocated a TTY
+# - Redirects not allowed in restricted shells.
+# - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
+# - Set docker arguments if this is a TTY session.
 bash -c "tty >/dev/null" && { ARG="-it"; PARAM=("-il"); } || { ARG="-i"; PARAM=(); }
-# Find the server's shared l0pht-guest directory. This directory is not
-# relative to this docker's name space (e.g it does not exist in here).
-# The docker command below need to know the absolute path of that directory
-# from the calling host (because the docker command uses the docker.socket
-# from the calling host).
-eval $(grep LGUESTDIR= /tmp/lguestdir.txt| tail -n1 )
-
-[[ -z $LGUESTDIR ]] && { echo "Not set: LGUESTDIR="; exit 255; } 
 
 # Connect to existing session
 [[ -n $LID ]] && [[ ${#LID} -eq 12 ]] && {
@@ -20,5 +14,18 @@ eval $(grep LGUESTDIR= /tmp/lguestdir.txt| tail -n1 )
 
 LID="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 12)"
 HID="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 6)"
-docker run --hostname "l0pht-${HID}" --rm "$ARG" --name "lg-${LID}" --env LID="${LID}" -v "${LGUESTDIR}":/usr/local/l0pht-guest:ro l0pht-guest zsh "${PARAM[@]}" "$@"
+LVER="1.1"
+docker run \
+	--hostname "l0pht-${HID}" \
+	--rm \
+	"$ARG" \
+	--name "lg-${LID}" \
+	--init \
+	--net l0pht_guest-net \
+	--dns 172.24.0.2 \
+	--env LID="${LID}" \
+	--env LVER="${LVER}" \
+	--log-driver none \
+	-v "l0pht_guest-data:/usr/local/l0pht-guest:ro" \
+	l0pht-guest zsh "${PARAM[@]}" "$@"
 

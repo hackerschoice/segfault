@@ -132,7 +132,9 @@ cd ${SFI_SRCDIR} && docker-compose up -d --build --force-recreate --quiet-pull |
 SUDO_SF "cp -r \"${SFI_SRCDIR}/guest/sf-guest\" \"${SF_BASEDIR}/guest\""
 
 # Set up NordVPN
-${SFI_SRCDIR}/provision/init-nordvpn.sh
+${SFI_SRCDIR}/provision/init-nordvpn.sh || WARN 2 "Skipping NordVPN"
+
+# Set up monitor and firewall scripts for NordVPN
 command -v nordvpn >/dev/null && {
   DEBUGF "Installing Segfault Services..."
   [[ -z $SF_BASEDIR_ESC ]] && ERREXIT 11 "SF_BASEDIR_ESC not set???"
@@ -159,7 +161,7 @@ command -v nordvpn >/dev/null && {
   systemctl enable sf-fw 
   systemctl start sf-fw
 
-} || WARN 2 "Skipping NordVPN"
+}
 
 
 

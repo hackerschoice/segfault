@@ -87,10 +87,44 @@ Thereafter use this command to connect to your server:
 ----------------------------------------------------------------------"
 }
 
+# Output GOODBYE message with infos how to connect back to this shell
+print_goodbye()
+{
+	[[ -z $IS_PTY ]] && return
+
+	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
+	n="$(bash -c "docker exec \"lg-${LID}\" ps --no-headers aux 2>/dev/null|wc -l")"
+	DEBUGF "Processes running: $n"
+	if [[ "$n" -gt 4 ]]; then
+		echo -e "\
+${CY}WARNING: Another shell or background process is still running.${CN}
+-------> The encrypted filesystem in /sec will remain mounted until
+-------> the last shell exits and all background processes terminate.
+-------> Type ${CC}halt${CN} instead to unmount the encrypted filesystem
+-------> in /sec and to halt this instance."
+	fi
+	echo -e "\
+Access with      : ${CDC}ssh -o \"SetEnv SECRET=${LSEC:-UNKNOWN}\" ${LUSER}@${SF_FQDN:-UNKNOWN}${CN}
+GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
+}
+
 echo_pty()
 {
 	[[ -n $IS_PTY ]] || return
 	echo $@
+}
+
+spawn_shell_exit()
+{
+	# $@ is either ("-c", "<command>") or empty
+	DEBUGF "ARG(${#})=$*"
+	[[ ${#} -ne 0 ]] && [[ ${#} -ne 2 ]] && ERREXIT 127 "BAD ($*)"
+
+	docker exec "$ARG" "lg-${LID}" zsh "${PARAM[@]}" "$@"
+	ret="$?" # save return value and exit this script later with same return value.
+	print_goodbye
+
+	exit "$ret"
 }
 
 # Find out if SSHD allocated a TTY
@@ -196,8 +230,8 @@ unset english
 	DEBUGF "Attaching to existing instance lg-${LID}..."
 	exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && { 
 		echo_pty -e "..........................[${CG}OK${CN}]"
-		docker exec "$ARG" "lg-${LID}" zsh "${PARAM[@]}" "$@"
-		exit $?
+		spawn_shell_exit "$@"
+		# NOT REACHED
 	}
 	echo_pty -n ".."
 
@@ -260,25 +294,6 @@ echo_pty -e "....................[${CG}OK${CN}]"
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access
 
 # Spawn shell
-docker exec "$ARG" "lg-${LID}" zsh "${PARAM[@]}" "$@"
-ret="$?" # save return value and exit this script later with same return value.
+spawn_shell_exit "$@"
+# NOT REACHED
 
-# Output GOODBYE message with infos how to connect back to this shell
-if [[ -n $IS_PTY ]]; then
-	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
-	n="$(bash -c "docker exec \"lg-${LID}\" ps --no-headers aux 2>/dev/null|wc -l")"
-	DEBUGF "Processes running: $n"
-	if [[ "$n" -gt 4 ]]; then
-		echo -e "\
-${CY}WARNING: Another shell or background process is still running.${CN}
--------> The encrypted filesystem in /sec will remain mounted until
--------> the last shell exits and all background processes terminate.
--------> Type ${CC}halt${CN} instead to unmount the encrypted filesystem
--------> in /sec and to halt this instance."
-	fi
-	echo -e "\
-Access with      : ${CDC}ssh -o \"SetEnv SECRET=${LSEC:-UNKNOWN}\" ${LUSER}@${SF_FQDN:-UNKNOWN}${CN}
-GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
-fi
-
-exit "$ret"

@@ -14,7 +14,7 @@ if [[ -n $MARKFILE ]]; then
 		# echo "encrypted" >/sec/.encrypted
 		exit 0 # /sec created
 	fi
-	touch "${SECDIR}/${MARKFILE}" || exit 255
+	touch "${SECDIR}/${MARKFILE}" &>/dev/null || exit 255
 	echo "Failed to set up encrypted drive. DO NOT USE THIS DIRECTORY" >"${SECDIR}/${MARKFILE}"
 	exit 0
 fi
@@ -29,5 +29,9 @@ while :; do
 done
 
 echo "Unmounting lg-${LID} [${SECDIR}]"
-fusermount -zuq /encfs/sec || echo "fusermount: Error ($?)"
+# fusermount -zuq "${SECDIR}" || echo "fusermount: Error ($?)"
+fusermount -zu "${SECDIR}" || echo "fusermount: Error ($?)"
+# Delete all marked files
+rm -f "${SECDIR:-/dev/null/BAD}/THIS-DIRECTORY-IS-NOT-ENCRYPTED"*
+rmdir "${SECDIR:-/dev/null/BAD}" 
 echo "DONE"

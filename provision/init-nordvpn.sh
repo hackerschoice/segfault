@@ -16,7 +16,7 @@ nordvpn status 2>/dev/null && { WARN 1 "NordVPN already installed. SKIPPING."; e
 
 
 # AWS ubuntu 22 doesnt have this symlink
-[[ ! -e /usr/bin/systemd-resolve ]] && [[ /usr/bin/resolvectl ]] && ln -s resolvectl /usr/bin/systemd-resolv
+[[ ! -e /usr/bin/systemd-resolve ]] && [[ /usr/bin/resolvectl ]] && ln -s resolvectl /usr/bin/systemd-resolve
 
 if ! command -v nordvpn >/dev/null; then
 	BASE_URL=https://repo.nordvpn.com/

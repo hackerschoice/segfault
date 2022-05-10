@@ -1,18 +1,27 @@
 #! /bin/bash
 
-echo "/bin/l0phtsh" >>/etc/shells && \
-adduser -D ${LUSER} -s /bin/l0phtsh && \
-sed -i 's/user\:!/user\:$6$nND1o68YSDG8heUr$wx\/FpC3\/TCZlhs3LsJ7ll5YVlPfICNN7yHmyppR6MqedvZ9Vgbq6SV3TlMFaFZAiYePNFaY477Xrb0fOMo24p0/g' /etc/shadow && \
+# Docker sf-host setup script (docker build)
+
+ROOTUSER="root"
+# Default is for user to use 'ssh root@segfault.net' but this can be changed
+# in .env to any other user name. In case it is 'root' then we need to move
+# the true root out of the way for the docker-sshd to work.
+if [[ "$LUSER" = "root" ]]; then
+	# rename root user
+	sed -i 's/^root/toor/' /etc/passwd
+	sed -i 's/^root/toor/' /etc/shadow
+fi
+echo "/bin/segfaultsh" >>/etc/shells && \
+adduser -D ${LUSER} -G nobody -s /bin/segfaultsh && \
+echo "${LUSER}:${LUSERPASSWORD}" | chpasswd
 # sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
 # sed -i 's/#PrintMotd yes/ no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
 
 # Need to set correct permission which may have gotten skewed when building
 # docker inside vmbox from shared host drive (rwxrwx--- root:vobxsf)
-chown -R root:root /etc/ssh && \
+chown -R "${ROOTUSER}":"${ROOTUSER}" /etc/ssh && \
 chmod 700 /etc/ssh && \
-chown root:root /bin/l0phtsh && \
-chmod 755 /bin/l0phtsh && \
+chown "${ROOTUSER}":"${ROOTUSER}" /bin/segfaultsh && \
+chmod 755 /bin/segfaultsh && \
 chmod 755 /bin /etc && \
 echo DONE
-
-

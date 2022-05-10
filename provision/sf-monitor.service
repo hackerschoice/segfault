@@ -1,0 +1,11 @@
+[Unit]
+Description=Segfault Monitoring and VPN Status Updater
+After=network.target
+
+[Service]
+Environment="SF_BASEDIR=@SF_BASEDIR@"
+ExecStart=@SF_BASEDIR@/system/sf-monitor.sh
+
+[Install]
+WantedBy=default.target
+

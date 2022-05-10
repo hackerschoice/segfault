@@ -1,4 +1,4 @@
-version: "3.1"
+version: "3.7"
 services:
   dns-doh:
     container_name: cloudflared
@@ -25,6 +25,7 @@ services:
 
   tor:
     image: osminogin/tor-simple
+    container_name: sf-tor
     networks:
       guest-net:
         ipv4_address: 172.24.0.4
@@ -33,28 +34,22 @@ services:
     depends_on:
       - dnsmasq
 
-  l0pht:
-    container_name: l0pht-host
+  segfault:
+    container_name: sf-host
     build: host
     depends_on:
       - dnsmasq
     restart: always
+    init: true
     dns: 255.255.255.255
     ports:
-      - "2222:2222"
+      - "${PORT}:2222"
+    env_file:
+      .env
     volumes:
-      - "~/l0pht/cfg/etc/ssh:/etc/ssh/l0pht:ro"
+      - "${SF_BASEDIR}/config:/config:ro"
+      - "${SF_BASEDIR}/config/db:/config/db"
       - "/var/run/docker.sock:/var/run/docker.sock"
-
-# init: true
-# secrets:
-
-# volumes:
-#   guest-data:
-#     type: bind
-#     - driver: local
-#     device: ~/research/l0pht/guest/l0pht-guest
-#     external: true
 
 networks:
   dns-doh-net:
@@ -64,6 +59,7 @@ networks:
         - subnet: 172.23.0.0/24
 
   guest-net:
+    name: sf_guest-net
     driver: bridge
     ipam:
       config:

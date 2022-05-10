@@ -1,0 +1,5 @@
+#! /bin/sh
+
+# In docker this will 'halt' (hard crash) the instance.
+kill 1
+

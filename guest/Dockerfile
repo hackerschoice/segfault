@@ -30,10 +30,9 @@ RUN apt install -y --no-install-recommends \
 RUN apt install -y --no-install-recommends \
 		zsh zsh-syntax-highlighting zsh-autosuggestions
 
-
 COPY /fs-root/ /
-COPY setup.sh /tmp
-RUN /tmp/setup.sh && \
-	rm -f /tmp/setup.sh
+COPY setup.sh /
+RUN /setup.sh && \
+	rm -f /setup.sh
 
 CMD ["zsh", "-il"]

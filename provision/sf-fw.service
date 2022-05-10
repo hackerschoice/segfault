@@ -1,0 +1,12 @@
+[Unit]
+Description=Segfault Firewall Script
+Requires=nordvpnd.service
+
+[Service]
+Type=oneshot
+Environment="SF_BASEDIR=@SF_BASEDIR@"
+ExecStart=@SF_BASEDIR@/system/sf-fw.sh
+
+[Install]
+WantedBy=default.target
+

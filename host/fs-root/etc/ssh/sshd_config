@@ -15,9 +15,9 @@
 #ListenAddress 0.0.0.0
 #ListenAddress ::
 
-HostKey /etc/ssh/l0pht/ssh_host_rsa_key
-HostKey /etc/ssh/l0pht/ssh_host_ecdsa_key
-HostKey /etc/ssh/l0pht/ssh_host_ed25519_key
+HostKey /config/etc/ssh/ssh_host_rsa_key
+HostKey /config/etc/ssh/ssh_host_ecdsa_key
+HostKey /config/etc/ssh/ssh_host_ed25519_key
 
 # Ciphers and keying
 #RekeyLimit default none
@@ -30,7 +30,9 @@ HostKey /etc/ssh/l0pht/ssh_host_ed25519_key
 
 #LoginGraceTime 2m
 #PermitRootLogin prohibit-password
-#StrictModes yes
+# FIXME: Disable strict mode to allow sshd to read ssh keys from vboxfs (rwxrwx---)
+StrictModes no
+##StrictModes yes
 #MaxAuthTries 6
 #MaxSessions 10
 
@@ -39,6 +41,7 @@ HostKey /etc/ssh/l0pht/ssh_host_ed25519_key
 # The default is to check both .ssh/authorized_keys and .ssh/authorized_keys2
 # but this is overridden so installations will only check .ssh/authorized_keys
 AuthorizedKeysFile	.ssh/authorized_keys
+#AuthorizedKeysFile	/config/etc/ssh/id_ed25519.pub
 
 #AuthorizedPrincipalsFile none
 
@@ -90,13 +93,14 @@ X11Forwarding no
 #X11UseLocalhost yes
 #PermitTTY yes
 PrintMotd no
-AcceptEnv LID
+AcceptEnv SF_DEBUG
+AcceptEnv SECRET
 #PrintLastLog yes
 #TCPKeepAlive yes
 #PermitUserEnvironment no
 #Compression delayed
-#ClientAliveInterval 0
-#ClientAliveCountMax 3
+ClientAliveInterval 15
+ClientAliveCountMax 3
 #UseDNS no
 #PidFile /run/sshd.pid
 #MaxStartups 10:30:100

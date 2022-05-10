@@ -1,0 +1,284 @@
+#! /bin/bash -r
+
+# This is called by SSHD inside SF-HOST docker.
+# - All environments have been cleared by SSHD.
+# - Redirects not allowed in restricted shells.
+
+# Load/restore environment variables from file
+# `source' is prohibited in restricted bash shell (bash -r)
+# use `eval' trick to load environemnt variables into a restricted shell
+# SF_DEBUG can be set by ssh-client with -o SetEnv SF_DEBUG=1 or by
+# docker compose '.env' file.
+SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
+[[ -f /var/run/lhost-config.txt ]] && eval "$(cat /var/run/lhost-config.txt)"
+[[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
+unset SSH_SF_DEBUG
+
+CY="\033[1;33m" # yellow
+CR="\033[1;31m" # red
+CC="\033[1;36m" # cyan
+CG="\033[1;32m" # green
+CDC="\033[0;36m" # cyan
+CDR="\033[0;31m" # red
+CN="\033[0m"    # none
+CW="\033[1;37m" # white
+CF="\033[2m"    # faint
+
+ERREXIT()
+{
+	local code
+	code="$1"
+	[[ -z $code ]] && code=99
+
+	shift 1
+	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
+
+	exit "$code"
+}
+
+if [[ -z $SF_DEBUG ]]; then
+	DEBUGF(){ :;}
+	SF_DOCKER_LOG="none"
+else
+	DEBUGF(){ echo -e 1>&2 "${CY}DEBUG:${CN} $*";}
+	SF_DOCKER_LOG="local"
+fi
+
+# The current 'restricted shell' does not allow for stdout redirection to /dev/null.
+# Thus execute in unrestricted shell with 'exec_devnull' and redirect stdout to /dev/null. 
+exec_devnull()
+{
+	if [[ -z $SF_DEBUG ]]; then
+		bash -c "exec $* 2>/dev/null >/dev/null"
+	else
+		# HERE: DEBUG is enabled. Show STDOUT/STDERR
+		$*
+	fi
+}
+
+exec_errnull()
+{
+	if [[ -z $SF_DEBUG ]]; then
+		bash -c "exec $* 2>/dev/null"
+	else
+		# HERE: DEBUG is enabled. Show STDOUT/STDERR
+		$*
+	fi
+}
+
+print_ssh_access()
+{
+	echo 1>&2 -e "\
+:Cut & Paste these lines to your workstation's shell to retain access:
+######################################################################
+${CDC}cat >~/.ssh/id_ed25519-lg-${LID} ${CDR}<<__EOF__
+${CN}${CF}$(cat /var/run/id_ed25519.luser)
+${CDR}__EOF__
+${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
+${CN}${CF}host ${HOSTNAME,,}.${SF_FQDN//./-}
+    HostName ${SF_FQDN}
+    IdentityFile ~/.ssh/id_ed25519-lg-${LID}
+    SetEnv SECRET=${LSEC}
+${CDR}__EOF__
+${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_ed25519-lg-${LID}${CN}
+######################################################################
+Thereafter use this command to connect to your server:
+--> ${CDC}ssh root@${HOSTNAME,,}.${SF_FQDN//./-}${CN}
+----------------------------------------------------------------------"
+}
+
+echo_pty()
+{
+	[[ -n $IS_PTY ]] || return
+	echo $@
+}
+
+# Find out if SSHD allocated a TTY
+# - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
+# - Set docker arguments to login-shell if this is a TTY session.
+bash -c "tty >/dev/null" && { ARG="-it"; PARAM=("-il"); IS_PTY=1; } || { ARG="-i"; PARAM=(); }
+
+# Connect to existing session
+if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 12 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
+	IS_TRY_EXISTING=1
+	LSEC="${SECRET}"
+else
+	LSEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 12)"
+fi
+
+LID=$(echo -n "LID ${LSEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
+
+LVER="1.1"
+# MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE-$(date +%s-%N).txt"
+MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE-$(date +%s-%N).txt"
+
+if [[ -d "/config/db/db-${LID}" ]]; then
+	echo_pty -n "Connecting to server. Please wait..."
+else
+	echo_pty -n "Creating new server. Please wait...."
+	IS_NEW_SERVER=1
+
+	mkdir -p "/config/db/db-${LID}" || ERREXIT
+	touch "/config/db/db-${LID}/created.txt" || ERREXIT
+fi
+
+DEBUGF "LID=${LID}"
+
+if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Status}}')" != "running" ]]; then
+	LENCFS_PASS=$(echo -n "EncFS-PASS ${LSEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 16)
+	# HERE: encfs is not already running for this instance...
+	# 1st EncFS to put warning into mount-point that it is cleartext (until it's mounted!).
+	DEBUGF "EncFS-${LID} is not yet running..."
+	docker run \
+		--rm \
+		--env MARKFILE="${MARKFILE}" \
+		--env LID="${LID}" \
+		--env SF_DEBUG="${SF_DEBUG}" \
+		-v "${LENCFS_SECDIR}:/encfs/sec:shared" \
+		sf-encfs || ERREXIT 250 "Could not create /sec..."
+
+	# 2nd EncFS	to mount encrypted to mount-point.
+	# Run in background (-d)
+	# Use exec_devnull to redirect Container-ID to /dev/null (docker run -d).
+	exec_devnull docker run \
+		--rm \
+		--name "encfs-${LID}" \
+		--cap-add SYS_ADMIN \
+		--device /dev/fuse \
+		--security-opt apparmor:unconfined \
+		--env LENCFS_PASS="${LENCFS_PASS}" \
+		--env LID="${LID}" \
+		--env SF_DEBUG="${SF_DEBUG}" \
+		--log-driver "${SF_DOCKER_LOG}" \
+		-v "${LENCFS_RAWDIR}:/encfs/raw" \
+		-v "${LENCFS_SECDIR}:/encfs/sec:shared" \
+		-v "/var/run/docker.sock:/var/run/docker.sock" \
+		-d \
+		sf-encfs || ERREXIT 251 "Could not create /sec..."
+fi
+echo_pty -n ".."
+
+# Wait until sf-encf has mounted the secure drive...or otherwise this
+# will show an insecure directory:
+#    ssh user@segfault.thc.org "ls -al /sec"
+# This will loop until the MARKFILE is gone (e.g. encfs mounted a directory over it)
+# NOTE: It would be quicker to have /encfs/sec available in this sf-host instance
+#       but this may also pose a security risk: A vulnerability in SSHD would
+#       expose all encrypted drives. Doing it with 'docker run' means that
+#       the hacker would to to break docker - which is easy enough given that the
+#       docker-socket is available in this context but still a step harder.
+DEBUGF "Waiting until /sec becomes available..."
+docker run \
+	--rm \
+	--env MARKFILE="${MARKFILE:-UNKNOWN.TXT}" \
+	--env CHECKFILE="1" \
+	--env LID="${LID}" \
+	--env SF_DEBUG="${SF_DEBUG}" \
+	-v "${LENCFS_SECDIR}:/encfs/sec:shared" \
+	sf-encfs || ERREXIT 244 "Failed to set up /sec..."
+
+echo_pty -n ".."
+
+# Generate a mnemonic hostname from LID (e.g. ButterflyCat)
+NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
+readarray -t english </etc/english.txt
+HOSTNAME="UnknownUnknown"
+if [[ "${#english[@]}" -eq 2048 ]]; then
+	HOSTNAME="${english[$((NUM % 2048))]}"
+	HOSTNAME+="${english[$(( (NUM / 2048) % 2048 ))]}"
+fi
+DEBUGF "HOSTNAME=$HOSTNAME"
+unset NUM
+unset english
+
+# Attach to instance if already running
+[[ -n $IS_TRY_EXISTING ]] && {
+	DEBUGF "Attaching to existing instance lg-${LID}..."
+	exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && { 
+		echo_pty -e "..........................[${CG}OK${CN}]"
+		docker exec "$ARG" "lg-${LID}" zsh "${PARAM[@]}" "$@"
+		exit $?
+	}
+	echo_pty -n ".."
+
+	DEBUGF "FAILED to attached to lg-${LID}"
+	# HERE: Instance does not exists.
+}
+
+# Starting GUEST shell
+# Challenge: Keep user processes running that got spawned in the background
+# even when first instance terminates. Also do not terminate instance
+# when there are still shells using it ('docker exec').
+# Solution: Spawn a docker in the background that monitors the number of
+# processes and use 'docker exec' for every connection.
+exec_devnull docker run \
+	--hostname "sf-${HOSTNAME}" \
+	--rm \
+	--init \
+	--name "lg-${LID}" \
+	--init \
+	--net sf_guest-net \
+	--dns "${LDNS:-BAD}" \
+	--env LSEC="${LSEC}" \
+	--env LVER="${LVER}" \
+	--env LUSER="${LUSER}" \
+	--env SF_FQDN="${SF_FQDN}" \
+	--env SF_DEBUG="${SF_DEBUG}" \
+	-e SSH_CONNECTION \
+	-e SSH_CLIENT \
+	--log-driver "${SF_DOCKER_LOG}" \
+	--mount type=bind,source="${SF_BASEDIR}/config/etc/ssh/id_ed25519,target=/config/id_ed25519,readonly" \
+	-v "${SF_BASEDIR}/guest/sf-guest:/usr/local/sf-guest:ro" \
+	-v "${LENCFS_SECDIR}/user-${LID}:/sec:shared" \
+	-d \
+	sf-guest /usr/local/sf-guest/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
+
+[[ -n $IS_PTY ]] && echo -n ".."
+
+DEBUGF "Instance started..."
+
+# Wait for detached docker shell to become available...
+n=0
+while :; do
+	str="$(exec_errnull docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
+	rc="$?"
+	DEBUGF "rc=$rc status=$str"
+	[[ "$rc" -eq 0 ]] && [[ "$str" = "running" ]] && break
+	DEBUGF "#${n} Waiting for sf-guest to be ready..."
+	[[ $n -gt 0 ]] && sleep 5 || sleep 0.1
+	n=$((n+1))
+	[[ $n -gt 2 ]] && ERREXIT 253 "Could not create instance..."
+done
+[[ -n $IS_PTY ]] && echo -n ".."
+
+# Setup instance
+docker exec "lg-${LID}" /usr/local/sf-guest/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
+
+echo_pty -e "....................[${CG}OK${CN}]"
+
+# Output help of how to connect elegantly
+[[ -n $IS_NEW_SERVER ]] && print_ssh_access
+
+# Spawn shell
+docker exec "$ARG" "lg-${LID}" zsh "${PARAM[@]}" "$@"
+ret="$?" # save return value and exit this script later with same return value.
+
+# Output GOODBYE message with infos how to connect back to this shell
+if [[ -n $IS_PTY ]]; then
+	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
+	n="$(bash -c "docker exec \"lg-${LID}\" ps --no-headers aux 2>/dev/null|wc -l")"
+	DEBUGF "Processes running: $n"
+	if [[ "$n" -gt 4 ]]; then
+		echo -e "\
+${CY}WARNING: Another shell or background process is still running.${CN}
+-------> The encrypted filesystem in /sec will remain mounted until
+-------> the last shell exits and all background processes terminate.
+-------> Type ${CC}halt${CN} instead to unmount the encrypted filesystem
+-------> in /sec and to halt this instance."
+	fi
+	echo -e "\
+Access with      : ${CDC}ssh -o \"SetEnv SECRET=${LSEC:-UNKNOWN}\" ${LUSER}@${SF_FQDN:-UNKNOWN}${CN}
+GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
+fi
+
+exit "$ret"

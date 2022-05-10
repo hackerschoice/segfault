@@ -1,0 +1,71 @@
+#! /usr/bin/env bash
+
+# shellcheck disable=SC2034 # unused variable warning for ansi colors
+
+CY="\033[1;33m" # yellow
+CG="\033[1;32m" # green
+CR="\033[1;31m" # red
+CC="\033[1;36m" # cyan
+CM="\033[1;35m" # magenta
+CW="\033[1;37m" # magenta
+CF="\033[2m"    # faint
+CN="\033[0m"    # none
+
+CBG="\033[42;1m" # Background Green
+
+# night-mode
+CDY="\033[0;33m" # yellow
+CDG="\033[0;32m" # green
+CDR="\033[0;31m" # red
+CDC="\033[0;36m" # cyan
+CDM="\033[0;35m" # magenta
+
+# Clear from cursor to end of line
+CL="\033[0K"
+
+if [[ -z $SF_DEBUG ]]; then
+	DEBUGF(){ :;}
+	DEBUGF_R(){ :;}
+else
+	DEBUGF(){ echo -e "${CY}DEBUG:${CN} $*";}
+	DEBUGF_R(){ echo -e "${CY}DEBUG:${CN} ${CR}$*${CN}";}
+fi
+
+ERREXIT()
+{
+	local code
+	code="$1"
+	[[ $? -ne 0 ]] && code="$?"
+	[[ -z $code ]] && code=99
+
+	shift 1
+	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
+
+	exit "$code"
+}
+
+WARN()
+{
+	local code
+	code="$1"
+	[[ -z $code ]] && code=255
+
+	shift 1
+	echo -e >&2 "${CY}WARNING(${code}):${CN} $*"
+}
+
+INFO()
+{
+	echo -e "--> ${CM}$*${CN}"
+}
+
+
+NEED_ROOT()
+{
+	[[ "$(id -u)" -ne 0 ]] && ERREXIT 255 "Error: Run this scrpt as root"
+}
+
+IS_APT_INSTALLED()
+{
+	[[ "$(apt -qq list "$*" 2>/dev/null)" = *"[installed]" ]] && return 0 || return 1
+}

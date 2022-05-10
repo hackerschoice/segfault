@@ -1,3 +1,3 @@
 all: Dockerfile
-	docker build -t l0pht-guest .
+	docker build -t sf-guest .
 

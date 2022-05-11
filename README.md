@@ -27,6 +27,7 @@ Please report back
 Some suggestions by others:
 1. Allow user to share data via webserver accessible by normal Internet and TOR (.onion) [thanks 0xD1G, L]
 1. Allow email access [thanks L]
+1. Proxychain [thanks DrWho]
 1. **PM me if you have more suggestions** 
 ---
 

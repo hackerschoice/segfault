@@ -1,17 +1,16 @@
 #! /bin/bash
 
-BASEDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
+# Segfault monitor script to update VPN_STATUS and 
+
+BASEDIR="$(cd "$(dirname "${0}/")" || exit; pwd)"
 source "${BASEDIR}/funcs" || exit 255
 
-# Set our fw rules in case some do-da admin takes them out...
-IS_FW_MONITOR=1
-
-[[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEFDIR= not set"
+[[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEDIR= not set"
 command -v nordvpn >/dev/null || ERREXIT 254 "Not found: nordvpn"
-command -v iptables >/dev/null || { WARN 1 "iptables not found. Wont monitor iptables."; unset IS_FW_MONITOR; }
-[[ -e "${SF_BASEDIR}"/system/sf-fw.sh ]] || { WARN 2"system/sf-fw.sh not found. Won't monitor iptables."; unset IS_FW_MONITOR; }
 
 VPN_LOG_FILE="${SF_BASEDIR}/guest/sf-guest/log/vpn_status"
+# Delete old/stale file
+[[ -e "${VPN_LOG_FILE}" ]] && rm -f "${VPN_LOG_FILE}"
 
 while :; do
 	unset out
@@ -23,11 +22,14 @@ while :; do
 		for x in "${status[@]}"; do
 			[[ "$x" =~ ^'Country: ' ]] && country="${x:9}" && continue
 			[[ "$x" =~ ^'Server IP: ' ]] && server_ip="${x:11}" && continue
+			[[ "$x" =~ ^'Current server: ' ]] && server="${x:16}" && continue
 		done
 
+		# DEBUGF "Uptime: $vpn_uptime"
 		out="\
 IS_VPN_CONNECTED=1
 VPN_COUNTRY=\"${country}\"
+VPN_SERVER=\"${server}\"
 VPN_SERVER_IP=\"${server_ip}\""
 	} # CONNECTED
 
@@ -35,20 +37,19 @@ VPN_SERVER_IP=\"${server_ip}\""
 		# Find out out external IP address
 		myip=$(docker exec sf-tor curl -s ifconfig.me) || unset myip
 
-		echo "${country:-NOT CONNECTED} (${myip:-UNKNOWN})"
+		echo "${country:-NOT CONNECTED} (${myip:-UNKNOWN}) [${server}]"
 		echo "\
 ${out}
-VPN_IP=\"${myip}\"" >"${VPN_LOG_FILE}"
+VPN_IP=\"${myip:-<FAILED.TO.GET.IP>}\"" >"${VPN_LOG_FILE}"
 
-		old="$out"
+		# In order to stop polling 'ifconfig.me' we rely on NordVPN's VPN_SERVER to
+		# change and only then call 'curl ifconfig.me'.
+		# 
+		# It may have happened that 'curl ifconfig.me' failed (sf-tor not running or
+		# ifconfig.me down). In this case keep trying every 10 seconds.
+		# Only update if manage to get EXIT IP. 
+		[[ -z $myip ]] || old="$out"
 	fi
 
 	sleep 10
-
-	# Check if iptable rules are still valid
-	# Do this after the 'sleep' to prevent this script from setting FW rules
-	# before sf-fw.service had a chance.
-	[[ -n $IS_FW_MONITOR ]] && {
-		"${SF_BASEDIR}/system/sf-fw.sh"
-	}
 done

@@ -1,8 +1,11 @@
 [Unit]
 Description=Segfault Monitoring and VPN Status Updater
+#After=nordvpnd.service
 After=network.target
 
 [Service]
+Restart=on-failure
+RestartSec=5s
 Environment="SF_BASEDIR=@SF_BASEDIR@"
 ExecStart=@SF_BASEDIR@/system/sf-monitor.sh
 

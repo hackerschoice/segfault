@@ -7,6 +7,7 @@ if [[ -n $MARKFILE ]]; then
 	if [[ -n $CHECKFILE ]]; then
 		n=0
 		while [[ -f "${SECDIR}/${MARKFILE}" ]]; do
+			[[ -n $SF_DEBUG ]] && echo "DEBUG: Round #${n}"
 			[[ $n -gt 0 ]] && sleep 2 || sleep 0.1
 			n=$((n+1))
 			[[ $n -gt 5 ]] && exit 253 # "Could not create /sec..."

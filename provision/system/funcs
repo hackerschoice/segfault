@@ -56,7 +56,7 @@ WARN()
 
 INFO()
 {
-	echo -e "--> ${CM}$*${CN}"
+	echo -e >&2 "--> ${CM}$*${CN}"
 }
 
 

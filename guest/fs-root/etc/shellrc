@@ -1,0 +1,14 @@
+
+unalias l 2>/dev/null
+alias l='ls -Alh'
+
+unalias lt 2>/dev/null
+alias lt='ls -Alhrt'
+
+[[ -e /usr/bin/lsd ]] && {
+	alias ls='lsd --icon never'
+}
+
+[[ -e /sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt ]] && { echo "WARNING: /sec is NOT encrypted. PRESS ENTER to continue..."; read; }
+
+

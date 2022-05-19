@@ -41,12 +41,11 @@ mkhome()
 
 	dir="/sec/${dirname}"
 
-
 	# e.g. /sec/root and /sec/home/user
 	[[ -d "$dir" ]] && return # already exists
 
 	DEBUGF "Creating /sec/${dirname}..."
-	cp -a /usr/local/sf-guest/etc/skel "${dir}"
+	cp -a /etc/skel "${dir}"
 	chown -R "${usergroup}" "${dir}"
 	chmod 700 "${dir}"	
 }
@@ -87,7 +86,6 @@ setup()
 {
 	cd /
 	[[ -d /sec ]] || ERREXIT 254 "Not found: /sec" # EncFS failed (?)
-	[[ -d /usr/local/sf-guest/etc/skel ]] || ERREXIT 253 "Not found: /usr/local/sf-guest/etc/skel"
 
 	# Setup home-directories to /sec
 	mkhome root:root root

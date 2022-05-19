@@ -2,8 +2,8 @@
 
 # Install NordVPN and configure it.
 
-SFI_BASEDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
-source "${SFI_BASEDIR}/funcs"
+SFI_SRCDIR="$(cd "$(dirname "${0}")/.." || exit; pwd)"
+source "${SFI_SRCDIR}/provision/system/funcs" || exit 255
 NEED_ROOT
 
 # Exit if already installed (nordvpn status return TRUE even when not connected)

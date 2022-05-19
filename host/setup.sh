@@ -6,14 +6,14 @@ ROOTUSER="root"
 # Default is for user to use 'ssh root@segfault.net' but this can be changed
 # in .env to any other user name. In case it is 'root' then we need to move
 # the true root out of the way for the docker-sshd to work.
-if [[ "$LUSER" = "root" ]]; then
+if [[ "$SF_USER" = "root" ]]; then
 	# rename root user
 	sed -i 's/^root/toor/' /etc/passwd
 	sed -i 's/^root/toor/' /etc/shadow
 fi
 echo "/bin/segfaultsh" >>/etc/shells && \
-adduser -D ${LUSER} -G nobody -s /bin/segfaultsh && \
-echo "${LUSER}:${LUSERPASSWORD}" | chpasswd
+adduser -D ${SF_USER} -G nobody -s /bin/segfaultsh && \
+echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd
 # sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
 # sed -i 's/#PrintMotd yes/ no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
 

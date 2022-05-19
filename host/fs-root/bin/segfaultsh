@@ -65,6 +65,14 @@ exec_errnull()
 		$*
 	fi
 }
+print_disclaimer()
+{
+	echo 1>&2 -e "\
+${CR}######################################################################
+#### ${CY}DISCLAIMER: TO BE USED FOR CREATIVE AND GOOD PURPOSES ONLY..${CR} ####
+#### ${CY}USE AT YOUR OWN RISK.     ---> DON'T FUCK UP <---            ${CR}####
+######################################################################${CN}"
+}
 
 print_ssh_access()
 {
@@ -78,7 +86,7 @@ ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${HOSTNAME,,}.${SF_FQDN//./-}
     HostName ${SF_FQDN}
     IdentityFile ~/.ssh/id_ed25519-lg-${LID}
-    SetEnv SECRET=${LSEC}
+    SetEnv SECRET=${SF_SEC}
 ${CDR}__EOF__
 ${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_ed25519-lg-${LID}${CN}
 ######################################################################
@@ -99,12 +107,12 @@ print_goodbye()
 		echo -e "\
 ${CY}WARNING: Another shell or background process is still running.${CN}
 -------> The encrypted filesystem in /sec will remain mounted until
--------> the last shell exits and all background processes terminate.
--------> Type ${CC}halt${CN} instead to unmount the encrypted filesystem
--------> in /sec and to halt this instance."
+-------> the last shell exits or all background processes terminate.
+-------> Type ${CC}halt${CN} instead to stop this instance. This will
+-------> also make /sec unavailabe until your next login."
 	fi
 	echo -e "\
-Access with      : ${CDC}ssh -o \"SetEnv SECRET=${LSEC:-UNKNOWN}\" ${LUSER}@${SF_FQDN:-UNKNOWN}${CN}
+Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 }
 
@@ -135,20 +143,21 @@ bash -c "tty >/dev/null" && { ARG="-it"; PARAM=("-il"); IS_PTY=1; } || { ARG="-i
 # Connect to existing session
 if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 12 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
 	IS_TRY_EXISTING=1
-	LSEC="${SECRET}"
+	SF_SEC="${SECRET}"
 else
-	LSEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 12)"
+	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 12)"
 fi
 
-LID=$(echo -n "LID ${LSEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
+LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
 
-LVER="1.1"
+SF_VER="1.1"
 # MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE-$(date +%s-%N).txt"
-MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE-$(date +%s-%N).txt"
+MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
 if [[ -d "/config/db/db-${LID}" ]]; then
 	echo_pty -n "Connecting to server. Please wait..."
 else
+	print_disclaimer
 	echo_pty -n "Creating new server. Please wait...."
 	IS_NEW_SERVER=1
 
@@ -159,17 +168,17 @@ fi
 DEBUGF "LID=${LID}"
 
 if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Status}}')" != "running" ]]; then
-	LENCFS_PASS=$(echo -n "EncFS-PASS ${LSEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 16)
+	LENCFS_PASS=$(echo -n "EncFS-PASS ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 16)
 	# HERE: encfs is not already running for this instance...
 	# 1st EncFS to put warning into mount-point that it is cleartext (until it's mounted!).
 	DEBUGF "EncFS-${LID} is not yet running..."
-	docker run \
-		--rm \
-		--env MARKFILE="${MARKFILE}" \
-		--env LID="${LID}" \
-		--env SF_DEBUG="${SF_DEBUG}" \
-		-v "${LENCFS_SECDIR}:/encfs/sec:shared" \
-		sf-encfs || ERREXIT 250 "Could not create /sec..."
+	# docker run \
+	# 	--rm \
+	# 	--env MARKFILE="${MARKFILE}" \
+	# 	--env LID="${LID}" \
+	# 	--env SF_DEBUG="${SF_DEBUG}" \
+	# 	-v "${SF_ENCFS_SECDIR}:/encfs/sec:shared" \
+	# 	sf-encfs || ERREXIT 250 "Could not create /sec..."
 
 	# 2nd EncFS	to mount encrypted to mount-point.
 	# Run in background (-d)
@@ -184,8 +193,8 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--env LID="${LID}" \
 		--env SF_DEBUG="${SF_DEBUG}" \
 		--log-driver "${SF_DOCKER_LOG}" \
-		-v "${LENCFS_RAWDIR}:/encfs/raw" \
-		-v "${LENCFS_SECDIR}:/encfs/sec:shared" \
+		-v "${SF_ENCFS_RAWDIR}:/encfs/raw" \
+		-v "${SF_ENCFS_SECDIR}:/encfs/sec:shared" \
 		-v "/var/run/docker.sock:/var/run/docker.sock" \
 		-d \
 		sf-encfs || ERREXIT 251 "Could not create /sec..."
@@ -201,15 +210,16 @@ echo_pty -n ".."
 #       expose all encrypted drives. Doing it with 'docker run' means that
 #       the hacker would to to break docker - which is easy enough given that the
 #       docker-socket is available in this context but still a step harder.
+
 DEBUGF "Waiting until /sec becomes available..."
-docker run \
-	--rm \
-	--env MARKFILE="${MARKFILE:-UNKNOWN.TXT}" \
-	--env CHECKFILE="1" \
-	--env LID="${LID}" \
-	--env SF_DEBUG="${SF_DEBUG}" \
-	-v "${LENCFS_SECDIR}:/encfs/sec:shared" \
-	sf-encfs || ERREXIT 244 "Failed to set up /sec..."
+docker exec \
+	"encfs-${LID}" \
+	/bin/sh -c \
+	"LID=\"${LID}\" \
+	SF_DEBUG=\"${SF_DEBUG}\" \
+	MARKFILE=\"${MARKFILE}\" \
+	CHECKFILE=1 \
+	/mount.sh" || ERREXIT 244 "Failed to set up /sec..."
 
 echo_pty -n ".."
 
@@ -225,11 +235,12 @@ DEBUGF "HOSTNAME=$HOSTNAME"
 unset NUM
 unset english
 
+echo_pty -n ".."
 # Attach to instance if already running
 [[ -n $IS_TRY_EXISTING ]] && {
 	DEBUGF "Attaching to existing instance lg-${LID}..."
 	exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && { 
-		echo_pty -e "..........................[${CG}OK${CN}]"
+		echo_pty -e "........................[${CG}OK${CN}]"
 		spawn_shell_exit "$@"
 		# NOT REACHED
 	}
@@ -252,10 +263,10 @@ exec_devnull docker run \
 	--name "lg-${LID}" \
 	--init \
 	--net sf_guest-net \
-	--dns "${LDNS:-BAD}" \
-	--env LSEC="${LSEC}" \
-	--env LVER="${LVER}" \
-	--env LUSER="${LUSER}" \
+	--dns "${SF_DNS:-BAD}" \
+	--env SF_SEC="${SF_SEC}" \
+	--env SF_VER="${SF_VER}" \
+	--env SF_USER="${SF_USER}" \
 	--env SF_FQDN="${SF_FQDN}" \
 	--env SF_DEBUG="${SF_DEBUG}" \
 	-e SSH_CONNECTION \
@@ -263,7 +274,7 @@ exec_devnull docker run \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--mount type=bind,source="${SF_BASEDIR}/config/etc/ssh/id_ed25519,target=/config/id_ed25519,readonly" \
 	-v "${SF_BASEDIR}/guest/sf-guest:/usr/local/sf-guest:ro" \
-	-v "${LENCFS_SECDIR}/user-${LID}:/sec:shared" \
+	-v "${SF_ENCFS_SECDIR}/user-${LID}:/sec:shared" \
 	-d \
 	sf-guest /usr/local/sf-guest/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 

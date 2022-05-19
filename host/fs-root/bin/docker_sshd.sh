@@ -7,7 +7,7 @@ CN="\033[0m"    # none
 
 [[ -d /config ]] || {
 	echo -e "${CR}Not found: /config${CN}
---> Try -v ~/segfault/config:ro -v ~/segfault/config/db:/config/db"
+--> Try -v ~/segfault/config:config,ro -v ~/segfault/config/db:/config/db"
 
 	sleep 5
 	exit 255
@@ -15,7 +15,7 @@ CN="\033[0m"    # none
 
 [[ -d /config/db ]] || {
 	echo -e "${CR}Not found: /config/db${CN}
---> Try -v ~/segfault/config:ro -v ~/segfault/config/db:/config/db"
+--> Try -v ~/segfault/config:config,ro -v ~/segfault/config/db:/config/db"
 
 	sleep 5
 	exit 255
@@ -25,8 +25,8 @@ CN="\033[0m"    # none
 # Fix ownership if mounted from within vbox
 [[ -e /config/etc/ssh/ssh_host_rsa_key ]] || {
 	echo -e "\
-${CR}SSH Key not found in /config/etc/ssh/${CN}. You must create them first:
---> ${CC}mkdir -p ~/segfault/config/etc/ssh && ssh-keygen -A -f ~/segfault/config${CN}"
+${CR}SSH Host Key not found in /config/etc/ssh/${CN}. You must create them first:
+--> ${CC}mkdir -p ${SF_BASEDIR:-BAD}/config/etc/ssh && ssh-keygen -A -f ${SF_BASEDIR:-BAD}/config${CN}"
 
 	sleep 5
 	exit 255
@@ -56,11 +56,22 @@ chmod 444 /var/run/id_ed25519.luser
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
 # variables to the user's docker instance (sf-guest)
-echo "LDNS=\"${LDNS}\"
-LENCFS_SECDIR=\"${LENCFS_SECDIR}\"
-LENCFS_RAWDIR=\"${LENCFS_RAWDIR}\"
-SF_SRCDIR=\"${SF_SRCDIR}\"
-LUSER=\"${LUSER}\"
+
+
+# Set to default if not set
+[[ -z $SF_ENCFS_RAWDIR ]] && SF_ENCFS_RAWDIR="encfs-raw"
+# If it is not an absolute path then use it as a name
+if [[ "$SF_ENCFS_RAWDIR" != /* ]]; then
+	# HERE: NOT a path starting with '/'
+	# HERE: relative path (containing '/') or just a name.
+	SF_ENCFS_RAWDIR="${SF_BASEDIR}/${SF_ENCFS_RAWDIR}"
+fi
+
+
+echo "SF_DNS=\"${SF_DNS}\"
+SF_ENCFS_SECDIR=\"${SF_ENCFS_SECDIR}\"
+SF_ENCFS_RAWDIR=\"${SF_ENCFS_RAWDIR}\"
+SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
 SF_FQDN=\"${SF_FQDN}\"" >/var/run/lhost-config.txt
@@ -69,7 +80,7 @@ SF_FQDN=\"${SF_FQDN}\"" >/var/run/lhost-config.txt
 # we need to dynamically add it so that the shell started by SSHD can
 # spwan ther SF-GUEST instance.
 [[ ! -e /var/run/docker.sock ]] && { echo "Not found: /var/run/docker.sock"; echo "Try -v /var/run/docker.sock:/var/run/docker.sock"; exit 255; }
-echo "docker:x:$(stat -c %g /var/run/docker.sock):${LUSER}" >>/etc/group && \
+echo "docker:x:$(stat -c %g /var/run/docker.sock):${SF_USER}" >>/etc/group && \
 chmod 770 /var/run/docker.sock && \
 
 # SSHD's user (normally "root" with uid 1000) needs write access to /config/db

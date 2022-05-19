@@ -5,15 +5,14 @@ FROM alpine:latest
 # SSHD clears all environment variable before spwaning shell.
 # Any variable that needs to be available inside shell 'segfaultsh'
 # needs to be added to docker_sshd.sh
-ENV LUSER="${LUSER:-root}"
-ENV LUSERPASSWORD="${LUSERPASSWORD:-segfault}"
-ENV LDNS="${LDNS:-172.24.0.2}"
-ENV SF_FQDN="${SF_FQDN:-segfault.thc.org}"
-ENV LENCFS_SECDIR="${LENCFS_SECDIR:-/dev/shm/encfs-sec}"
-ENV LENCFS_RAWDIR="${LENCFS_RAWDIR:-/dev/shm}"
-ENV SF_SRCDIR="${SF_SRCDIR:-/dev/null}"
-ENV SF_DEBUG="${SF_DEBUG}"
 ENV SF_BASEDIR="${SF_BASEDIR:-/dev/null}"
+ENV SF_USER="${SF_USER:-root}"
+ENV SF_USER_PASSWORD="${SF_USER_PASSWORD:-segfault}"
+ENV SF_DNS="${SF_DNS:-172.24.0.2}"
+ENV SF_FQDN="${SF_FQDN:-segfault.thc.org}"
+ENV SF_ENCFS_SECDIR="${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}"
+ENV SF_ENCFS_RAWDIR="${SF_ENCFS_RAWDIR:-encfs-raw}"
+ENV SF_DEBUG="${SF_DEBUG}"
 
 RUN \
 	apk add --no-cache --upgrade && \

@@ -7,8 +7,17 @@ RUN apt update -y && \
 		curl
 RUN	apt install -y --no-install-recommends \
 		gcc \
+		g++ \
 		git \
+		make \
+		build-essential \
 		automake \
+		byacc \
+		flex \
+		bison \
+		man-db \
+		manpages-dev \
+		python-is-python3 \
 		patch
 RUN apt install -y --no-install-recommends \
 		vim \
@@ -16,16 +25,31 @@ RUN apt install -y --no-install-recommends \
 		dnsutils \
 		openssh-client \
 		iputils-ping \
+		iputils-tracepath \
+		net-tools \
 		screen \
 		tmux \
 		socat \
 		nmap \
 		hexedit \
+		ngrep \
 		iproute2 \
+		traceroute \
+		mtr \
 		procps \
 		rsync \
+		wipe \
 		htop \
+		dstat \
 		gsocket \
+		wget \
+		proxychains \
+		gnupg \
+		pip \
+		jq \
+		less \
+		bat \
+		duf \
 		netcat-traditional
 RUN apt install -y --no-install-recommends \
 		zsh zsh-syntax-highlighting zsh-autosuggestions

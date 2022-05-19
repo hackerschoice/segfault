@@ -43,7 +43,7 @@ services:
     init: true
     dns: 255.255.255.255
     ports:
-      - "${PORT}:2222"
+      - "${SF_SSH_PORT:-22}:2222"
     env_file:
       .env
     volumes:
@@ -53,6 +53,7 @@ services:
 
 networks:
   dns-doh-net:
+    name: sf_dns-doh-net
     driver: bridge
     ipam:
       config:

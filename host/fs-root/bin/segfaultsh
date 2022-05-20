@@ -65,6 +65,17 @@ exec_errnull()
 		$*
 	fi
 }
+
+# Overcoming a restricted shell. Write $1 to file in $2
+# tofile "foobar \$HOME \"|';id;" world.txt
+tofile()
+{
+	local str
+	# Replace ' with '"'"'
+	str="${1//\'/\'\"\'\"\'/}"
+	bash -c "echo '$str'>'$2'"
+}
+
 print_disclaimer()
 {
 	echo 1>&2 -e "\
@@ -83,7 +94,7 @@ ${CDC}cat >~/.ssh/id_ed25519-lg-${LID} ${CDR}<<__EOF__
 ${CN}${CF}$(cat /var/run/id_ed25519.luser)
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
-${CN}${CF}host ${HOSTNAME,,}.${SF_FQDN//./-}
+${CN}${CF}host ${SF_HOSTNAME,,}.${SF_FQDN//./-}
     HostName ${SF_FQDN}
     IdentityFile ~/.ssh/id_ed25519-lg-${LID}
     SetEnv SECRET=${SF_SEC}
@@ -91,7 +102,7 @@ ${CDR}__EOF__
 ${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_ed25519-lg-${LID}${CN}
 ######################################################################
 Thereafter use this command to connect to your server:
---> ${CDC}ssh root@${HOSTNAME,,}.${SF_FQDN//./-}${CN}
+--> ${CDC}ssh root@${SF_HOSTNAME,,}.${SF_FQDN//./-}${CN}
 ----------------------------------------------------------------------"
 }
 
@@ -135,6 +146,21 @@ spawn_shell_exit()
 	exit "$ret"
 }
 
+# Generate a mnemonic hostname from LID (e.g. ButterflyCat)
+mk_hostname()
+{
+	NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
+	readarray -t english </etc/english.txt
+	SF_HOSTNAME="UnknownUnknown"
+	if [[ "${#english[@]}" -eq 2048 ]]; then
+		SF_HOSTNAME="${english[$((NUM % 2048))]}"
+		SF_HOSTNAME+="${english[$(( (NUM / 2048) % 2048 ))]}"
+	fi
+	DEBUGF "SF_HOSTNAME=$SF_HOSTNAME"
+	unset NUM
+	unset english
+}
+
 # Find out if SSHD allocated a TTY
 # - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
 # - Set docker arguments to login-shell if this is a TTY session.
@@ -154,33 +180,40 @@ SF_VER="1.1"
 # MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE-$(date +%s-%N).txt"
 MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
+mk_hostname
+
 if [[ -d "/config/db/db-${LID}" ]]; then
 	echo_pty -n "Connecting to server. Please wait..."
 else
 	print_disclaimer
 	echo_pty -n "Creating new server. Please wait...."
+
+	# A hostname is generated from the LID. Avoid collision when a hostname
+	# has already been created for a different LID.
+	[[ -e "/config/db/hn2lid-${SF_HOSTNAME}" ]] && {
+		lid_old=$(cat "/config/db/hn2lid-${SF_HOSTNAME}")
+		[[ "$lid_old" -ne "$LID" ]] && {
+			DEBUGF "$SF_HOSTNAME already used by ${lid_old} (this is ${LID})."
+			ERREXIT 13 "Hostname Collision. Try again.."
+		}
+		unset lid_old
+	}
 	IS_NEW_SERVER=1
 
 	mkdir -p "/config/db/db-${LID}" || ERREXIT
 	touch "/config/db/db-${LID}/created.txt" || ERREXIT
+	[[ -d /config/db/hn/ ]] || exec_devnull mkdir /config/db/hn
+	tofile "$LID" "/config/db/hn/hn2lid-${SF_HOSTNAME}"
 fi
 
-DEBUGF "LID=${LID}"
+DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
 
 if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Status}}')" != "running" ]]; then
 	LENCFS_PASS=$(echo -n "EncFS-PASS ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 16)
 	# HERE: encfs is not already running for this instance...
-	# 1st EncFS to put warning into mount-point that it is cleartext (until it's mounted!).
 	DEBUGF "EncFS-${LID} is not yet running..."
-	# docker run \
-	# 	--rm \
-	# 	--env MARKFILE="${MARKFILE}" \
-	# 	--env LID="${LID}" \
-	# 	--env SF_DEBUG="${SF_DEBUG}" \
-	# 	-v "${SF_ENCFS_SECDIR}:/encfs/sec:shared" \
-	# 	sf-encfs || ERREXIT 250 "Could not create /sec..."
 
-	# 2nd EncFS	to mount encrypted to mount-point.
+	# EncFS	to mount encrypted to mount-point.
 	# Run in background (-d)
 	# Use exec_devnull to redirect Container-ID to /dev/null (docker run -d).
 	exec_devnull docker run \
@@ -221,21 +254,9 @@ docker exec \
 	CHECKFILE=1 \
 	/mount.sh" || ERREXIT 244 "Failed to set up /sec..."
 
-echo_pty -n ".."
+echo_pty -n "...."
 
-# Generate a mnemonic hostname from LID (e.g. ButterflyCat)
-NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
-readarray -t english </etc/english.txt
-HOSTNAME="UnknownUnknown"
-if [[ "${#english[@]}" -eq 2048 ]]; then
-	HOSTNAME="${english[$((NUM % 2048))]}"
-	HOSTNAME+="${english[$(( (NUM / 2048) % 2048 ))]}"
-fi
-DEBUGF "HOSTNAME=$HOSTNAME"
-unset NUM
-unset english
 
-echo_pty -n ".."
 # Attach to instance if already running
 [[ -n $IS_TRY_EXISTING ]] && {
 	DEBUGF "Attaching to existing instance lg-${LID}..."
@@ -250,6 +271,15 @@ echo_pty -n ".."
 	# HERE: Instance does not exists.
 }
 
+### Create ONION directory:
+# This script runs under UID=1000 (root) and does not have write permission to
+# /onion. Thus jump via docker.
+[[ -d "/onion/${SF_HOSTNAME,,}" ]] || { 
+	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
+	exec_devnull docker exec sf-host mkdir "/onion/${SF_HOSTNAME,,}"
+	DEBUGF "ret $?"
+}
+
 # Starting GUEST shell
 # Challenge: Keep user processes running that got spawned in the background
 # even when first instance terminates. Also do not terminate instance
@@ -257,7 +287,7 @@ echo_pty -n ".."
 # Solution: Spawn a docker in the background that monitors the number of
 # processes and use 'docker exec' for every connection.
 exec_devnull docker run \
-	--hostname "sf-${HOSTNAME}" \
+	--hostname "sf-${SF_HOSTNAME}" \
 	--rm \
 	--init \
 	--name "lg-${LID}" \
@@ -269,12 +299,15 @@ exec_devnull docker run \
 	--env SF_USER="${SF_USER}" \
 	--env SF_FQDN="${SF_FQDN}" \
 	--env SF_DEBUG="${SF_DEBUG}" \
+	--env SF_HOSTNAME="${SF_HOSTNAME}" \
 	-e SSH_CONNECTION \
 	-e SSH_CLIENT \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--mount type=bind,source="${SF_BASEDIR}/config/etc/ssh/id_ed25519,target=/config/id_ed25519,readonly" \
-	-v "${SF_BASEDIR}/guest/sf-guest:/usr/local/sf-guest:ro" \
-	-v "${SF_ENCFS_SECDIR}/user-${LID}:/sec:shared" \
+	--mount type=bind,source="${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden_service/hostname,target=/config/onion_hostname,readonly" \
+	--mount type=bind,source="${SF_BASEDIR}/guest/sf-guest,target=/usr/local/sf-guest,readonly" \
+	-v "${SF_ENCFS_SECDIR}/user-${LID}:/sec:slave" \
+	-v "${SF_BASEDIR}/data/onion/${SF_HOSTNAME,,}:/onion:shared" \
 	-d \
 	sf-guest /usr/local/sf-guest/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 
@@ -304,6 +337,10 @@ echo_pty -e "....................[${CG}OK${CN}]"
 # Output help of how to connect elegantly
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access
 
+DEBUGF "Status: $(docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
+[[ -z $SF_DEBUG ]] || {
+	docker exec "lg-${LID}" ls -ald /root /sec/root
+}
 # Spawn shell
 spawn_shell_exit "$@"
 # NOT REACHED

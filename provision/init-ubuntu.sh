@@ -136,7 +136,7 @@ usermod -a -G docker "${SF_HOST_USER}"
   # Find out my own hostname
   [[ -z $SF_NO_INTERNET ]] && {
     IP="$(curl ifconfig.me 2>/dev/null)"
-    HOST="$(host "$IP")" && HOST="$(echo "$HOST" | sed -E 's/.*name pointer (.*)\.$/\1/g')" || HOST="$(hostname -f)"
+    HOST="$(host "$IP")" && { HOST="$(echo "$HOST" | sed -E 's/.*name pointer (.*)\.$/\1/g')"; true; } || HOST="$(hostname -f)"
   }
 
   # To short or contains illegal characters? 

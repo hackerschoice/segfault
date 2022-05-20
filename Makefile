@@ -3,6 +3,7 @@ VER := 0.1-beta5
 all:
 	make -C guest
 	make -C host
+	make -C tor
 	make -C encfs
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
@@ -24,6 +25,10 @@ FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/ssh/sshd_config"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/english.txt"
 
+FILES_TOR += "segfault-$(VER)/tor/Dockerfile"
+FILES_TOR += "segfault-$(VER)/tor/Makefile"
+FILES_TOR += "segfault-$(VER)/tor/fs-root/sf-tor.sh"
+
 FILES_PROVISION += "segfault-$(VER)/provision/init-nordvpn.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/init-ubuntu.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/sf-fw.service"
@@ -40,7 +45,7 @@ FILES_ENCFS += "segfault-$(VER)/encfs/mount.sh"
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 
-FILES += $(FILES_ROOT) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES += $(FILES_ROOT) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

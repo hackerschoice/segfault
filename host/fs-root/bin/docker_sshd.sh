@@ -5,6 +5,14 @@ CR="\033[1;31m" # red
 CC="\033[1;36m" # cyan
 CN="\033[0m"    # none
 
+
+[[ -z $SF_BASEDIR ]] && {
+	echo -e "${CR}SF_BASEDIR= not set.${CN}"
+
+	sleep 5
+	exit 255
+}
+
 [[ -d /config ]] || {
 	echo -e "${CR}Not found: /config${CN}
 --> Try -v ~/segfault/config:config,ro -v ~/segfault/config/db:/config/db"
@@ -95,7 +103,7 @@ addgroup -g $(stat -c %g /config/db) sf-dbrw 2>/dev/null # Ignore if already exi
 addgroup root sf-dbrw 2>/dev/null # Ignore if already exists.
 chmod g+wx /config/db || exit $?
 
-# This will execute 'segfaultsh' on login
+# This will execute 'segfaultsh' on root-login (uid=1000)
 /usr/sbin/sshd -u0 -p 2222 -D
 # /usr/sbin/sshd -u0 -p 2222
 

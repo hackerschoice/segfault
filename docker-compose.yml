@@ -24,15 +24,20 @@ services:
       - dns-doh
 
   tor:
-    image: osminogin/tor-simple
     container_name: sf-tor
+    build: tor
     networks:
       guest-net:
         ipv4_address: 172.24.0.4
+      nginx-net:
     restart: always
     dns: 172.24.0.2
     depends_on:
       - dnsmasq
+      - nginx
+    volumes:
+      - "${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden_service:/var/lib/tor/hidden_service"
+      - "${SF_BASEDIR}/config/etc/tor/torrc:/config/torrc"
 
   segfault:
     container_name: sf-host
@@ -42,16 +47,32 @@ services:
     restart: always
     init: true
     dns: 255.255.255.255
-    ports:
-      - "${SF_SSH_PORT:-22}:2222"
     env_file:
       .env
+    ports:
+      - "${SF_SSH_PORT:-22}:2222"
     volumes:
       - "${SF_BASEDIR}/config:/config:ro"
       - "${SF_BASEDIR}/config/db:/config/db"
+      - "${SF_BASEDIR}/data/onion:/onion"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
+  nginx:
+    image: nginx
+    restart: always
+    dns: 255.255.255.255
+    networks:
+      nginx-net:
+    # ports:
+    #   - 8080:80
+    volumes:
+      - "${SF_BASEDIR}/data/onion:/srv/www:ro"
+      - "${SF_BASEDIR}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+
 networks:
+  nginx-net:
+    driver: bridge
+
   dns-doh-net:
     name: sf_dns-doh-net
     driver: bridge

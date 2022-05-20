@@ -105,7 +105,7 @@ setup()
 	xmkdir /sec/usr/share
 
 	# Setup or execute rc.local
-	[[ ! -f /sec/usr/etc/rc.local ]] && setup_rclocal || /bin/bash /sec/usr/etc/rc.local
+	[[ ! -f /sec/usr/etc/rc.local ]] && { setup_rclocal; true; } || /bin/bash /sec/usr/etc/rc.local
 }
 
 DEBUGF "Setting up user's instance..."

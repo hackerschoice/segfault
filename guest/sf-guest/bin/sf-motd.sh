@@ -31,5 +31,10 @@ Your workstation  : ${CDY}${YOURIP:-UNKNOWN}${CN}
 VPN Exit Node     : ${VPN_DST}
 DNS over HTTPS    : ${CDG}Cloudflare${CN}
 TOR Proxy         : ${CDG}172.24.0.4:9050${CN}
-Persistent storage: ${CDC}/sec ${CF}(encrypted)${CN}
+Persistent storage: ${CDC}/sec ${CF}(encrypted)${CN}"
+[[ -e /config/onion_hostname ]] && {
+	echo -e "\
+Your Web Page     : ${CDC}http://$(cat /config/onion_hostname)/${SF_HOSTNAME,,}${CN}"
+}
+echo -e "\
 Access with       : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER:-UNKNOWN}@${SF_FQDN:-UNKNOWN}${CN}"

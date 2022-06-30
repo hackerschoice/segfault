@@ -1,5 +1,9 @@
-# beta.segfault.net - back from the dead
+# segfault.net - back from the dead
 
+---
+* THIS IS BETA TESTING ONLY *
+* JOIN US ON TELEGRAM. LET US KNOW WHAT YOU WANT AND NEED *
+---
 
 A root shell for every (creative) person. Free. Anonymous. Secure.
 
@@ -49,6 +53,7 @@ VPN Providers:
 1. ProtonVPN
 1. NordVPN
 1. https://www.cryptostorm.is/
+1. https://mullvad.net/en/
 
 Hosting providers:
 1. https://www.linode.com/

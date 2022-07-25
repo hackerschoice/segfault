@@ -1,5 +1,7 @@
 version: "3.7"
+# version: "2.4"
 services:
+
   dns-doh:
     container_name: cloudflared
     image: crazymax/cloudflared
@@ -18,20 +20,70 @@ services:
       dns-doh-net:
         ipv4_address: 172.23.0.3
       guest-net:
-        ipv4_address: 172.24.0.2
+        ipv4_address: 10.11.255.252
     restart: always
     depends_on:
       - dns-doh
+
+  nordlynx:
+    image: ghcr.io/bubuntux/nordlynx
+    depends_on:
+      - dnsmasq
+    dns: 172.23.0.3 #dnsmasq on dns-doh-net
+    cap_add:
+      - NET_ADMIN #required
+    environment:
+      - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY}
+      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordlynx.log post_up %i
+      - POST_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordlynx.log post_down %i
+    networks:
+      vpn:
+        ipv4_address: 172.20.0.254
+      dns-doh-net:
+        ipv4_address: 172.23.0.254
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
+    volumes:
+      - "${SF_RUNDIR}:/sf/run"
+      - "${SF_BASEDIR}/sfbin:/sf/bin:ro"
+
+  router:
+    image: sf-router
+    build: router
+    depends_on:
+      - router-fix-network
+    networks:
+      vpn:
+        ipv4_address: 172.20.0.2
+      guest-net:
+        ipv4_address: 10.11.255.253 # Will be replaced by init.sh with 10.11.0.1
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - SF_DEBUG=$SF_DEBUG
+    entrypoint: ["/init.sh"]
+
+  router-fix-network:
+    image: sf-router
+    network_mode: host # host's stack
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - SF_DEBUG=$SF_DEBUG
+    entrypoint: ["/fix-network.sh"]
 
   tor:
     container_name: sf-tor
     build: tor
     networks:
       guest-net:
-        ipv4_address: 172.24.0.4
+        ipv4_address: 10.11.255.251
       nginx-net:
     restart: always
-    dns: 172.24.0.2
+    dns: 10.11.255.252
     depends_on:
       - dnsmasq
       - nginx
@@ -52,24 +104,48 @@ services:
     ports:
       - "${SF_SSH_PORT:-22}:2222"
     volumes:
-      - "${SF_BASEDIR}/config:/config:ro"
+      - "${SF_BASEDIR}/config/etc/ssh:/config/etc/ssh:ro"
       - "${SF_BASEDIR}/config/db:/config/db"
-      - "${SF_BASEDIR}/data/onion:/onion"
+      - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/onion:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
+
+  nginx-encfs:
+    build: encfs
+    restart: always
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - SF_ENCFS_PASS
+    command: ["/mount.sh", "server"]
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    volumes:
+      - "${SF_BASEDIR}/config/etc/encfs:/config:ro"
+      - "${SF_DATADIR}/onion-www:/encfs/raw"
+      - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/encfs/sec:shared"
 
   nginx:
     image: nginx
     restart: always
+    depends_on:
+      - nginx-encfs
     dns: 255.255.255.255
     networks:
       nginx-net:
-    # ports:
-    #   - 8080:80
     volumes:
-      - "${SF_BASEDIR}/data/onion:/srv/www:ro"
+      - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/srv/www:slave,ro"
       - "${SF_BASEDIR}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
 networks:
+  vpn:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.20.0.0/24
+
   nginx-net:
     driver: bridge
 
@@ -80,10 +156,13 @@ networks:
       config:
         - subnet: 172.23.0.0/24
 
+  # User's shell
   guest-net:
     name: sf_guest-net
     driver: bridge
     ipam:
+      driver: default
       config:
-        - subnet: 172.24.0.0/24
+        - subnet: 10.11.0.0/16
+        # default gw is always 10.11.0.1 and is the host side of the bridge (?)
 

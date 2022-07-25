@@ -15,7 +15,7 @@ CN="\033[0m"    # none
 
 [[ -d /config ]] || {
 	echo -e "${CR}Not found: /config${CN}
---> Try -v ~/segfault/config:config,ro -v ~/segfault/config/db:/config/db"
+--> Try -v ~/segfault/config:config,ro -v config/db:/config/db"
 
 	sleep 5
 	exit 255
@@ -23,7 +23,7 @@ CN="\033[0m"    # none
 
 [[ -d /config/db ]] || {
 	echo -e "${CR}Not found: /config/db${CN}
---> Try -v ~/segfault/config:config,ro -v ~/segfault/config/db:/config/db"
+--> Try -v ~/segfault/config:config,ro -v config/db:/config/db"
 
 	sleep 5
 	exit 255
@@ -43,7 +43,7 @@ ${CR}SSH Host Key not found in /config/etc/ssh/${CN}. You must create them first
 [[ -e /config/etc/ssh/id_ed25519 ]] || {
 	echo -e "\
 ${CR}SSH Login Key not found in /config/etc/ssh/id_ed25519${CN}. You must create them first:
---> ${CC}ssh-keygen -q -t ed25519 -C \"\" -N \"\" -f ~/segfault/config/etc/ssh/id_ed25519${CN}"
+--> ${CC}ssh-keygen -q -t ed25519 -C \"\" -N \"\" -f config/etc/ssh/id_ed25519${CN}"
 
 	sleep 5
 	exit 255
@@ -64,24 +64,13 @@ chmod 444 /var/run/id_ed25519.luser
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
 # variables to the user's docker instance (sf-guest)
-
-
-# Set to default if not set
-[[ -z $SF_ENCFS_RAWDIR ]] && SF_ENCFS_RAWDIR="encfs-raw"
-# If it is not an absolute path then use it as a name
-if [[ "$SF_ENCFS_RAWDIR" != /* ]]; then
-	# HERE: NOT a path starting with '/'
-	# HERE: relative path (containing '/') or just a name.
-	SF_ENCFS_RAWDIR="${SF_BASEDIR}/${SF_ENCFS_RAWDIR}"
-fi
-
-
 echo "SF_DNS=\"${SF_DNS}\"
 SF_ENCFS_SECDIR=\"${SF_ENCFS_SECDIR}\"
-SF_ENCFS_RAWDIR=\"${SF_ENCFS_RAWDIR}\"
+SF_DATADIR=\"${SF_DATADIR}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
+SF_RUNDIR=\"${SF_RUNDIR}\"
 SF_FQDN=\"${SF_FQDN}\"" >/var/run/lhost-config.txt
 
 # The owner of the original socket is not known at 'docker build' time. Thus 
@@ -99,7 +88,7 @@ dbgid="$(stat -c %g /config/db)"
 	echo -e "${CY}WARNING:${CN} /config/db has group owner of 'root'.
 --> Better try: ${CC}chgrp nogroup ~/segfault/config/db${CN}"
 }
-addgroup -g $(stat -c %g /config/db) sf-dbrw 2>/dev/null # Ignore if already exists.
+addgroup -g "$(stat -c %g /config/db)" sf-dbrw 2>/dev/null # Ignore if already exists.
 addgroup root sf-dbrw 2>/dev/null # Ignore if already exists.
 chmod g+wx /config/db || exit $?
 

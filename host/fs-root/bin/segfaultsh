@@ -130,7 +130,7 @@ GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 echo_pty()
 {
 	[[ -n $IS_PTY ]] || return
-	echo $@
+	echo "$@"
 }
 
 spawn_shell_exit()
@@ -164,7 +164,14 @@ mk_hostname()
 # Find out if SSHD allocated a TTY
 # - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
 # - Set docker arguments to login-shell if this is a TTY session.
-bash -c "tty >/dev/null" && { ARG="-it"; PARAM=("-il"); IS_PTY=1; } || { ARG="-i"; PARAM=(); }
+if bash -c "tty >/dev/null"; then
+	ARG="-it"
+	PARAM=("-il")
+	IS_PTY=1
+else
+	ARG="-i"
+	PARAM=();
+fi
 
 # Connect to existing session
 if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 12 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
@@ -177,7 +184,6 @@ fi
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
 
 SF_VER="1.1"
-# MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE-$(date +%s-%N).txt"
 MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
 mk_hostname
@@ -226,7 +232,7 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--env LID="${LID}" \
 		--env SF_DEBUG="${SF_DEBUG}" \
 		--log-driver "${SF_DOCKER_LOG}" \
-		-v "${SF_ENCFS_RAWDIR}:/encfs/raw" \
+		-v "${SF_DATADIR}/user:/encfs/raw" \
 		-v "${SF_ENCFS_SECDIR}:/encfs/sec:shared" \
 		-v "/var/run/docker.sock:/var/run/docker.sock" \
 		-d \
@@ -251,7 +257,6 @@ docker exec \
 	"LID=\"${LID}\" \
 	SF_DEBUG=\"${SF_DEBUG}\" \
 	MARKFILE=\"${MARKFILE}\" \
-	CHECKFILE=1 \
 	/mount.sh" || ERREXIT 244 "Failed to set up /sec..."
 
 echo_pty -n "...."
@@ -305,11 +310,11 @@ exec_devnull docker run \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--mount type=bind,source="${SF_BASEDIR}/config/etc/ssh/id_ed25519,target=/config/id_ed25519,readonly" \
 	--mount type=bind,source="${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden_service/hostname,target=/config/onion_hostname,readonly" \
-	--mount type=bind,source="${SF_BASEDIR}/guest/sf-guest,target=/usr/local/sf-guest,readonly" \
+	--mount type=bind,source="${SF_RUNDIR}/vpn,target=/sf/run/vpn,readonly" \
 	-v "${SF_ENCFS_SECDIR}/user-${LID}:/sec:slave" \
-	-v "${SF_BASEDIR}/data/onion/${SF_HOSTNAME,,}:/onion:shared" \
+	-v "${SF_ENCFS_SECDIR}/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
 	-d \
-	sf-guest /usr/local/sf-guest/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
+	sf-guest /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 
 [[ -n $IS_PTY ]] && echo -n ".."
 
@@ -323,14 +328,14 @@ while :; do
 	DEBUGF "rc=$rc status=$str"
 	[[ "$rc" -eq 0 ]] && [[ "$str" = "running" ]] && break
 	DEBUGF "#${n} Waiting for sf-guest to be ready..."
-	[[ $n -gt 0 ]] && sleep 5 || sleep 0.1
+	if [[ $n -gt 0 ]]; then sleep 5; else sleep 0.1; fi
 	n=$((n+1))
 	[[ $n -gt 2 ]] && ERREXIT 253 "Could not create instance..."
 done
 [[ -n $IS_PTY ]] && echo -n ".."
 
 # Setup instance
-docker exec "lg-${LID}" /usr/local/sf-guest/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
+docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
 
 echo_pty -e "....................[${CG}OK${CN}]"
 

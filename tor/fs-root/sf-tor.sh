@@ -1,4 +1,4 @@
-#! /bin/ash
+#! /bin/bash
 
 CR="\033[1;31m" # red
 CG="\033[1;32m" # green
@@ -8,6 +8,7 @@ ERREXIT()
 {
 	local code
 	code="$1"
+	# shellcheck disable=SC2181 #(style): Check exit code directly with e.g
 	[[ $? -ne 0 ]] && code="$?"
 	[[ -z $code ]] && code=99
 
@@ -21,5 +22,9 @@ ERREXIT()
 chown tor /var/lib/tor/hidden_service || ERREXIT
 chmod 700 /var/lib/tor/hidden_service || ERREXIT
 echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
-[[ -f /config/torrc ]] && { exec su -s /bin/ash - tor -c "tor -f /config/torrc"; true; } || exec su -s /bin/ash - tor -c "tor"
+if [[ -f /config/torrc ]]; then
+	exec su -s /bin/ash - tor -c "tor -f /config/torrc"
+else
+	exec su -s /bin/ash - tor -c "tor"
+fi
 # NOT REACHED

@@ -5,6 +5,7 @@ all:
 	make -C host
 	make -C tor
 	make -C encfs
+	make -C router
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/Dockerfile"
@@ -42,10 +43,15 @@ FILES_ENCFS += "segfault-$(VER)/encfs/Makefile"
 FILES_ENCFS += "segfault-$(VER)/encfs/Dockerfile"
 FILES_ENCFS += "segfault-$(VER)/encfs/mount.sh"
 
+FILES_ROUTER += "segfault-$(VER)/router/Makefile"
+FILES_ROUTER += "segfault-$(VER)/router/Dockerfile"
+FILES_ROUTER += "segfault-$(VER)/router/fix-network.sh"
+FILES_ROUTER += "segfault-$(VER)/router/init.sh"
+
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 
-FILES += $(FILES_ROOT) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES += $(FILES_ROOT) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

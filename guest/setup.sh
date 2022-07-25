@@ -19,7 +19,6 @@ echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt && \
 rm -rf /root && \
 cp -a /etc/skel /sec/root && \
 mkdir /root && \
-# ln -sf /sec/root /root && \
 #
 # Need to set correct permission which may have gotten skewed when building
 # docker inside vmbox from shared host drive (rwxrwx--- root:vobxsf)
@@ -29,7 +28,5 @@ chmod 755 /etc /etc/profile.d && \
 chmod 644 /etc/profile.d/segfault.sh && \
 chmod 644 /etc/shellrc && \
 ln -s batcat /usr/bin/bat && \
-curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
-dpkg -i /tmp/lsd.dep && \
 echo DONE || exit 254
 

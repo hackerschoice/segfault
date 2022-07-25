@@ -35,6 +35,7 @@ ERREXIT()
 {
 	local code
 	code="$1"
+	# shellcheck disable=SC2181 #(style): Check exit code directly with e.g
 	[[ $? -ne 0 ]] && code="$?"
 	[[ -z $code ]] && code=99
 

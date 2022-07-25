@@ -12,7 +12,7 @@ if [[ "$SF_USER" = "root" ]]; then
 	sed -i 's/^root/toor/' /etc/shadow
 fi
 echo "/bin/segfaultsh" >>/etc/shells && \
-adduser -D ${SF_USER} -G nobody -s /bin/segfaultsh && \
+adduser -D "${SF_USER}" -G nobody -s /bin/segfaultsh && \
 echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd
 # sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
 # sed -i 's/#PrintMotd yes/ no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \

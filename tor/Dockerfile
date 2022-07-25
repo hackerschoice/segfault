@@ -1,6 +1,6 @@
 FROM alpine:edge
 
-RUN apk add --no-cache curl tor && \
+RUN apk add --no-cache curl tor bash && \
 	(echo -e "\
 SocksPort 0.0.0.0:9050\n\
 HiddenServiceDir /var/lib/tor/hidden_service/\n\

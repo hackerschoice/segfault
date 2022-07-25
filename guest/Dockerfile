@@ -22,6 +22,7 @@ RUN	apt install -y --no-install-recommends \
 RUN apt install -y --no-install-recommends \
 		vim \
 		binutils \
+		whois \
 		dnsutils \
 		openssh-client \
 		iputils-ping \
@@ -52,7 +53,12 @@ RUN apt install -y --no-install-recommends \
 		duf \
 		netcat-traditional
 RUN apt install -y --no-install-recommends \
-		zsh zsh-syntax-highlighting zsh-autosuggestions
+		zsh \
+		zsh-syntax-highlighting \
+		zsh-autosuggestions
+RUN curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
+		dpkg -i /tmp/lsd.dep && \
+		rm -f /tmp/lsd.dep
 
 COPY /fs-root/ /
 COPY setup.sh /

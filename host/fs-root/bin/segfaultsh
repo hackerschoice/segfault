@@ -91,7 +91,7 @@ print_ssh_access()
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
 ${CDC}cat >~/.ssh/id_ed25519-lg-${LID} ${CDR}<<__EOF__
-${CN}${CF}$(cat /var/run/id_ed25519.luser)
+${CN}${CF}$(cat ~/.ssh/id_ed25519)
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}.${SF_FQDN//./-}
@@ -232,7 +232,7 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--env LID="${LID}" \
 		--env SF_DEBUG="${SF_DEBUG}" \
 		--log-driver "${SF_DOCKER_LOG}" \
-		-v "${SF_DATADIR}/user:/encfs/raw" \
+		-v "${SF_BASEDIR}/data/user:/encfs/raw" \
 		-v "${SF_ENCFS_SECDIR}:/encfs/sec:shared" \
 		-v "/var/run/docker.sock:/var/run/docker.sock" \
 		-d \

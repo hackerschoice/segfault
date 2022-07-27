@@ -26,13 +26,20 @@ ip route del default && \
 ip route add default via 172.20.0.254 && \
 ifconfig "$DEV" 10.11.0.1/16 && \
 iptables -t nat -A POSTROUTING -o "${DEV_GW}" -j MASQUERADE && \
-echo -e >&2 "SUCCESS" && \
+# TOR traffic (10.11.0.0/16) goes to TOR (transparent proxy)
+ip route add 10.111.0.0/16 via 10.11.255.251 && \
+# MASQ so that TOR's return traffic goes through this router (for Traffic Control; tc)
+iptables -t nat -A POSTROUTING -o eth1 -d 10.111.0.0/16 -j MASQUERADE
+echo -e >&2 "FW: SUCCESS" && \
+
+/tc.sh "${DEV_GW}" "${DEV}" && \
+echo -e >&2 "TC: SUCCESS" && \
+
 # Sleep forever. This allows admin to attach to router
 # and muddle with Traffic Control
 exec -a "[sf-router] sleep" sleep infinity
 
-
-
+ip route del default
 echo -e >&2 "FAILED to set routes"
 exit 250
 

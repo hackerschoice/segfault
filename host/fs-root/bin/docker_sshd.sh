@@ -6,59 +6,56 @@ CC="\033[1;36m" # cyan
 CN="\033[0m"    # none
 
 
-[[ -z $SF_BASEDIR ]] && {
-	echo -e "${CR}SF_BASEDIR= not set.${CN}"
+ERREXIT()
+{
+	local s
+	local code
+	code="$1"
+	s="$2"
 
-	sleep 5
-	exit 255
+	shift 2
+
+	echo -e >&2 "$*"
+
+	sleep "$s"
+	exit "$code"
 }
 
-[[ -d /config ]] || {
-	echo -e "${CR}Not found: /config${CN}
---> Try -v ~/segfault/config:config,ro -v config/db:/config/db"
+[[ -z $SF_BASEDIR ]] && {
+	# FATAL: Repeat loop until user fixes this bug.
+	while :; do
+		echo -e >&2 "${CR}SF_BASEDIR= not set. Try \`SF_BASEDIR=\$(pwd) docker-compose up\`.${CN}"
+		sleep 5
+	done
+}
 
-	sleep 5
-	exit 255
-} 
+[[ -d /config ]] || ERREXIT 255 5 "${CR}Not found: /config${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
 
-[[ -d /config/db ]] || {
-	echo -e "${CR}Not found: /config/db${CN}
---> Try -v ~/segfault/config:config,ro -v config/db:/config/db"
-
-	sleep 5
-	exit 255
-} 
+[[ -d /config/db ]] || ERREXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
 
 # This is the entry point for SF-HOST (e.g. host/Dockerfile)
 # Fix ownership if mounted from within vbox
 [[ -e /config/etc/ssh/ssh_host_rsa_key ]] || {
-	echo -e "\
-${CR}SSH Host Key not found in /config/etc/ssh/${CN}. You must create them first:
---> ${CC}mkdir -p ${SF_BASEDIR:-BAD}/config/etc/ssh && ssh-keygen -A -f ${SF_BASEDIR:-BAD}/config${CN}"
+	[[ ! -d "/config/etc/ssh" ]] && { mkdir -p "/config/etc/ssh" || ERREXIT 255 5; }
 
-	sleep 5
-	exit 255
+	ssh-keygen -A -f "/config" 2>&1 # Always return 0, even on failure.
+	[[ ! -f "/config/etc/ssh/ssh_host_rsa_key" ]] && ERREXIT 255 5
 }
 
 [[ -e /config/etc/ssh/id_ed25519 ]] || {
-	echo -e "\
-${CR}SSH Login Key not found in /config/etc/ssh/id_ed25519${CN}. You must create them first:
---> ${CC}ssh-keygen -q -t ed25519 -C \"\" -N \"\" -f config/etc/ssh/id_ed25519${CN}"
-
-	sleep 5
-	exit 255
+	ssh-keygen -q -t ed25519 -C "" -N "" -f /config/etc/ssh/id_ed25519 2>&1
+	[[ ! -f "/config/etc/ssh/id_ed25519" ]] && ERREXIT 255 5
 }
 
 # Copy login-key to fake root's home directory
-[[ -e /home/root/.ssh/authorized_keys ]] || {
-	[[ -d /home/root/.ssh ]] || { mkdir /home/root/.ssh; chown root:nobody /home/root/.ssh; }
-	cp /config/etc/ssh/id_ed25519.pub /home/root/.ssh/authorized_keys
-	chown root:nobody /home/root/.ssh/authorized_keys
+[[ -e /home/"${SF_USER}"/.ssh/authorized_keys ]] || {
+	[[ -d /home/"${SF_USER}"/.ssh ]] || { mkdir /home/"${SF_USER}"/.ssh; chown "${SF_USER}":nobody /home/"${SF_USER}"/.ssh; }
+	cp /config/etc/ssh/id_ed25519.pub /home/"${SF_USER}"/.ssh/authorized_keys
+	# Copy of private key so that segfaultsh (in uid=1000 context)
+	# can display the private key for future logins.
+	cp /config/etc/ssh/id_ed25519 /home/"${SF_USER}"/.ssh/
+	chown "${SF_USER}":nobody /home/"${SF_USER}"/.ssh/authorized_keys /home/"${SF_USER}"/.ssh/id_ed25519
 }
-
-# Make a copy so that sf-hosts's root(uid=1000) can access the file.
-cp /config/etc/ssh/id_ed25519 /var/run/id_ed25519.luser
-chmod 444 /var/run/id_ed25519.luser
 
 # SSHD resets the environment variables. The environment variables relevant to the guest
 # are stored in a file here and then read by `segfaultsh'.
@@ -66,7 +63,6 @@ chmod 444 /var/run/id_ed25519.luser
 # variables to the user's docker instance (sf-guest)
 echo "SF_DNS=\"${SF_DNS}\"
 SF_ENCFS_SECDIR=\"${SF_ENCFS_SECDIR}\"
-SF_DATADIR=\"${SF_DATADIR}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
@@ -82,14 +78,12 @@ chmod 770 /var/run/docker.sock && \
 
 # SSHD's user (normally "root" with uid 1000) needs write access to /config/db
 # That directory is mounted from the outside and we have no clue what the
-# group owner or permission is. Need to add our root(uid=1000) to that group:
-dbgid="$(stat -c %g /config/db)"
-[[ "$dbgid" -eq 0 ]] && {
-	echo -e "${CY}WARNING:${CN} /config/db has group owner of 'root'.
---> Better try: ${CC}chgrp nogroup ~/segfault/config/db${CN}"
-}
+# group owner or permission is. Need to add our root(uid=1000) to that group.
+# However, we dont like this to be group=0 (root) so we force it to nogroup
+# if it is root.
+[[ "$(stat -c %g /config/db)" -eq 0 ]] && chgrp nogroup /config/db # Change root -> nogroup
 addgroup -g "$(stat -c %g /config/db)" sf-dbrw 2>/dev/null # Ignore if already exists.
-addgroup root sf-dbrw 2>/dev/null # Ignore if already exists.
+addgroup "${SF_USER}" "$(stat -c %G /config/db)" 2>/dev/null # Ignore if already exists.
 chmod g+wx /config/db || exit $?
 
 # This will execute 'segfaultsh' on root-login (uid=1000)

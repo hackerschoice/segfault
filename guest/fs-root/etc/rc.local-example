@@ -3,7 +3,7 @@
 # This script is executed after the instance has booted up and
 # before the user's shell is spawned.
 
-# Start all your deamons here.... :>
+# Start all your daemons here.... :>
 # Example:
 # nohup sleep 31337 &>/dev/null &
 

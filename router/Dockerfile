@@ -8,9 +8,10 @@ RUN apt update && \
        netcat \
 	iptables \
 	iproute2 \
+	iperf \
        tcpdump && \
        echo DONE
 
-COPY init.sh fix-network.sh /
+COPY tc.sh init.sh fix-network.sh /
 CMD ["bash", "-il"]
 

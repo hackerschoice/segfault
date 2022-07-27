@@ -32,6 +32,7 @@ RUN apt install -y --no-install-recommends \
 		tmux \
 		socat \
 		nmap \
+		irssi \
 		hexedit \
 		ngrep \
 		iproute2 \

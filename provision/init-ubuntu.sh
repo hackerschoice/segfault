@@ -20,33 +20,6 @@ SUDO_SF()
   sudo -u "${SF_HOST_USER}" bash -c "$*"
 }
 
-# add_service <.service name> <.sh file>
-# add_service()
-# {
-#   local sname
-#   sname="${1}"
-#   local is_need_reload
-
-#   cp "${SFI_SRCDIR}/provision/system/${sname}.sh" "${SF_BASEDIR}/system/${sname}.sh"
-#   chmod 750 "${SF_BASEDIR}/system/${sname}.sh"
-
-#   [[ -f "/etc/systemd/system/${sname}.service" ]] && is_need_reload=1
-#   cp "${SFI_SRCDIR}/provision/${sname}.service" "/etc/systemd/system/${sname}.service"
-#   chmod 640 "/etc/systemd/system/${sname}.service"
-#   sed -i "s/@SF_BASEDIR@/${SF_BASEDIR_ESC}/" "/etc/systemd/system/${sname}.service"
-#   # If service is already installed then a 'daemon-reload' & 'reload' should be enough.
-#   if [[ -n $is_need_reload ]]; then
-#     DEBUGF "RESTARTING SERVICE ${sname}.service"
-#     systemctl daemon-reload
-#     systemctl stop "${sname}"
-#     systemctl start "${sname}"
-#     # systemctl reload "${sname}"
-#   else
-#     systemctl enable "${sname}"
-#     systemctl start "${sname}"
-#   fi
-# }
-
 install_docker()
 {
   command -v docker >/dev/null && return
@@ -131,6 +104,9 @@ init_config_run_sfbin()
   # Copy nginx.conf
   [[ ! -d "${SF_BASEDIR}/config/etc/nginx" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/nginx\" \"${SF_BASEDIR}/config/etc\""
 
+  # Copy Traffic Control (tc) config
+  [[ ! -d "${SF_BASEDIR}/config/etc/tc" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/tc\" \"${SF_BASEDIR}/config/etc\""
+  
   # Create EncFS password for nginx/onion
   if [[ -f "${SF_BASEDIR}/config/etc/encfs/encfs.pass" ]]; then
     SF_ENCFS_PASS="$(cat "${SF_BASEDIR}/config/etc/encfs/encfs.pass")"
@@ -147,8 +123,11 @@ init_config_run_sfbin()
     SF_RUNDIR="/tmp/sf-u${SF_HOST_USER_ID}/run"
   fi
 
-  # Directory will be created by docker-compose..
-  # SUDO_SF "umask 077; mkdir -p \"${SF_RUNDIR}/vpn\""
+  # Create ./data or symlink correctly.
+  [[ -n $SF_DATADIR ]] && {
+    [[ ! -d "$SF_DATADIR" ]] && mkdir -p "$SF_DATADIR"
+    [[ ! -d "${SF_BASEDIR}/data" ]] && ln -s "$SF_DATADIR" "${SF_BASEDIR}/data"
+  }
 
   # Copy over sfbin
   [[ ! -d "${SF_BASEDIR}/sfbin" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/sfbin\" \"${SF_BASEDIR}\""
@@ -214,39 +193,47 @@ DEBUGF "SF_FQDN=${SF_FQDN}"
 # Create '.env' file for docker-compose
 SF_BASEDIR_ESC="${SF_BASEDIR//\//\\/}"
 SF_NORDVPN_PRIVATE_KEY_ESC="${SF_NORDVPN_PRIVATE_KEY//\//\\/}"
-SF_SRCDIR_ESC="${SFI_SRCDIR//\//\\/}"
 SF_FQDN_ESC="${SF_FQDN//\//\\/}"
 SF_RUNDIR_ESC="${SF_RUNDIR//\//\\/}"
+# .env needs to be where the images are build (in the source directory)
 ENV="${SFI_SRCDIR}/.env"
 if [[ -e "${ENV}" ]]; then
   IS_USING_EXISTING_ENV_FILE=1
 else
   SUDO_SF "cp \"${SFI_SRCDIR}/provision/env.example\" \"${ENV}\" && \
   sed -i 's/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR_ESC}/' \"${ENV}\" && \
-  sed -i 's/^SF_RUNDIR.*/SF_RUNDIR=${SF_RUNDIR_ESC}/' \"${ENV}\" && \
-  sed -i 's/^SF_DATADIR.*/SF_DATADIR=${SF_BASEDIR_ESC}/data' \"${ENV}\" && \
-  sed -i 's/^SF_SRCDIR.*/SF_SRCDIR=${SF_SRCDIR_ESC}/' \"${ENV}\" && \
+  sed -i 's/.*SF_RUNDIR.*/SF_RUNDIR=${SF_RUNDIR_ESC}/' \"${ENV}\" && \
   sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN_ESC}/' \"${ENV}\" && \
-  sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY_ESC}/' \"${ENV}\" && \
   sed -i 's/PORT=.*/PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 120 failed
+  [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY_ESC}/' \"${ENV}\"" || ERREXIT 121 failed; }
+  [[ -n $SF_MAXOUT ]] && { SUDO_SF "sed -i 's/.*SF_MAXOUT.*/SF_MAXOUT=${SF_MAXOUT}/' \"${ENV}\"" || ERREXIT 121 failed; }
+  [[ -n $SF_MAXIN ]] && { SUDO_SF "sed -i 's/.*SF_MAXIN.*/SF_MAXIN=${SF_MAXIN}/' \"${ENV}\"" || ERREXIT 121 failed; }
 fi
 
 (cd "${SFI_SRCDIR}" && \
   docker-compose pull && \
-  docker-compose build -q)
+  docker-compose build -q && \
+  docker network prune -f)
 DOCKER_COMPOSE_CMD="docker-compose up -d"
-if (cd "${SFI_SRCDIR}" && docker ps) | grep sf-host >/dev/null; then
-  IS_DOCKER_ALREADY_RUNNING=1
+if docker ps | egrep "sf-host|sf-router" >/dev/null; then
+  WARNMSG="A SEGFAULT is already running."
+  IS_DOCKER_NEED_MANUAL_START=1
 else
-  (cd "${SFI_SRCDIR}" && $DOCKER_COMPOSE_CMD) || ERREXIT
+  (cd "${SFI_SRCDIR}" && $DOCKER_COMPOSE_CMD) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
 fi
 
 echo -e "***${CG}SUCCESS${CN}***"
 [[ -z $IS_USING_EXISTING_ENV_FILE ]] || WARN 4 "Using existing .env file (${ENV})"
-[[ -z $IS_DOCKER_ALREADY_RUNNING ]] || {
-  WARN 5 "Docker docker-compose failed. Please run:"
-  INFO "(cd \"${SFI_SRCDIR}\" && docker-compose down && \\
+[[ -z $IS_DOCKER_NEED_MANUAL_START ]] || {
+  WARN 5 "${WARNMSG} Please run:"
+  INFO "(cd \"${SFI_SRCDIR}\" && \\ \n\
+    docker-compose down && docker network prune -f && \\ \n\
     ${DOCKER_COMPOSE_CMD})"
+}
+[[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {
+  WARN 6 "NordVPN ${CR}DISABLED${CN}. Set SF_NORDVPN_PRIVATE_KEY= to enable."
+  INFO "To retrieve the PRIVATE_KEY try: \n\
+    ${CDC}docker run --rm --cap-add=NET_ADMIN -e USER=XXX -e PASS=YYY bubuntux/nordvpn:get_private_key${CN}"
 }
 INFO "Directory           : ${CC}${SF_BASEDIR}${CN}"
 INFO "Access with         : ${CC}ssh -p ${SF_SSH_PORT} root@${SF_FQDN}${CN}"

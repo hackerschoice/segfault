@@ -1,9 +1,6 @@
 version: "3.7"
-# version: "2.4"
 services:
-
   dns-doh:
-    container_name: cloudflared
     image: crazymax/cloudflared
     restart: always
     networks:
@@ -11,11 +8,10 @@ services:
         ipv4_address: 172.23.0.2
 
   dnsmasq:
-    container_name: dnsmasq
     image: 4km3/dnsmasq:2.85-r2
     cap_add:
       - NET_ADMIN
-    command: ["--no-resolv", "--domain-needed", "--server=172.23.0.2#5053"]
+    command: ["--no-resolv", "--domain-needed", "--server=172.23.0.2#5053", "--server=/onion/10.11.255.251#5353"]
     networks:
       dns-doh-net:
         ipv4_address: 172.23.0.3
@@ -33,7 +29,7 @@ services:
     cap_add:
       - NET_ADMIN #required
     environment:
-      - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY}
+      - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordlynx.log post_up %i
       - POST_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordlynx.log post_down %i
     networks:
@@ -47,12 +43,12 @@ services:
       - net.ipv4.ip_forward=1
     restart: unless-stopped
     volumes:
-      - "${SF_RUNDIR}:/sf/run"
-      - "${SF_BASEDIR}/sfbin:/sf/bin:ro"
+      - "${SF_RUNDIR:-/dev/shm/sf/vpn}:/sf/run/vpn"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   router:
-    image: sf-router
     build: router
+    image: sf-router
     depends_on:
       - router-fix-network
     networks:
@@ -63,7 +59,11 @@ services:
     cap_add:
       - NET_ADMIN
     environment:
-      - SF_DEBUG=$SF_DEBUG
+      - SF_DEBUG=${SF_DEBUG:-}
+      - SF_MAXOUT=${SF_MAXOUT:-}
+      - SF_MAXIN=${SF_MAXIN:-}
+    volumes:
+      - "${SF_BASEDIR:-.}/config/etc/tc:/config/tc:ro"
     entrypoint: ["/init.sh"]
 
   router-fix-network:
@@ -72,45 +72,59 @@ services:
     cap_add:
       - NET_ADMIN
     environment:
-      - SF_DEBUG=$SF_DEBUG
+      - SF_DEBUG=${SF_DEBUG:-}
     entrypoint: ["/fix-network.sh"]
 
   tor:
-    container_name: sf-tor
     build: tor
+    image: sf-tor
     networks:
       guest-net:
         ipv4_address: 10.11.255.251
       nginx-net:
+    cap_add:
+      - NET_ADMIN    
     restart: always
     dns: 10.11.255.252
     depends_on:
       - dnsmasq
       - nginx
     volumes:
-      - "${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden_service:/var/lib/tor/hidden_service"
-      - "${SF_BASEDIR}/config/etc/tor/torrc:/config/torrc"
+      - "${SF_BASEDIR:-.}/config/${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}/tor/hidden_service:/var/lib/tor/hidden_service"
+      - "${SF_BASEDIR:-.}/config/etc/tor:/config/tor:ro"
 
   segfault:
-    container_name: sf-host
     build: host
+    image: sf-host
+    # /bin/segfaultsh need to know the container name; set it to sf-host statically
+    container_name: sf-host
     depends_on:
       - dnsmasq
     restart: always
     init: true
     dns: 255.255.255.255
-    env_file:
-      .env
+    # SSHD clears all environment variables before spwaning a shell (segfaultsh).
+    # Add any variables to docker_sshd.sh as well.
+    environment:
+      - SF_DNS=${SF_DNS:-10.11.255.252}
+      - SF_BASEDIR=${SF_BASEDIR}
+      - SF_RUNDIR=${SF_RUNDIR:-/dev/shm/sf}
+      - SF_USER=${SF_USER:-root}
+      - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
+      - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
+      - SF_ENCFS_SECDIR=${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}
+      - SF_DEBUG=${SF_DEBUG:-}
     ports:
       - "${SF_SSH_PORT:-22}:2222"
     volumes:
-      - "${SF_BASEDIR}/config/etc/ssh:/config/etc/ssh:ro"
-      - "${SF_BASEDIR}/config/db:/config/db"
+      - "${SF_BASEDIR:-.}/config/etc/ssh:/config/etc/ssh"
+      - "${SF_BASEDIR:-.}/config/db:/config/db"
       - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/onion:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx-encfs:
     build: encfs
+    image: sf-encfs
     restart: always
     cap_add:
       - SYS_ADMIN
@@ -119,11 +133,12 @@ services:
     environment:
       - SF_ENCFS_PASS
     command: ["/mount.sh", "server"]
+    network_mode: none
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
-      - "${SF_BASEDIR}/config/etc/encfs:/config:ro"
-      - "${SF_DATADIR}/onion-www:/encfs/raw"
+      - "${SF_BASEDIR:-.}/config/etc/encfs:/config"
+      - "${SF_BASEDIR:-.}/data/onion-www:/encfs/raw"
       - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/encfs/sec:shared"
 
   nginx:
@@ -132,11 +147,13 @@ services:
     depends_on:
       - nginx-encfs
     dns: 255.255.255.255
+    # ports:
+    #   - 8080:80 # FIXME: testing..
     networks:
       nginx-net:
     volumes:
       - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/srv/www:slave,ro"
-      - "${SF_BASEDIR}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+      - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
 networks:
   vpn:
@@ -150,7 +167,6 @@ networks:
     driver: bridge
 
   dns-doh-net:
-    name: sf_dns-doh-net
     driver: bridge
     ipam:
       config:

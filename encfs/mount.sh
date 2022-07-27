@@ -24,11 +24,8 @@ sf_server_init()
 	trap _term SIGTERM
 
 	[[ -z $SF_ENCFS_PASS ]] && {
-		[[ -e "/config/encfs.pass" ]] || {
-			echo -e "${CR}Not found: config/etc/encfs/encfs.pass${CN}
---> Try ${CC}head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >config/etc/encfs/encfs.pass${CN}"
-			sleep 5
-			exit 255
+		[[ ! -f "/config/encfs.pass" ]] && {
+			head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/encfs.pass || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/encfs/encfs.pass"; exit 255; }
 		}
 		SF_ENCFS_PASS="$(cat /config/encfs.pass)"
 		[[ -z $SF_ENCFS_PASS ]] && { echo "SF_ENCFS_PASS is EMPTY"; sleep 5; exit 254; }

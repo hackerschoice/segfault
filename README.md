@@ -29,17 +29,40 @@ Take a look at ```provision/env.example``` for a sample ```.env``` file.
 * JOIN US ON TELEGRAM. LET US KNOW WHAT YOU WANT AND NEED *
 ---
 
-A root shell for every (creative) person. Free. Anonymous. Secure.
+# Provisioning Deployment
 
-A new instance is spawned for every new connection. Each instance has these features:
-1. Dedicated ```root server``` for every user.
-1. All traffic is routed via NordVPN.
-1. All DNS traffic is encrypted (DNS over HTTPS).
-1. TOR pre-installed.
-1. Encrypted/Persistent storage in ```/sec```. Private to the User.
-1. Each User has his own ```SECRET``` to access his data.
-1. No trace (beside encrypted data) after the User logs off.
-1. No logs are kept.
+Provisioning turns a bare minimum Linux into a Segfault Server Centre. The provisioning script installs docker, creates a dedicated user and sets up the  ```.env``` file. We use this script to 'ready' a freshly created AWS instance like so:
+
+```shell
+git clone https://github.com/hackerschoice/segfault.git
+SF_SEED=XXX \
+SF_FQDN=us.segfault.net \
+SF_MAXOUT=10Mbit \
+SF_NORDVPN_PRIVATE_KEY=YYY \
+segfault/provision/init-ubuntu.sh
+```
+
+The ```SF_SEED``` is the master seed from which many cryptographical keys are derived. We do not store the ```SF_SEED=``` in the ```.env``` file (however, this is possible but not advisable). The Server Centre won't start without the SF_SEED. A manual start is needed if the AWS instance reboots:
+
+```
+cd segfault
+SF_SEED=XXX docker-compose up -d
+```
+
+Other environment variables can be set:
+```
+SF_SEED=             The master seed. [default=$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32)]
+SF_HOST_USER=        The user name in root@segfault.net. [default=root]
+SF_FQDN=             A unique domain name to reach the Server Centre [default=auto]
+SF_MAXOUT=           Limit outgoing traffic. [default=unlimited]
+SF_MAXIN=            Limit incoming traffic. [default=unlimited]
+SF_HOST_PASSWORD=    The user password for root@segfault.net. [default=segfault]
+SF_BASEDIR=          A location to store configuration data. [default=~ubuntu/segfault]
+SF_SHMDIR=           A volatile location. [default=/dev/shm/sf-*]
+SF_SSH_PORT=         The TCP port on which the Server Centre should run on [default=22]
+SF_SSH_PORT_MASTER=  Move the hosting server's SSH port to this port [default=64222]
+SF_DEBUG=1           Turn on debug output.
+```
 
 ---
 # BETA TESTING BETA TESTING

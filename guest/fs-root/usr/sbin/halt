@@ -1,0 +1,6 @@
+#! /bin/sh
+
+# In docker this will 'halt' (hard crash) the instance
+# Send SIGTERM to init (which will send SIGTERM to all childs).
+kill 1
+

@@ -70,6 +70,7 @@ services:
     entrypoint: ["/init.sh"]
 
   router-fix-network:
+    build: router
     image: sf-router
     network_mode: host # host's stack
     cap_add:

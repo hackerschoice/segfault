@@ -68,6 +68,12 @@ SF_NORDVPN_PRIVATE_KEY=     NordVPN
 SF_CRYPTOSTORM_             
 ```
 
+The Segfault Server Centre stores data in to locations.
+ 1. ```segfault/config``` contains the configuration.
+ 1. ```segfault/data``` contains encrypted user data.
+
+Both locations (and the SF_SEED and .env file) should be backed up. All are needed to recreate the Server Centre and all user data from scatch.
+
 
 ---
 # BETA TESTING BETA TESTING

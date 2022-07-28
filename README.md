@@ -11,19 +11,19 @@ ssh root@segfault.net # the password is 'segfault'
 
 ## Deploy a Server Centre:
 ```shell
-git clone https://github.com/hackerschoice/segfault.git
-cd segfault
-docker build -t sf-guest guest
+git clone https://github.com/hackerschoice/segfault.git && \
+cd segfault && \
+docker build -t sf-guest guest && \
 SF_BASEDIR=$(pwd) SF_SSH_PORT=2222 docker-compose up
 ```
-See ```provision/env.example``` for further settings.
 
 Then log in to a new root server
 ```shell
 ssh -p 2222 root@127.1 # password is 'segfault'
 ```
+Every new SSH connection creates a ***new dedicated root server.***
 
-Every new SSH connection creates a new dedicated root server.
+Take a look at ```provision/env.example``` for a sample ```.env``` file.
 
 ---
 * JOIN US ON TELEGRAM. LET US KNOW WHAT YOU WANT AND NEED *

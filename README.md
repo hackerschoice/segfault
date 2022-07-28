@@ -25,7 +25,7 @@ Every new SSH connection creates a ***new dedicated root server.***
 
 Take a look at ```provision/env.example``` for a sample ```.env``` file.
 
-# Provisioning Deployment
+# Provisioning
 
 Provisioning turns a bare minimum Linux into a Segfault Server Centre. The provisioning script installs docker, creates a dedicated user and sets up the  ```.env``` file. We use this script to 'ready' a freshly created AWS instance like so:
 

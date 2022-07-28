@@ -92,12 +92,11 @@ setup_sshd
 # variables to the user's docker instance (sf-guest)
 echo "SF_DNS=\"${SF_DNS}\"
 SF_TOR=\"${SF_TOR}\"
-SF_ENCFS_SECDIR=\"${SF_ENCFS_SECDIR}\"
 SF_SEED=\"${SF_SEED}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
-SF_RUNDIR=\"${SF_RUNDIR}\"
+SF_SHMDIR=\"${SF_SHMDIR}\"
 SF_FQDN=\"${SF_FQDN}\"" >/dev/shm/env.txt
 
 # The owner of the original socket is not known at 'docker build' time. Thus 

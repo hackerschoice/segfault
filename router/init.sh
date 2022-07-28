@@ -5,10 +5,45 @@
 
 TOR_GW="172.20.0.111"
 VPN_GW="172.20.0.254"
+GOOD_ROUTES+=("10.11.0.0/16")
+GOOD_ROUTES+=("10.111.0.0/16") # TOR
+GOOD_ROUTES+=("172.20.0.0/24")
+GOOD_ROUTES+=("172.20.1.0/24")
+GOOD_ROUTES+=("172.23.0.0/24")
+
+# https://en.wikipedia.org/wiki/Reserved_IP_addresses
+BAD_ROUTES+=("0.0.0.0/8")
+BAD_ROUTES+=("10.0.0.0/8")
+BAD_ROUTES+=("172.16.0.0/12")
+BAD_ROUTES+=("100.64.0.0/10")
+BAD_ROUTES+=("169.254.0.0/16")
+BAD_ROUTES+=("192.0.0.0/24")
+BAD_ROUTES+=("192.0.2.0/24")
+BAD_ROUTES+=("192.88.99.0/24")
+BAD_ROUTES+=("192.168.0.0/16")
+BAD_ROUTES+=("198.18.0.0/15")
+BAD_ROUTES+=("198.51.100.0/15")
+BAD_ROUTES+=("203.0.113.0/24")
+BAD_ROUTES+=("224.0.0.0/4")
+BAD_ROUTES+=("233.252.0.0/24")
+BAD_ROUTES+=("240.0.0.0/24")
+BAD_ROUTES+=("255.255.255.255/32")
+
+blacklist_routes()
+{
+	for ip in "${GOOD_ROUTES[@]}"; do
+		iptables -A FORWARD -d "$ip" -j ACCEPT
+	done
+
+	for ip in "${BAD_ROUTES[@]}"; do
+		iptables -A FORWARD -d "$ip" -j REJECT
+	done
+}
 
 devbyip()
 {
-	echo "$(ip addr show | grep -F "inet $1" | head) | awk '{ print $7; }'"
+	# shellcheck disable=SC2005
+	echo "$(ip addr show | grep -F "inet $1" | head)" | awk '{ print $7; }'
 }
 
 # Stop routing via VPN
@@ -75,6 +110,8 @@ DEV_GW="$(devbyip 172.20.0.)"
 
 	echo >&2 "DEV=${DEV} DEV_GW=${DEV_GW}"
 }
+
+blacklist_routes
 
 ip route del default && \
 ifconfig "$DEV" 10.11.0.1/16 && \

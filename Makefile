@@ -19,7 +19,6 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-destructor.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 
-FILES_HOST += "segfault-$(VER)/host/setup.sh"
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"

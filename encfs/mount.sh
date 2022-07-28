@@ -15,7 +15,7 @@
 # and exit.
 _term()
 {
-	[[ -z $cpid ]] && return
+	[[ -z $cpid ]] && exit
 	kill "$cpid"
 }
 

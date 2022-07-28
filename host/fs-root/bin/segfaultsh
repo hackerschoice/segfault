@@ -174,11 +174,11 @@ else
 fi
 
 # Connect to existing session
-if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 12 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
+if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 24 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
 	IS_TRY_EXISTING=1
 	SF_SEC="${SECRET}"
 else
-	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 12)"
+	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 fi
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
@@ -191,10 +191,10 @@ MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 mk_hostname
 
 if [[ -d "/config/db/db-${LID}" ]]; then
-	echo_pty -n "Connecting to server. Please wait..."
+	echo_pty -n "Connecting to server. Please wait."
 else
 	print_disclaimer
-	echo_pty -n "Creating new server. Please wait...."
+	echo_pty -n "Creating new server. Please wait.."
 
 	# A hostname is generated from the LID. Avoid collision when a hostname
 	# has already been created for a different LID.
@@ -235,7 +235,7 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--env SF_DEBUG="${SF_DEBUG}" \
 		--log-driver "${SF_DOCKER_LOG}" \
 		-v "${SF_BASEDIR}/data/user:/encfs/raw" \
-		-v "${SF_ENCFS_SECDIR}:/encfs/sec:shared" \
+		-v "${SF_SHMDIR}/encfs-sec:/encfs/sec:shared" \
 		-v "/var/run/docker.sock:/var/run/docker.sock" \
 		-d \
 		sf-encfs || ERREXIT 251 "Could not create /sec..."
@@ -314,14 +314,14 @@ exec_devnull docker run \
 	--mount type=bind,source="${SF_BASEDIR}/config/etc/ssh/id_ed25519,target=/config/id_ed25519,readonly" \
 	--mount type=bind,source="${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden/service-22/hostname,target=/config/onion_hostname-22,readonly" \
 	--mount type=bind,source="${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden/service-80/hostname,target=/config/onion_hostname-80,readonly" \
-	--mount type=bind,source="${SF_RUNDIR}/vpn,target=/sf/run/vpn,readonly" \
-	--mount type=bind,source="${SF_RUNDIR}/gsnc/access-22.txt,target=/sf/run/gsnc-access-22.txt,readonly" \
-	-v "${SF_ENCFS_SECDIR}/user-${LID}:/sec:slave" \
-	-v "${SF_ENCFS_SECDIR}/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
+	--mount type=bind,source="${SF_SHMDIR}/run/vpn,target=/sf/run/vpn,readonly" \
+	--mount type=bind,source="${SF_SHMDIR}/run/gsnc/access-22.txt,target=/sf/run/gsnc-access-22.txt,readonly" \
+	-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/sec:slave" \
+	-v "${SF_SHMDIR}/encfs-sec/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
 	-d \
 	sf-guest /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 
-[[ -n $IS_PTY ]] && echo -n ".."
+echo_pty -n ".."
 
 DEBUGF "Instance started..."
 
@@ -337,7 +337,7 @@ while :; do
 	n=$((n+1))
 	[[ $n -gt 2 ]] && ERREXIT 253 "Could not create instance..."
 done
-[[ -n $IS_PTY ]] && echo -n ".."
+echo_pty -n ".."
 
 # Setup instance
 docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."

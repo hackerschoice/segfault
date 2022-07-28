@@ -124,9 +124,9 @@ init_config_run_sfbin()
 
   # Setup /dev/shm/sf-u1001/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then
-    SF_RUNDIR="/dev/shm/sf-u${SF_HOST_USER_ID}/run"
+    SF_SHMDIR="/dev/shm/sf-u${SF_HOST_USER_ID}"
   else
-    SF_RUNDIR="/tmp/sf-u${SF_HOST_USER_ID}/run"
+    SF_SHMDIR="/tmp/sf-u${SF_HOST_USER_ID}"
   fi
 
   # Create ./data or symlink correctly.
@@ -200,7 +200,7 @@ DEBUGF "SF_FQDN=${SF_FQDN}"
 SF_BASEDIR_ESC="${SF_BASEDIR//\//\\/}"
 SF_NORDVPN_PRIVATE_KEY_ESC="${SF_NORDVPN_PRIVATE_KEY//\//\\/}"
 SF_FQDN_ESC="${SF_FQDN//\//\\/}"
-SF_RUNDIR_ESC="${SF_RUNDIR//\//\\/}"
+SF_SHMDIR_ESC="${SF_SHMDIR//\//\\/}"
 # .env needs to be where the images are build (in the source directory)
 ENV="${SFI_SRCDIR}/.env"
 if [[ -e "${ENV}" ]]; then
@@ -208,7 +208,7 @@ if [[ -e "${ENV}" ]]; then
 else
   SUDO_SF "cp \"${SFI_SRCDIR}/provision/env.example\" \"${ENV}\" && \
   sed -i 's/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR_ESC}/' \"${ENV}\" && \
-  sed -i 's/.*SF_RUNDIR.*/SF_RUNDIR=${SF_RUNDIR_ESC}/' \"${ENV}\" && \
+  sed -i 's/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR_ESC}/' \"${ENV}\" && \
   sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN_ESC}/' \"${ENV}\"" || ERREXIT 120 failed
   [[ -n $SF_SSH_PORT ]] && { SUDO_SF "sed -i 's/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 121 failed; }
   [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY_ESC}/' \"${ENV}\"" || ERREXIT 121 failed; }
@@ -220,13 +220,12 @@ fi
   docker-compose pull && \
   docker-compose build -q && \
   docker network prune -f)
-DOCKER_COMPOSE_CMD="docker-compose up -d"
 if docker ps | egrep "sf-host|sf-router" >/dev/null; then
   WARNMSG="A SEGFAULT is already running."
   IS_DOCKER_NEED_MANUAL_START=1
 else
   docker container rm sf-host &>/dev/null
-  (cd "${SFI_SRCDIR}" && $DOCKER_COMPOSE_CMD) || { docker ps; docker network ls; WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
+  (cd "${SFI_SRCDIR}" && SF_SEED="${SF_SEED}" docker-compose up --force-recreate -d) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
 fi
 
 GS_SECRET=$(echo -n "GS-${SF_SEED}${SF_FQDN}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 12)
@@ -237,7 +236,7 @@ echo -e "***${CG}SUCCESS${CN}***"
   WARN 5 "${WARNMSG} Please run:"
   INFO "(cd \"${SFI_SRCDIR}\" && \\ \n\
     docker-compose down && docker network prune -f && docker container rm sf-host 2>/dev/null; \\ \n\
-    ${DOCKER_COMPOSE_CMD})"
+    SF_SEED=\"${SF_SEED}\" docker-compose up --force-recreate -d)"
 }
 [[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {
   WARN 6 "NordVPN ${CR}DISABLED${CN}. Set SF_NORDVPN_PRIVATE_KEY= to enable."
@@ -247,6 +246,7 @@ echo -e "***${CG}SUCCESS${CN}***"
 [[ -n $IS_SSH_GOT_MOVED ]] && INFO "${CY}System's SSHD was in the way and got moved to ${SF_SSH_PORT_MASTER}${CN}"
 
 INFO "Basedir             : ${CC}${SF_BASEDIR}${CN}"
+INFO "SF_SEED             : ${CDY}${SF_SEED}${CN}"
 INFO "Password            : ${CDY}${SF_USER_PASSWORD:-segfault}${CN}"
 
 [[ -n $SF_SSH_PORT ]] && PORTSTR="-p${SF_SSH_PORT} "

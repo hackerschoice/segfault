@@ -45,7 +45,7 @@ services:
       - net.ipv4.ip_forward=1
     restart: unless-stopped
     volumes:
-      - "${SF_RUNDIR:-/dev/shm/sf/run}/vpn:/sf/run/vpn"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   router:
@@ -65,7 +65,7 @@ services:
       - SF_MAXOUT
       - SF_MAXIN
     volumes:
-      - "${SF_RUNDIR:-/dev/shm/sf/run}/vpn:/sf/run/vpn"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/config/etc/tc:/config/tc:ro"
     entrypoint: ["/init.sh"]
 
@@ -82,8 +82,6 @@ services:
     build: tor
     image: sf-tor
     networks:
-      # guest-net:
-      #   ipv4_address: 10.11.255.251
       nginx-net:
       vpn:
         ipv4_address: 172.20.0.111
@@ -113,7 +111,7 @@ services:
       - SF_DEBUG
       - SF_SEED
     volumes:
-      - "${SF_RUNDIR:-/dev/shm/sf/run}/gsnc:/sf/run/gsnc"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/gsnc:/sf/run/gsnc"
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/seed"
     entrypoint: ["/sf-gsnc.sh", "172.20.0.110"]
 
@@ -136,11 +134,10 @@ services:
       - SF_DNS=10.11.255.252
       - SF_TOR=172.20.0.111
       - SF_BASEDIR=${SF_BASEDIR}
-      - SF_RUNDIR=${SF_RUNDIR:-/dev/shm/sf/run}
+      - SF_SHMDIR=${SF_SHMDIR:-/dev/shm/sf}
       - SF_USER=${SF_USER:-root}
       - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
-      - SF_ENCFS_SECDIR=${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}
       - SF_SEED
       - SF_DEBUG
     ports:
@@ -149,7 +146,7 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/ssh:/config/etc/ssh"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/seed"
-      - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/onion:slave"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/onion-www:/onion:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx-encfs:
@@ -170,7 +167,7 @@ services:
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/seed"
       - "${SF_BASEDIR:-.}/data/onion-www:/encfs/raw"
-      - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/encfs/sec:shared"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/onion-www:/encfs/sec:shared"
 
   nginx:
     image: nginx
@@ -178,12 +175,10 @@ services:
     depends_on:
       - nginx-encfs
     dns: 255.255.255.255
-    # ports:
-    #   - 8080:80 # FIXME: testing..
     networks:
       nginx-net:
     volumes:
-      - "${SF_ENCFS_SECDIR:-/dev/shm/encfs-sec}/onion-www:/srv/www:slave,ro"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/onion-www:/srv/www:slave,ro"
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
 networks:
@@ -196,6 +191,9 @@ networks:
 
   nginx-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
 
   dns-doh-net:
     driver: bridge

@@ -191,10 +191,10 @@ MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 mk_hostname
 
 if [[ -d "/config/db/db-${LID}" ]]; then
-	echo_pty -n "Connecting to server. Please wait."
+	echo_pty -n "Connecting to server. Please wait..."
 else
 	print_disclaimer
-	echo_pty -n "Creating new server. Please wait.."
+	echo_pty -n "Creating new server. Please wait...."
 
 	# A hostname is generated from the LID. Avoid collision when a hostname
 	# has already been created for a different LID.

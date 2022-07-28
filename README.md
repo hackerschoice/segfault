@@ -2,7 +2,7 @@
 
 This page is for server administrators and those folks who like to run their own segfault.net server centre. Running your own Segfault Server Centre allows you to offer root-servers to other users.
 
-If this is not what you want and you just like to get a root-shell on your own root-server then please go to [https://www.thc.org/segfault](http://www.thc.org/segfault) or try our demo deployment right now:
+If this is not what you want and you just like to get a root-shell on your own server then please go to [https://www.thc.org/segfault](http://www.thc.org/segfault) or try our demo deployment:
 ```shell
 ssh root@segfault.net # the password is 'segfault'
 ```
@@ -13,8 +13,17 @@ ssh root@segfault.net # the password is 'segfault'
 ```shell
 git clone https://github.com/hackerschoice/segfault.git
 cd segfault
-SF_BASEDIR=$(pwd) docker-compose up
+docker build -t sf-guest guest
+SF_BASEDIR=$(pwd) SF_SSH_PORT=2222 docker-compose up
 ```
+See ```provision/env.example``` for further settings.
+
+Then log in to a new root server
+```shell
+ssh -p 2222 root@127.1 # password is 'segfault'
+```
+
+Every new SSH connection creates a new dedicated root server.
 
 ---
 * JOIN US ON TELEGRAM. LET US KNOW WHAT YOU WANT AND NEED *

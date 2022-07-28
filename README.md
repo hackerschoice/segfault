@@ -1,15 +1,26 @@
-# segfault.net - back from the dead
+# segfault.net - A Server Centre Depoyment 
+
+This page is for server administrators and those folks who like to run their own segfault.net server centre. Running your own Segfault Server Centre allows you to offer root-servers to other users.
+
+If this is not what you want and you just like to get a root-shell on your own root-server then please go to [https://www.thc.org/segfault](http://www.thc.org/segfault) or try our demo deployment right now:
+```shell
+ssh root@segfault.net # the password is 'segfault'
+```
 
 ---
-* THIS IS BETA TESTING ONLY *
+
+## Deploy a Server Centre:
+```shell
+git clone https://github.com/hackerschoice/segfault.git
+cd segfault
+SF_BASEDIR=$(pwd) docker-compose up
+```
+
+---
 * JOIN US ON TELEGRAM. LET US KNOW WHAT YOU WANT AND NEED *
 ---
 
 A root shell for every (creative) person. Free. Anonymous. Secure.
-
-```shell
-$ ssh root@beta.segfault.net # password is 'segfault'
-```
 
 A new instance is spawned for every new connection. Each instance has these features:
 1. Dedicated ```root server``` for every user.

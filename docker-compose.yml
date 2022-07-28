@@ -2,7 +2,7 @@ version: "3.7"
 services:
   dns-doh:
     image: crazymax/cloudflared
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     networks:
       dns-doh-net:
         ipv4_address: 172.23.0.2
@@ -19,7 +19,7 @@ services:
         ipv4_address: 172.23.0.252
       guest-net:
         ipv4_address: 10.11.255.252
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dns-doh
 
@@ -43,7 +43,7 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
-    restart: unless-stopped
+    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
@@ -64,6 +64,7 @@ services:
       - SF_DEBUG
       - SF_MAXOUT
       - SF_MAXIN
+    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/config/etc/tc:/config/tc:ro"
@@ -77,6 +78,7 @@ services:
       - NET_ADMIN
     environment:
       - SF_DEBUG
+    restart: ${SF_RESTART:-on-failure}
     entrypoint: ["/fix-network.sh"]
 
   tor:
@@ -88,7 +90,7 @@ services:
         ipv4_address: 172.20.0.111
     cap_add:
       - NET_ADMIN    
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     dns: 172.20.0.252
     depends_on:
       - dnsmasq
@@ -104,7 +106,7 @@ services:
       - router
     networks:
       vpn:
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     dns: 172.20.0.252
     environment:
       - SF_SSH_PORT=${SF_SSH_PORT:-22}
@@ -126,7 +128,7 @@ services:
         ipv4_address: 172.20.0.110
     depends_on:
       - dnsmasq
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     init: true
     dns: 255.255.255.255
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
@@ -153,7 +155,7 @@ services:
   nginx-encfs:
     build: encfs
     image: sf-encfs
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     cap_add:
       - SYS_ADMIN
     security_opt:
@@ -172,7 +174,7 @@ services:
 
   nginx:
     image: nginx
-    restart: always
+    restart: ${SF_RESTART:-on-failure}
     depends_on:
       - nginx-encfs
     dns: 255.255.255.255

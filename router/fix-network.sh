@@ -30,7 +30,7 @@ ip addr show | grep 'inet 10\.255\.255\.254' >/dev/null && ERREXIT 0 "Host's bri
 l=$(ip addr show | grep 'inet 10\.11\.' | head)
 [[ -z $l ]] && ERREXIT 255 "Failed to find network"
 
-DEV="$(echo $l | awk '{ print $7; }')"
+DEV="$(echo "$l" | awk '{ print $7; }')"
 [[ -z $DEV ]] && ERREXIT 254 "Failed to find device"
 
 ip link show "$DEV" >/dev/null || ERREXIT 253 "Failed to find device (DEV='${DEV}')"

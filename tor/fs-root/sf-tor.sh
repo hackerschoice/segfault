@@ -1,7 +1,7 @@
 #! /bin/bash
 
 CR="\033[1;31m" # red
-CG="\033[1;32m" # green
+# CG="\033[1;32m" # green
 CN="\033[0m"    # none
 
 ERREXIT()
@@ -21,9 +21,10 @@ ERREXIT()
 # Route all traffic that comes to this instance through TOR.
 iptables -t nat -A PREROUTING -p tcp --syn -j REDIRECT --to-ports 9040
 
-[[ -d /var/lib/tor/hidden_service ]] || ERREXIT 254 "Not found: /var/lib/tor/hidden_services. Forgot -v option?"
-chown tor /var/lib/tor/hidden_service || ERREXIT
-chmod 700 /var/lib/tor/hidden_service || ERREXIT
+[[ -d /var/lib/tor/hidden ]] || ERREXIT 254 "Not found: /var/lib/tor/hidden. Forgot -v option?"
+
+chown -R tor /var/lib/tor/hidden || ERREXIT
+chmod -R 700 /var/lib/tor/hidden || ERREXIT
 # echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
 if [[ -f /config/tor/torrc ]]; then
 	exec su -s /bin/ash - tor -c "tor -f /config/tor/torrc"

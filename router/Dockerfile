@@ -10,6 +10,7 @@ RUN apt update && \
 	iproute2 \
 	iperf \
        tcpdump && \
+       rm -rf /var/lib/apt/lists/* && \
        echo DONE
 
 COPY tc.sh init.sh fix-network.sh /

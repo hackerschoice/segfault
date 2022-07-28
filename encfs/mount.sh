@@ -6,10 +6,10 @@
 #                     user's SECRET
 #    server         - data/onion-www for system wide /onion. Same password per
 #                     deployment.
-CY="\033[1;33m" # yellow
-CR="\033[1;31m" # red
-CC="\033[1;36m" # cyan
-CN="\033[0m"    # none
+# CY="\033[1;33m" # yellow
+# CR="\033[1;31m" # red
+# CC="\033[1;36m" # cyan
+# CN="\033[0m"    # none
 
 # Handle SIGTERM. Send TERM to encfs when docker-compose shuts down, unmount
 # and exit.
@@ -19,24 +19,31 @@ _term()
 	kill "$cpid"
 }
 
+create_load_seed()
+{
+	[[ -n $SF_SEED ]] && return
+	[[ ! -f "/config/seed/seed.txt" ]] && {
+		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
+	}
+	SF_SEED="$(cat /config/seed/seed.txt)"
+	[[ -z $SF_SEED ]] && { echo -e >&2 "mount.sh: Failed to generated SF_SEED="; exit 254; }
+}
+
+
 sf_server_init()
 {
 	trap _term SIGTERM
 
-	[[ -z $SF_ENCFS_PASS ]] && {
-		[[ ! -f "/config/encfs.pass" ]] && {
-			head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/encfs.pass || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/encfs/encfs.pass"; exit 255; }
-		}
-		SF_ENCFS_PASS="$(cat /config/encfs.pass)"
-		[[ -z $SF_ENCFS_PASS ]] && { echo "SF_ENCFS_PASS is EMPTY"; sleep 5; exit 254; }
-	}
+	create_load_seed
+
+	ENCFS_SERVER_PASS=$(echo -n "EncFS-SERVER-PASS-${SF_SEED}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 24)
 }
 
 sf_server()
 {
 	sf_server_init
 
-	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${SF_ENCFS_PASS}\"" "/encfs/raw" "/encfs/sec" &
+	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" &
 	cpid=$!
 	wait $cpid # SIGTERM will wake us
 
@@ -75,7 +82,7 @@ sleep 5
 while :; do
 	docker container inspect "lg-${LID}" -f '{{.State.Status}}' || break
 	# Break if EncFS died
-	ps -o comm | grep encfs || break
+	pgrep encfs || break
 	sleep 10
 done
 

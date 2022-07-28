@@ -1,8 +1,8 @@
 #! /bin/bash
 
-CY="\033[1;33m" # yellow
+# CY="\033[1;33m" # yellow
 CR="\033[1;31m" # red
-CC="\033[1;36m" # cyan
+# CC="\033[1;36m" # cyan
 CN="\033[0m"    # none
 
 
@@ -21,6 +21,31 @@ ERREXIT()
 	exit "$code"
 }
 
+create_load_seed()
+{
+	[[ -n $SF_SEED ]] && return
+	[[ ! -f "/config/seed/seed.txt" ]] && {
+		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
+	}
+	SF_SEED="$(cat /config/seed/seed.txt)"
+	[[ -z $SF_SEED ]] && ERREXIT 254 "Failed to generated SF_SEED="
+}
+
+setup_sshd()
+{
+	# Default is for user to use 'ssh root@segfault.net' but this can be changed
+	# in .env to any other user name. In case it is 'root' then we need to move
+	# the true root out of the way for the docker-sshd to work.
+	if [[ "$SF_USER" = "root" ]]; then
+		# rename root user
+		sed -i 's/^root/toor/' /etc/passwd
+		sed -i 's/^root/toor/' /etc/shadow
+	fi
+
+	adduser -D "${SF_USER}" -G nobody -s /bin/segfaultsh && \
+	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd
+}
+
 [[ -z $SF_BASEDIR ]] && {
 	# FATAL: Repeat loop until user fixes this bug.
 	while :; do
@@ -32,6 +57,10 @@ ERREXIT()
 [[ -d /config ]] || ERREXIT 255 5 "${CR}Not found: /config${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
 
 [[ -d /config/db ]] || ERREXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
+
+create_load_seed
+
+setup_sshd
 
 # This is the entry point for SF-HOST (e.g. host/Dockerfile)
 # Fix ownership if mounted from within vbox
@@ -62,12 +91,14 @@ ERREXIT()
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
 # variables to the user's docker instance (sf-guest)
 echo "SF_DNS=\"${SF_DNS}\"
+SF_TOR=\"${SF_TOR}\"
 SF_ENCFS_SECDIR=\"${SF_ENCFS_SECDIR}\"
+SF_SEED=\"${SF_SEED}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
 SF_RUNDIR=\"${SF_RUNDIR}\"
-SF_FQDN=\"${SF_FQDN}\"" >/var/run/lhost-config.txt
+SF_FQDN=\"${SF_FQDN}\"" >/dev/shm/env.txt
 
 # The owner of the original socket is not known at 'docker build' time. Thus 
 # we need to dynamically add it so that the shell started by SSHD can
@@ -87,8 +118,9 @@ addgroup "${SF_USER}" "$(stat -c %G /config/db)" 2>/dev/null # Ignore if already
 chmod g+wx /config/db || exit $?
 
 # This will execute 'segfaultsh' on root-login (uid=1000)
-/usr/sbin/sshd -u0 -p 2222 -D
-# /usr/sbin/sshd -u0 -p 2222
+exec 0<&-
+/usr/sbin/sshd -u0 -D
+# /usr/sbin/sshd -u0 -p 22
 
 tail -f /dev/null
 

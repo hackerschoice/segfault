@@ -9,6 +9,7 @@
 #     SF_NO_INTERNET - DEBUG: Runs script without Internet
 
 SFI_SRCDIR="$(cd "$(dirname "${0}")/.." || exit; pwd)"
+# shellcheck disable=SC1091
 source "${SFI_SRCDIR}/provision/system/funcs" || exit 255
 NEED_ROOT
 
@@ -72,17 +73,20 @@ init_user()
 
 init_host_sshd()
 {
+  local port
+
   # Configure SSHD
   [[ -f /etc/ssh/sshd_config ]] || return
 
-  [[ -z $SF_SSH_PORT ]] && SF_SSH_PORT=22
+  port=${SF_SSH_PORT:-22}
   [[ -z $SF_SSH_PORT_MASTER ]] && SF_SSH_PORT_MASTER=64222
 
   # Move original SSH server out of the way...
-  [[ "$SF_SSH_PORT" -eq 22 ]] && grep "Port 22" /etc/ssh/sshd_config >/dev/null && {
-    sed -i "s/#Port ${SF_SSH_PORT}/Port ${SF_SSH_PORT_MASTER}/g" /etc/ssh/sshd_config
-    DEBUGF "Restarting SSHD"
+  [[ "${port}" -eq 22 ]] && grep "Port 22" /etc/ssh/sshd_config >/dev/null && {
+    sed -i "s/#Port ${port}/Port ${SF_SSH_PORT_MASTER}/g" /etc/ssh/sshd_config
+    DEBUGF "Restarting SSHD on port ${SF_SSH_PORT_MASTER}"
     service sshd restart
+    IS_SSH_GOT_MOVED=1
   }
 }
 
@@ -107,13 +111,15 @@ init_config_run_sfbin()
   # Copy Traffic Control (tc) config
   [[ ! -d "${SF_BASEDIR}/config/etc/tc" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/tc\" \"${SF_BASEDIR}/config/etc\""
   
-  # Create EncFS password for nginx/onion
-  if [[ -f "${SF_BASEDIR}/config/etc/encfs/encfs.pass" ]]; then
-    SF_ENCFS_PASS="$(cat "${SF_BASEDIR}/config/etc/encfs/encfs.pass")"
-  else
-    [[ -d "${SF_BASEDIR}/config/etc/encfs" ]] || SUDO_SF mkdir "${SF_BASEDIR}/config/etc/encfs"
-    SF_ENCFS_PASS="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32)"
-    SUDO_SF "echo \"${SF_ENCFS_PASS}\" >\"${SF_BASEDIR}/config/etc/encfs/encfs.pass\"" || ERREXIT
+  # Create Master-SEED
+  if [[ -z $SF_SEED ]]; then
+    if [[ -f "${SF_BASEDIR}/config/etc/seed/seed.txt" ]]; then
+      SF_SEED="$(cat "${SF_BASEDIR}/config/etc/seed/seed.txt")"
+    else
+      [[ -d "${SF_BASEDIR}/config/etc/seed" ]] || SUDO_SF mkdir "${SF_BASEDIR}/config/etc/seed"
+      SF_SEED="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32)"
+      SUDO_SF "echo \"${SF_SEED}\" >\"${SF_BASEDIR}/config/etc/seed/seed.txt\"" || ERREXIT
+    fi
   fi
 
   # Setup /dev/shm/sf-u1001/run/log (in-memory /var/run...)
@@ -203,8 +209,8 @@ else
   SUDO_SF "cp \"${SFI_SRCDIR}/provision/env.example\" \"${ENV}\" && \
   sed -i 's/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR_ESC}/' \"${ENV}\" && \
   sed -i 's/.*SF_RUNDIR.*/SF_RUNDIR=${SF_RUNDIR_ESC}/' \"${ENV}\" && \
-  sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN_ESC}/' \"${ENV}\" && \
-  sed -i 's/PORT=.*/PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 120 failed
+  sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN_ESC}/' \"${ENV}\"" || ERREXIT 120 failed
+  [[ -n $SF_SSH_PORT ]] && { SUDO_SF "sed -i 's/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 121 failed; }
   [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY_ESC}/' \"${ENV}\"" || ERREXIT 121 failed; }
   [[ -n $SF_MAXOUT ]] && { SUDO_SF "sed -i 's/.*SF_MAXOUT.*/SF_MAXOUT=${SF_MAXOUT}/' \"${ENV}\"" || ERREXIT 121 failed; }
   [[ -n $SF_MAXIN ]] && { SUDO_SF "sed -i 's/.*SF_MAXIN.*/SF_MAXIN=${SF_MAXIN}/' \"${ENV}\"" || ERREXIT 121 failed; }
@@ -219,15 +225,18 @@ if docker ps | egrep "sf-host|sf-router" >/dev/null; then
   WARNMSG="A SEGFAULT is already running."
   IS_DOCKER_NEED_MANUAL_START=1
 else
-  (cd "${SFI_SRCDIR}" && $DOCKER_COMPOSE_CMD) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
+  docker container rm sf-host &>/dev/null
+  (cd "${SFI_SRCDIR}" && $DOCKER_COMPOSE_CMD) || { docker ps; docker network ls; WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
 fi
+
+GS_SECRET=$(echo -n "GS-${SF_SEED}${SF_FQDN}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 12)
 
 echo -e "***${CG}SUCCESS${CN}***"
 [[ -z $IS_USING_EXISTING_ENV_FILE ]] || WARN 4 "Using existing .env file (${ENV})"
 [[ -z $IS_DOCKER_NEED_MANUAL_START ]] || {
   WARN 5 "${WARNMSG} Please run:"
   INFO "(cd \"${SFI_SRCDIR}\" && \\ \n\
-    docker-compose down && docker network prune -f && \\ \n\
+    docker-compose down && docker network prune -f && docker container rm sf-host 2>/dev/null; \\ \n\
     ${DOCKER_COMPOSE_CMD})"
 }
 [[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {
@@ -235,8 +244,15 @@ echo -e "***${CG}SUCCESS${CN}***"
   INFO "To retrieve the PRIVATE_KEY try: \n\
     ${CDC}docker run --rm --cap-add=NET_ADMIN -e USER=XXX -e PASS=YYY bubuntux/nordvpn:get_private_key${CN}"
 }
-INFO "Directory           : ${CC}${SF_BASEDIR}${CN}"
-INFO "Access with         : ${CC}ssh -p ${SF_SSH_PORT} root@${SF_FQDN}${CN}"
+[[ -n $IS_SSH_GOT_MOVED ]] && INFO "${CY}System's SSHD was in the way and got moved to ${SF_SSH_PORT_MASTER}${CN}"
+
+INFO "Basedir             : ${CC}${SF_BASEDIR}${CN}"
+INFO "Password            : ${CDY}${SF_USER_PASSWORD:-segfault}${CN}"
+
+[[ -n $SF_SSH_PORT ]] && PORTSTR="-p${SF_SSH_PORT} "
+INFO "SSH                 : ${CDC}ssh ${PORTSTR}${SF_USER:-root}@${SF_FQDN:-UNKNOWN}${CN}"
+INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@${SF_FQDN%.*}.gsocket${CN}"
+
 [[ -z $IS_NEW_SSH_HOST_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
 INFO "SSH Host Keys       : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/ssh_host_ed25519_key) (${STR})"
 [[ -z $IS_NEW_SSH_LOGIN_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"

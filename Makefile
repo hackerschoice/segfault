@@ -6,6 +6,7 @@ all:
 	make -C tor
 	make -C encfs
 	make -C router
+	make -C gsnc
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/Dockerfile"
@@ -45,13 +46,17 @@ FILES_ROUTER += "segfault-$(VER)/router/init.sh"
 FILES_ROUTER += "segfault-$(VER)/router/tc.sh"
 FILES_ROUTER += "segfault-$(VER)/sfbin/vpn_wg2status.sh"
 
+FILES_GSNC += "segfault-$(VER)/gsnc/Makefile"
+FILES_GSNC += "segfault-$(VER)/gsnc/Dockerfile"
+FILES_GSNC += "segfault-$(VER)/gsnc/sf-gsnc.sh"
+
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/tc/limits.conf"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 
-FILES += $(FILES_ROOT) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES += $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

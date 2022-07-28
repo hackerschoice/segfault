@@ -60,6 +60,7 @@ RUN apt install -y --no-install-recommends \
 RUN curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
 		dpkg -i /tmp/lsd.dep && \
 		rm -f /tmp/lsd.dep
+RUN rm -rf /var/lib/apt/lists/*
 
 COPY /fs-root/ /
 COPY setup.sh /

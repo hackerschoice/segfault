@@ -3,10 +3,6 @@
 # [output filename] [post_up/post_down] [interface]
 
 
-post_down()
-{
-	[[ -f "${LOGFNAME}" ]] && rm -f "${LOGFNAME}"
-}
 
 # From all files update the VPN status file
 create_vpn_status()
@@ -17,22 +13,30 @@ create_vpn_status()
 	loc=()
 	exit_ip=()
 	for f in "${DSTDIR}"/status-*.log; do
+		# shellcheck disable=SC1090
 		source "${f}"
 		# loc+=("${SFVPN_LOCATION}[$SFVPN_EXIT_IP]")
 		loc+=("${SFVPN_LOCATION}")
 		exit_ip+=("$SFVPN_EXIT_IP")
 	done
 
-	if [[ -z $loc ]]; then
+	# Delete vpn_status unless there is at least 1 VPN
+	if [[ ${#loc[@]} -eq 0 ]]; then
 		rm -f "${DSTDIR}/vpn_status"
 		return
 	fi
 
-	# Delete vpn_status unless there is at least 1 VPN
 	echo -en "\
 IS_VPN_CONNECTED=1\n\
 VPN_LOCATION=\"${loc[*]}\"\n\
 VPN_EXIT_IP=\"${exit_ip[*]}\"\n" >"${DSTDIR}/vpn_status"
+}
+
+post_down()
+{
+	[[ -f "${LOGFNAME}" ]] && rm -f "${LOGFNAME}"
+	
+	create_vpn_status
 }
 
 post_up()

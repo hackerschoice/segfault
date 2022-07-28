@@ -25,10 +25,6 @@ Every new SSH connection creates a ***new dedicated root server.***
 
 Take a look at ```provision/env.example``` for a sample ```.env``` file.
 
----
-* JOIN US ON TELEGRAM. LET US KNOW WHAT YOU WANT AND NEED *
----
-
 # Provisioning Deployment
 
 Provisioning turns a bare minimum Linux into a Segfault Server Centre. The provisioning script installs docker, creates a dedicated user and sets up the  ```.env``` file. We use this script to 'ready' a freshly created AWS instance like so:
@@ -41,6 +37,8 @@ SF_MAXOUT=10Mbit \
 SF_NORDVPN_PRIVATE_KEY=YYY \
 segfault/provision/init-ubuntu.sh
 ```
+
+We use Route53 so that the user always connects to the nearest Segfault Server Centre. E.g. ```segfault.net``` will resolve to ```us.segfault.net``` if you are in the US. The ```SF_FQDN=``` is the unique name for that region.
 
 The ```SF_SEED``` is the master seed from which many cryptographical keys are derived. We do not store the ```SF_SEED=``` in the ```.env``` file (however, this is possible but not advisable). The Server Centre won't start without the SF_SEED. A manual start is needed if the AWS instance reboots:
 
@@ -63,6 +61,13 @@ SF_SSH_PORT=         The TCP port on which the Server Centre should run on [defa
 SF_SSH_PORT_MASTER=  Move the hosting server's SSH port to this port [default=64222]
 SF_DEBUG=1           Turn on debug output.
 ```
+
+The Segfault Server Centre routes all outgoing traffic through at VPN (if availabe) or TOR otherwise. The following environment variables can be set to configure the VPN (optional):
+```
+SF_NORDVPN_PRIVATE_KEY=     NordVPN
+SF_CRYPTOSTORM_             
+```
+
 
 ---
 # BETA TESTING BETA TESTING

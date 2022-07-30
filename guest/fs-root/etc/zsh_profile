@@ -1,0 +1,20 @@
+
+# source'd from /etc/profile.d/segfault.sh
+
+# ZSH specific
+function cnf_preexec() {
+    typeset -g cnf_command="${1%% *}"
+}
+
+function cnf_precmd() {
+    (($?)) && [ -n "$cnf_command" ] && {
+        whence -- "$cnf_command" >& /dev/null ||
+            echo -e "[SF] ¯\_(⊙︿⊙)_/¯ Like us to install \033[0;33m${cnf_command}\033[0m?\n\033[0m[SF] \033[1;37mTell us at https://t.me/thcorg\033[0m"
+        unset cnf_command
+    }
+}
+
+typeset -ga preexec_functions
+typeset -ga precmd_functions
+preexec_functions+=cnf_preexec
+precmd_functions+=cnf_precmd

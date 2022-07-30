@@ -13,6 +13,7 @@ create_vpn_status()
 	loc=()
 	exit_ip=()
 	for f in "${DSTDIR}"/status-*.log; do
+		[[ ! -f "${f}" ]] && break
 		# shellcheck disable=SC1090
 		source "${f}"
 		# loc+=("${SFVPN_LOCATION}[$SFVPN_EXIT_IP]")

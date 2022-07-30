@@ -139,7 +139,7 @@ spawn_shell_exit()
 	DEBUGF "ARG(${#})=$*"
 	[[ ${#} -ne 0 ]] && [[ ${#} -ne 2 ]] && ERREXIT 127 "BAD ($*)"
 
-	docker exec "$ARG" "lg-${LID}" zsh "${PARAM[@]}" "$@"
+	docker exec "$ARG" "lg-${LID}" nice -n19 zsh "${PARAM[@]}" "$@"
 	ret="$?" # save return value and exit this script later with same return value.
 	print_goodbye
 
@@ -225,6 +225,9 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 	# Run in background (-d)
 	# Use exec_devnull to redirect Container-ID to /dev/null (docker run -d).
 	exec_devnull docker run \
+		--cpu-shares=128 \
+		--blkio-weight=10 \
+		--oom-score-adj=1000 \
 		--rm \
 		--name "encfs-${LID}" \
 		--cap-add SYS_ADMIN \

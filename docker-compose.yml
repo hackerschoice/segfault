@@ -13,7 +13,7 @@ services:
       - NET_ADMIN
     command: ["--no-resolv", "--domain-needed", "--server=172.23.0.2#5053", "--server=/onion/172.20.0.111#5353"]
     networks:
-      vpn:
+      vpn-net:
         ipv4_address: 172.20.0.252
       dns-doh-net:
         ipv4_address: 172.23.0.252
@@ -24,7 +24,9 @@ services:
       - dns-doh
 
   nordlynx:
-    image: ghcr.io/bubuntux/nordlynx
+    # image: ghcr.io/bubuntux/nordlynx
+    build: nordvpn
+    image: sf-nordvpn
     depends_on:
       - dnsmasq
     dns: 172.23.0.252 #dnsmasq on dns-doh-net
@@ -34,19 +36,19 @@ services:
       - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordlynx.log post_up %i
       - POST_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordlynx.log post_down %i
+      - RECONNECT=604800 # Re-Connect every 7 days
     networks:
-      vpn:
+      vpn-net:
         ipv4_address: 172.20.0.254
       dns-doh-net:
         ipv4_address: 172.23.0.254
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
-      - net.ipv4.conf.all.src_valid_mark=1
+      # - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
     restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
-      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   router:
     build: router
@@ -54,7 +56,7 @@ services:
     depends_on:
       - router-fix-network
     networks:
-      vpn:
+      vpn-net:
         ipv4_address: 172.20.0.2
       guest-net:
         ipv4_address: 10.11.255.253 # Will be replaced by init.sh with 10.11.0.1
@@ -78,7 +80,7 @@ services:
       - NET_ADMIN
     environment:
       - SF_DEBUG
-    restart: ${SF_RESTART:-on-failure}
+    restart: ${SF_RESTART:-on-failure}:1
     entrypoint: ["/fix-network.sh"]
 
   tor:
@@ -86,7 +88,7 @@ services:
     image: sf-tor
     networks:
       nginx-net:
-      vpn:
+      vpn-net:
         ipv4_address: 172.20.0.111
     cap_add:
       - NET_ADMIN    
@@ -105,7 +107,7 @@ services:
     depends_on:
       - router
     networks:
-      vpn:
+      vpn-net:
     restart: ${SF_RESTART:-on-failure}
     dns: 172.20.0.252
     environment:
@@ -124,7 +126,7 @@ services:
     # /bin/segfaultsh need to know the container name; set it to sf-host statically
     container_name: sf-host
     networks:
-      vpn:
+      vpn-net:
         ipv4_address: 172.20.0.110
     depends_on:
       - dnsmasq
@@ -185,7 +187,8 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
 networks:
-  vpn:
+  vpn-net:
+    name: sf-vpn
     driver: bridge
     ipam:
       driver: default
@@ -193,12 +196,14 @@ networks:
       - subnet: 172.20.0.0/24
 
   nginx-net:
+    name: sf-nginx
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.1.0/24
 
   dns-doh-net:
+    name: sf-dns-doh
     driver: bridge
     ipam:
       config:
@@ -206,7 +211,7 @@ networks:
 
   # User's shell
   guest-net:
-    name: sf_guest-net
+    name: sf-guest
     driver: bridge
     ipam:
       driver: default

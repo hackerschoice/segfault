@@ -44,7 +44,7 @@ sf_server()
 	sf_server_init
 
 	echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >/encfs/sec/IS-NOT-ENCRYPTED.txt
-	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" &
+	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" -- -o noexec,noatime &
 	cpid=$!
 	wait $cpid # SIGTERM will wake us
 	# SIGTERM or wrong SF_SEED
@@ -63,9 +63,9 @@ check_markfile()
 
 	while [[ -f "${SECDIR}/${MARKFILE}" ]]; do
 		[[ -n $SF_DEBUG ]] && echo "DEBUG: Round #${n}"
-		if [[ $n -gt 0 ]]; then sleep 2; else sleep 0.1; fi
+		if [[ $n -gt 0 ]]; then sleep 0.5; else sleep 0.1; fi
 		n=$((n+1))
-		[[ $n -gt 5 ]] && exit 253 # "Could not create /sec..."
+		[[ $n -gt 10 ]] && exit 253 # "Could not create /sec..."
 	done
 
 	exit 0 # /sec created
@@ -83,7 +83,7 @@ SECDIR="/encfs/sec/user-${LID}" # typically on host: /dev/shm/encfs-sec/user-${L
 
 echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >"${SECDIR}/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
-PASSFILE="/dev/shm/pass-${PWD}.txt"
+PASSFILE="/dev/shm/pass-${LID}.txt"
 echo "${LENCFS_PASS}" >"${PASSFILE}"
 bash -c "exec -a '[encfs-${LID}]' encfs --standard --public -o nonempty -o allow_other -S \"${RAWDIR}\" \"${SECDIR}\" <\"${PASSFILE}\""
 rm -f "${PASSFILE:?}"

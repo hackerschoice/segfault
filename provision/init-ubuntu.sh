@@ -110,6 +110,9 @@ init_config_run_sfbin()
 
   # Copy Traffic Control (tc) config
   [[ ! -d "${SF_BASEDIR}/config/etc/tc" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/tc\" \"${SF_BASEDIR}/config/etc\""
+
+  # Copy info directory 
+  [[ ! -d "${SF_BASEDIR}/config/etc/info" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/info\" \"${SF_BASEDIR}/config/info\""
   
   # Create Master-SEED
   if [[ -z $SF_SEED ]]; then
@@ -136,7 +139,7 @@ init_config_run_sfbin()
   }
 
   # Copy over sfbin
-  [[ ! -d "${SF_BASEDIR}/sfbin" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/sfbin\" \"${SF_BASEDIR}\""
+  # [[ ! -d "${SF_BASEDIR}/sfbin" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/sfbin\" \"${SF_BASEDIR}\""
 }
 
 # Add user

@@ -74,7 +74,7 @@ tofile()
 	local str
 	# Replace ' with '"'"'
 	str="${1//\'/\'\"\'\"\'/}"
-	[[ -n $SF_DEBUG ]] && ls -al $(dirname $2)
+	# [[ -n $SF_DEBUG ]] && ls -al $(dirname $2)
 	bash -c "echo '$str' >'$2' 2>/dev/null" || ERREXIT 231 "tofile: Failed to create "$(basename "$2")""
 }
 
@@ -196,7 +196,7 @@ MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
 
-[[ -f "/onion/IS-NOT-ENCRYPTED.txt" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
+[[ -f "/sec/IS-NOT-ENCRYPTED.txt" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
 
 mk_hostname
 
@@ -295,9 +295,9 @@ echo_pty -n "...."
 ### Create ONION directory:
 # This script runs under UID=1000 (root) and does not have write permission to
 # /onion. Thus jump via docker.
-[[ -d "/onion/${SF_HOSTNAME,,}" ]] || { 
+[[ -d "/sec/onion-www/${SF_HOSTNAME,,}" ]] || { 
 	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
-	exec_devnull docker exec sf-host mkdir "/onion/${SF_HOSTNAME,,}"
+	exec_devnull docker exec sf-host mkdir "/sec/onion-www/${SF_HOSTNAME,,}"
 	DEBUGF "ret $?"
 }
 
@@ -336,7 +336,9 @@ exec_devnull docker run \
 	--mount type=bind,source="${SF_SHMDIR}/run/vpn,target=/sf/run/vpn,readonly" \
 	--mount type=bind,source="${SF_SHMDIR}/run/gsnc/access-22.txt,target=/sf/run/gsnc-access-22.txt,readonly" \
 	-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/sec:slave" \
-	-v "${SF_SHMDIR}/encfs-sec/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
+	-v "${SF_SHMDIR}/encfs-sec/sf/warez:/warez:slave" \
+	-v "${SF_SHMDIR}/encfs-sec/sf/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
+	--mount type=bind,source="${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,target=/warez/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,readonly" \
 	-d \
 	sf-guest /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 

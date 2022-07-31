@@ -21,12 +21,13 @@ cp -a /etc/skel /sec/root && \
 mkdir /root && \
 #
 # Need to set correct permission which may have gotten skewed when building
-# docker inside vmbox from shared host drive (rwxrwx--- root:vobxsf)
+# docker inside vmbox from shared host drive. On VMBOX share all
+# source files are set to "rwxrwx--- root:vobxsf" :/
 ln -sf /sec/usr/etc/rc.local /etc/rc.local && \
 chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh && \
-chmod 755 /etc /etc/profile.d && \
+chmod 755 /usr /etc /etc/profile.d && \
 chmod 644 /etc/profile.d/segfault.sh && \
-chmod 644 /etc/shellrc && \
+chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile && \
 ln -s batcat /usr/bin/bat && \
 echo DONE || exit 254
 

@@ -25,6 +25,8 @@ iptables -t nat -A PREROUTING -p tcp --syn -j REDIRECT --to-ports 9040
 
 chown -R tor /var/lib/tor/hidden || ERREXIT
 chmod -R 700 /var/lib/tor/hidden || ERREXIT
+chmod 644 /var/lib/tor/hidden/service-22/hostname
+chmod 644 /var/lib/tor/hidden/service-80/hostname
 # echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
 if [[ -f /config/tor/torrc ]]; then
 	exec su -s /bin/ash - tor -c "tor -f /config/tor/torrc"

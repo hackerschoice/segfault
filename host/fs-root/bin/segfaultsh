@@ -51,6 +51,7 @@ exec_devnull()
 	if [[ -z $SF_DEBUG ]]; then
 		bash -c "exec $* 2>/dev/null >/dev/null"
 	else
+		# DEBUGF "EXEC '$*'"
 		# HERE: DEBUG is enabled. Show STDOUT/STDERR
 		$*
 	fi
@@ -73,7 +74,8 @@ tofile()
 	local str
 	# Replace ' with '"'"'
 	str="${1//\'/\'\"\'\"\'/}"
-	bash -c "echo '$str'>'$2'"
+	[[ -n $SF_DEBUG ]] && ls -al $(dirname $2)
+	bash -c "echo '$str' >'$2' 2>/dev/null" || ERREXIT 231 "tofile: Failed to create "$(basename "$2")""
 }
 
 print_disclaimer()
@@ -90,16 +92,16 @@ print_ssh_access()
 	echo 1>&2 -e "\
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
-${CDC}cat >~/.ssh/id_ed25519-lg-${LID} ${CDR}<<__EOF__
+${CDC}cat >~/.ssh/id_ed25519-sf-${SF_HOSTNAME,,} ${CDR}<<__EOF__
 ${CN}${CF}$(cat ~/.ssh/id_ed25519)
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
     HostName ${SF_FQDN}
-    IdentityFile ~/.ssh/id_ed25519-lg-${LID}
+    IdentityFile ~/.ssh/id_ed25519-sf-${SF_HOSTNAME,,}
     SetEnv SECRET=${SF_SEC}
 ${CDR}__EOF__
-${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_ed25519-lg-${LID}${CN}
+${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_ed25519-sf-${SF_HOSTNAME,,}${CN}
 ######################################################################
 Thereafter use this command to connect to your server:
 --> ${CDC}ssh root@${SF_HOSTNAME,,}${CN}
@@ -173,6 +175,8 @@ else
 	PARAM=();
 fi
 
+### ----BEGIN SANTIZE----
+# SECRET and SF_DEBUG are user supplied.
 # Connect to existing session
 if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 24 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
 	IS_TRY_EXISTING=1
@@ -181,12 +185,18 @@ else
 	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 fi
 
+[[ -n $SF_DEBUG ]] && [[ $SF_DEBUG != "1" ]] && ERREXIT 133 "Bad SF_DEBUG value"
+### ----END SANITIZE----
+
+
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
 
 SF_VER="1.1"
 MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
+
+[[ -f "/onion/IS-NOT-ENCRYPTED.txt" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
 
 mk_hostname
 
@@ -218,17 +228,18 @@ DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
 
 if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Status}}')" != "running" ]]; then
 	LENCFS_PASS=$(echo -n "EncFS-PASS-${SF_SEED}${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 24)
+	[[ -z $LENCFS_PASS ]] && ERREXIT 241 "Failed to create session password"
 	# HERE: encfs is not already running for this instance...
 	DEBUGF "EncFS-${LID} is not yet running..."
+	# DEBUGF "Using 'EncFS-PASS-${SF_SEED:0:2}...${SF_SEC} => ${LENCFS_PASS}"
 
 	# EncFS	to mount encrypted to mount-point.
 	# Run in background (-d)
 	# Use exec_devnull to redirect Container-ID to /dev/null (docker run -d).
 	exec_devnull docker run \
-		--cpu-shares=128 \
+		--cpu-shares=256 \
 		--blkio-weight=10 \
-		--oom-score-adj=1000 \
-		--rm \
+		--oom-score-adj=500 \
 		--name "encfs-${LID}" \
 		--cap-add SYS_ADMIN \
 		--device /dev/fuse \
@@ -297,12 +308,15 @@ echo_pty -n "...."
 # Solution: Spawn a docker in the background that monitors the number of
 # processes and use 'docker exec' for every connection.
 exec_devnull docker run \
+	--cpu-shares=128 \
+	--blkio-weight=10 \
+	--oom-score-adj=1000 \
 	--hostname "sf-${SF_HOSTNAME}" \
 	--rm \
 	--init \
 	--name "lg-${LID}" \
 	--init \
-	--net sf_guest-net \
+	--net sf-guest \
 	--dns "${SF_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
 	--env SF_TOR="${SF_TOR}" \
@@ -311,6 +325,8 @@ exec_devnull docker run \
 	--env SF_FQDN="${SF_FQDN}" \
 	--env SF_DEBUG="${SF_DEBUG}" \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
+	--env SF_LID="${LID}" \
+	--env SF_IS_LOGINSHELL=1 \
 	-e SSH_CONNECTION \
 	-e SSH_CLIENT \
 	--log-driver "${SF_DOCKER_LOG}" \

@@ -76,6 +76,7 @@ setup_sshd
 	[[ ! -f "/config/etc/ssh/id_ed25519" ]] && ERREXIT 255 5
 }
 
+chmod 644 /config/etc/ssh/id_ed25519
 # Copy login-key to fake root's home directory
 [[ -e /home/"${SF_USER}"/.ssh/authorized_keys ]] || {
 	[[ -d /home/"${SF_USER}"/.ssh ]] || { mkdir /home/"${SF_USER}"/.ssh; chown "${SF_USER}":nobody /home/"${SF_USER}"/.ssh; }

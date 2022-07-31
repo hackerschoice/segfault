@@ -7,7 +7,7 @@
 #    server         - data/onion-www for system wide /onion. Same password per
 #                     deployment.
 # CY="\033[1;33m" # yellow
-# CR="\033[1;31m" # red
+CR="\033[1;31m" # red
 # CC="\033[1;36m" # cyan
 # CN="\033[0m"    # none
 
@@ -43,9 +43,12 @@ sf_server()
 {
 	sf_server_init
 
+	echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >/encfs/sec/IS-NOT-ENCRYPTED.txt
 	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" &
 	cpid=$!
 	wait $cpid # SIGTERM will wake us
+	# SIGTERM or wrong SF_SEED
+	echo -e "${CR}[$cpid] EncFS EXITED with $?..."
 
 	fusermount -zu /encfs/sec
 	exit 0
@@ -55,6 +58,9 @@ sf_server()
 check_markfile()
 {
 	n=0
+
+	[[ -n $SF_DEBUG ]] && echo "DEBUG: Checking for '${SECDIR}/${MARKFILE}'"
+
 	while [[ -f "${SECDIR}/${MARKFILE}" ]]; do
 		[[ -n $SF_DEBUG ]] && echo "DEBUG: Round #${n}"
 		if [[ $n -gt 0 ]]; then sleep 2; else sleep 0.1; fi
@@ -75,10 +81,17 @@ SECDIR="/encfs/sec/user-${LID}" # typically on host: /dev/shm/encfs-sec/user-${L
 
 [[ -n $MARKFILE ]] && check_markfile
 
-encfs --standard -o nonempty -o allow_other --extpass="echo \"${LENCFS_PASS}\"" "${RAWDIR}" "${SECDIR}"
+echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >"${SECDIR}/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
-# Monitor: Unmount when user instance is no longer running.
+PASSFILE="/dev/shm/pass-${PWD}.txt"
+echo "${LENCFS_PASS}" >"${PASSFILE}"
+bash -c "exec -a '[encfs-${LID}]' encfs --standard --public -o nonempty -o allow_other -S \"${RAWDIR}\" \"${SECDIR}\" <\"${PASSFILE}\""
+rm -f "${PASSFILE:?}"
+# encfs --standard --public -o nonempty -o allow_other --extpass="echo \"${LENCFS_PASS}\"" "${RAWDIR}" "${SECDIR}"
+
+# Give segfaultsh time to start guest shell instance
 sleep 5
+# Monitor: Unmount when user instance is no longer running.
 while :; do
 	docker container inspect "lg-${LID}" -f '{{.State.Status}}' || break
 	# Break if EncFS died

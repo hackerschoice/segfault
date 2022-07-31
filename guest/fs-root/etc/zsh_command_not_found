@@ -1,0 +1,40 @@
+#! /bin/zsh  # Not needed but makes syntax highlighting easier
+
+# source'd from /etc/profile.d/segfault.sh
+
+# CY="\033[1;33m" # yellow
+# CR="\033[1;31m" # red
+# CC="\033[1;36m" # cyan
+# CG="\033[1;32m" # green
+# CDC="\033[0;36m" # cyan
+# CDR="\033[0;31m" # red
+# CN="\033[0m"    # none
+# CW="\033[1;37m" # white
+# CF="\033[2m"    # faint
+
+# ZSH specific
+function cnf_preexec() {
+    typeset -g cnf_command="${1%% *}"
+    whence -- "$cnf_command" >& /dev/null && return
+    # HERE: command not found
+    [ -n "$cnf_once" ] && return
+    typeset -g cnf_once="1"
+    echo -en "\033[0;31m"
+}
+
+function cnf_precmd() {
+    cnf_ret=$?
+
+    unset cnf_once
+    echo -en "\033[0m"
+    (($cnf_ret)) && [ -n "$cnf_command" ] && {
+        whence -- "$cnf_command" >& /dev/null ||
+            echo -e "[SF] ¯\_(⊙︿⊙)_/¯ Like us to install \033[0;36m${cnf_command}\033[0m?\n\033[0m[SF] \033[1;37mTell us at https://t.me/thcorg\033[0m"
+        unset cnf_command
+    }
+}
+
+typeset -ga preexec_functions
+typeset -ga precmd_functions
+preexec_functions+=cnf_preexec
+precmd_functions+=cnf_precmd

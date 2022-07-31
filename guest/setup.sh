@@ -3,6 +3,7 @@
 # Docker sf-guest setup script (docker build)
 
 sed -i 's/#\(.*\)prompt_symbol=/\1prompt_symbol=/g' /etc/skel/.zshrc && \
+sed -i 's/\(\s*PROMPT=.*\)n└─\(.*\)/\1n%{%G└%}%{%G─%}\2/g' /etc/skel/.zshrc && \
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.zshrc && \
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.bashrc && \
 sed -i 's/ set mouse=a/"set mouse=a/g' /usr/share/vim/vim82/defaults.vim && \

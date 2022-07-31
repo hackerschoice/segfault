@@ -103,7 +103,7 @@ init_basedir()
   [[ ! -d "${SF_BASEDIR}/config/db" ]] && SUDO_SF "mkdir \"${SF_BASEDIR}/config/db\""
 }
 
-init_config_run_sfbin()
+init_config_run()
 {
   # Copy nginx.conf
   [[ ! -d "${SF_BASEDIR}/config/etc/nginx" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/nginx\" \"${SF_BASEDIR}/config/etc\""
@@ -137,9 +137,6 @@ init_config_run_sfbin()
     [[ ! -d "$SF_DATADIR" ]] && mkdir -p "$SF_DATADIR"
     [[ ! -d "${SF_BASEDIR}/data" ]] && ln -s "$SF_DATADIR" "${SF_BASEDIR}/data"
   }
-
-  # Copy over sfbin
-  # [[ ! -d "${SF_BASEDIR}/sfbin" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/sfbin\" \"${SF_BASEDIR}\""
 }
 
 # Add user
@@ -172,7 +169,7 @@ usermod -a -G docker "${SF_HOST_USER}"
   SUDO_SF "ssh-keygen -q -t ed25519 -C \"\" -N \"\" -f \"${SF_BASEDIR}/config/etc/ssh/id_ed25519\""
 }
 
-init_config_run_sfbin
+init_config_run
 
 ### Create guest, encfs and other docker images.
 [[ -z $SF_NO_INTERNET ]] && { SUDO_SF "cd ${SFI_SRCDIR} && make" || exit; }

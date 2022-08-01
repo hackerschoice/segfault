@@ -155,7 +155,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf:/sec:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
-  # EncFS for /onion and /warez
+  # EncFS for /onion and /everyone
   sf-encfs:
     build: encfs
     image: sf-encfs

@@ -1,11 +1,12 @@
 FROM kalilinux/kali-rolling
 
 WORKDIR /root/
-RUN apt update -y && \
+RUN	apt update -y && \
 	apt install -y --no-install-recommends \
 		ca-certificates \
 		curl
 RUN	apt install -y --no-install-recommends \
+		locales \
 		gcc \
 		g++ \
 		git \
@@ -19,7 +20,7 @@ RUN	apt install -y --no-install-recommends \
 		manpages-dev \
 		python-is-python3 \
 		patch
-RUN apt install -y --no-install-recommends \
+RUN	apt install -y --no-install-recommends \
 		vim \
 		binutils \
 		whois \
@@ -53,19 +54,20 @@ RUN apt install -y --no-install-recommends \
 		bat \
 		duf \
 		netcat-traditional
-RUN apt install -y --no-install-recommends \
+RUN	apt install -y --no-install-recommends \
 		zsh \
 		zsh-syntax-highlighting \
 		zsh-autosuggestions
-RUN curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
-		dpkg -i /tmp/lsd.dep && \
-		rm -f /tmp/lsd.dep
+RUN	curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
+	dpkg -i /tmp/lsd.dep && \
+	rm -f /tmp/lsd.dep && \
+	localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 # Keep the apt/lists in case user does a apt update -y
 #RUN rm -rf /var/lib/apt/lists/*
 
 COPY /fs-root/ /
 COPY setup.sh /
-RUN /setup.sh && \
+RUN	/setup.sh && \
 	rm -f /setup.sh
 
 CMD ["zsh", "-il"]

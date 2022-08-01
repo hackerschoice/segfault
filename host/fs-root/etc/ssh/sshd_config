@@ -30,7 +30,7 @@ HostKey /config/etc/ssh/ssh_host_ed25519_key
 
 #LoginGraceTime 2m
 #PermitRootLogin prohibit-password
-# FIXME: Disable strict mode to allow sshd to read ssh keys from vboxfs (rwxrwx---)
+# SF: Allow keys to be on vmbox drive (rwxrwx---).
 StrictModes no
 ##StrictModes yes
 #MaxAuthTries 6
@@ -86,7 +86,7 @@ AuthorizedKeysFile	.ssh/authorized_keys
 
 #AllowAgentForwarding yes
 # Feel free to re-enable these if your use case requires them.
-AllowTcpForwarding no
+AllowTcpForwarding yes
 GatewayPorts no
 X11Forwarding no
 #X11DisplayOffset 10

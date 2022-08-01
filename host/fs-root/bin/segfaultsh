@@ -92,16 +92,16 @@ print_ssh_access()
 	echo 1>&2 -e "\
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
-${CDC}cat >~/.ssh/id_ed25519-sf-${SF_HOSTNAME,,} ${CDR}<<__EOF__
+${CDC}cat >~/.ssh/id_sf-${SF_HOSTNAME,,} ${CDR}<<__EOF__
 ${CN}${CF}$(cat ~/.ssh/id_ed25519)
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
     HostName ${SF_FQDN}
-    IdentityFile ~/.ssh/id_ed25519-sf-${SF_HOSTNAME,,}
+    IdentityFile ~/.ssh/id_sf-${SF_HOSTNAME,,}
     SetEnv SECRET=${SF_SEC}
 ${CDR}__EOF__
-${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_ed25519-sf-${SF_HOSTNAME,,}${CN}
+${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_sf-${SF_HOSTNAME,,}${CN}
 ######################################################################
 Thereafter use this command to connect to your server:
 --> ${CDC}ssh root@${SF_HOSTNAME,,}${CN}
@@ -200,16 +200,19 @@ MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
 mk_hostname
 
+HNLID_FILE="/config/db/hn/hn2lid-${SF_HOSTNAME}"
+
 if [[ -d "/config/db/db-${LID}" ]]; then
 	echo_pty -n "Connecting to server. Please wait..."
+	touch "${HNLID_FILE}"
 else
 	print_disclaimer
 	echo_pty -n "Creating new server. Please wait...."
 
 	# A hostname is generated from the LID. Avoid collision when a hostname
 	# has already been created for a different LID.
-	[[ -e "/config/db/hn2lid-${SF_HOSTNAME}" ]] && {
-		lid_old=$(cat "/config/db/hn2lid-${SF_HOSTNAME}")
+	[[ -e "${HNLID_FILE}" ]] && {
+		lid_old=$(cat "${HNLID_FILE}")
 		[[ "$lid_old" -ne "$LID" ]] && {
 			DEBUGF "$SF_HOSTNAME already used by ${lid_old} (this is ${LID})."
 			ERREXIT 13 "Hostname Collision. Try again.."
@@ -221,7 +224,7 @@ else
 	mkdir -p "/config/db/db-${LID}" || ERREXIT
 	touch "/config/db/db-${LID}/created.txt" || ERREXIT
 	[[ -d /config/db/hn/ ]] || exec_devnull mkdir /config/db/hn
-	tofile "$LID" "/config/db/hn/hn2lid-${SF_HOSTNAME}"
+	tofile "$LID" "${HNLID_FILE}"
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
@@ -336,9 +339,9 @@ exec_devnull docker run \
 	--mount type=bind,source="${SF_SHMDIR}/run/vpn,target=/sf/run/vpn,readonly" \
 	--mount type=bind,source="${SF_SHMDIR}/run/gsnc/access-22.txt,target=/sf/run/gsnc-access-22.txt,readonly" \
 	-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/sec:slave" \
-	-v "${SF_SHMDIR}/encfs-sec/sf/warez:/warez:slave" \
+	-v "${SF_SHMDIR}/encfs-sec/sf/everyone:/everyone:slave" \
 	-v "${SF_SHMDIR}/encfs-sec/sf/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
-	--mount type=bind,source="${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,target=/warez/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,readonly" \
+	--mount type=bind,source="${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,target=/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,readonly" \
 	-d \
 	sf-guest /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 

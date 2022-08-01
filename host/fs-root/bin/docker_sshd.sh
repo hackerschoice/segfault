@@ -54,9 +54,8 @@ setup_sshd()
 	done
 }
 
-[[ -d /config ]] || ERREXIT 255 5 "${CR}Not found: /config${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
-
 [[ -d /config/db ]] || ERREXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
+[[ ! -d "/config/db/hn" ]] && { mkdir -p "/config/db/hn" || ERREXIT; }
 
 create_load_seed
 

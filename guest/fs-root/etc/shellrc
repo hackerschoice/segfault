@@ -9,6 +9,8 @@ alias lt='ls -Alhrt'
 	alias ls='lsd --icon never'
 }
 
+[[ -z $LANG ]] && export LANG=en_US.UTF-8
+
 [[ -e /sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt ]] && { echo "WARNING: /sec is NOT encrypted. PRESS ENTER to continue..."; read; }
 
 

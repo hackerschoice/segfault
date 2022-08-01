@@ -1,23 +1,25 @@
 #! /bin/bash
 
-# CY="\033[1;33m" # yellow
-# CG="\033[1;32m" # green
-CR="\033[1;31m" # red
-# CC="\033[1;36m" # cyan
-# CM="\033[1;35m" # magenta
-# CW="\033[1;37m" # white
-CF="\033[2m"    # faint
-CN="\033[0m"    # none
+# CY="\e[1;33m" # yellow
+# CG="\e[1;32m" # green
+CR="\e[1;31m" # red
+CC="\e[1;36m" # cyan
+# CM="\e[1;35m" # magenta
+# CW="\e[1;37m" # white
+CB="\e[1;34m" # blue
+CF="\e[2m"    # faint
+CN="\e[0m"    # none
 
-# CBG="\033[42;1m" # Background Green
+# CBG="\e[42;1m" # Background Green
 
 # night-mode
-CDY="\033[0;33m" # yellow
-CDG="\033[0;32m" # green
-# CDR="\033[0;31m" # red
-CDC="\033[0;36m" # cyan
-# CDM="\033[0;35m" # magenta
-
+CDY="\e[0;33m" # yellow
+CDG="\e[0;32m" # green
+# CDR="\e[0;31m" # red
+CDB="\e[0;34m" # blue
+CDC="\e[0;36m" # cyan
+CDM="\e[0;35m" # magenta
+CUL="\e[4m"
 # BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 
 # shellcheck disable=SC1091
@@ -31,22 +33,28 @@ Your workstation  : ${CDY}${YOURIP:-UNKNOWN}${CN}
 VPN Exit Node     : ${VPN_DST}
 DNS over HTTPS    : ${CDG}Cloudflare${CN}
 TOR Proxy         : ${CDG}${SF_TOR:-UNKNOWN}:9050${CN}
-Persistent storage: ${CDC}/sec ${CF}(encrypted)${CN}"
+Shared storage    : ${CDM}/everyone ${CF}(encrypted)${CN}
+Your storage      : ${CDM}/sec      ${CF}(encrypted)${CN}"
 [[ -e /config/onion_hostname-80 ]] && {
 	echo -e "\
-Your Web Page     : ${CDC}http://$(cat /config/onion_hostname-80)/${SF_HOSTNAME,,}/${CN}"
+Your Onion WWW    : ${CDM}/onion    ${CF}(encrypted)${CN}"
+
+	echo -e "\
+Your Web Page     : ${CB}${CUL}http://$(cat /config/onion_hostname-80)/${SF_HOSTNAME,,}/${CN}"
 }
+[[ -n $SF_SSH_PORT ]] && PORTSTR=" -p${SF_SSH_PORT} "
+echo -e "\
+SSH               : ${CC}ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\"${PORTSTR} ${CR}${CF}\\ ${CDC}\n\
+                       ${SF_USER:-UNKNOWN}@${SF_FQDN:-UNKNOWN}${CN}"
+
 [[ -e /config/onion_hostname-22 ]] && {
 	echo -e "\
-SSH (TOR)         : ${CDC}torsocks ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" \\ \n\
+SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
                        ${SF_USER:-UNKNOWN}@$(cat /config/onion_hostname-22)${CN}"
 }
 [[ -e /sf/run/gsnc-access-22.txt ]] && {
 	echo -e "\
-SSH (gsocket)     : ${CDC}gsocket -s $(cat /sf/run/gsnc-access-22.txt) ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" \\ \n\
+SSH (gsocket)     : ${CC}gsocket -s $(cat /sf/run/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
                        ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
 
-[[ -n $SF_SSH_PORT ]] && PORTSTR="-p${SF_SSH_PORT} "
-echo -e "\
-SSH               : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${PORTSTR}${SF_USER:-UNKNOWN}@${SF_FQDN:-UNKNOWN}${CN}"

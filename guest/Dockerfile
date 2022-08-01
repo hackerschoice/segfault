@@ -53,6 +53,7 @@ RUN	apt install -y --no-install-recommends \
 		less \
 		bat \
 		duf \
+		lynx \
 		netcat-traditional
 RUN	apt install -y --no-install-recommends \
 		zsh \

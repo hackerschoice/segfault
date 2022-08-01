@@ -1,9 +1,9 @@
 #! /bin/bash
 
-# CY="\033[1;33m" # yellow
-CR="\033[1;31m" # red
-# CC="\033[1;36m" # cyan
-CN="\033[0m"    # none
+# CY="\e[1;33m" # yellow
+CR="\e[1;31m" # red
+# CC="\e[1;36m" # cyan
+CN="\e[0m"    # none
 
 
 ERREXIT()
@@ -24,10 +24,10 @@ ERREXIT()
 create_load_seed()
 {
 	[[ -n $SF_SEED ]] && return
-	[[ ! -f "/config/seed/seed.txt" ]] && {
+	[[ ! -f "/config/etc/seed/seed.txt" ]] && {
 		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
 	}
-	SF_SEED="$(cat /config/seed/seed.txt)"
+	SF_SEED="$(cat /config/etc/seed/seed.txt)"
 	[[ -z $SF_SEED ]] && ERREXIT 254 "Failed to generated SF_SEED="
 }
 
@@ -55,7 +55,6 @@ setup_sshd()
 }
 
 [[ -d /config/db ]] || ERREXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
-[[ ! -d "/config/db/hn" ]] && { mkdir -p "/config/db/hn" || ERREXIT; }
 
 create_load_seed
 
@@ -109,8 +108,8 @@ chmod 770 /var/run/docker.sock && \
 # SSHD's user (normally "root" with uid 1000) needs write access to /config/db
 # That directory is mounted from the outside and we have no clue what the
 # group owner or permission is. Need to add our root(uid=1000) to that group.
-# However, we dont like this to be group=0 (root) so we force it to nogroup
-# if it is root.
+# However, we dont like this to be group=0 (root) and if it is then we force it
+# to nogroup.
 [[ "$(stat -c %g /config/db)" -eq 0 ]] && chgrp nogroup /config/db # Change root -> nogroup
 addgroup -g "$(stat -c %g /config/db)" sf-dbrw 2>/dev/null # Ignore if already exists.
 addgroup "${SF_USER}" "$(stat -c %G /config/db)" 2>/dev/null # Ignore if already exists.

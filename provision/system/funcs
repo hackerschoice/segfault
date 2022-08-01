@@ -2,26 +2,26 @@
 
 # shellcheck disable=SC2034 # unused variable warning for ansi colors
 
-CY="\033[1;33m" # yellow
-CG="\033[1;32m" # green
-CR="\033[1;31m" # red
-CC="\033[1;36m" # cyan
-CM="\033[1;35m" # magenta
-CW="\033[1;37m" # magenta
-CF="\033[2m"    # faint
-CN="\033[0m"    # none
+CY="\e[1;33m" # yellow
+CG="\e[1;32m" # green
+CR="\e[1;31m" # red
+CC="\e[1;36m" # cyan
+CM="\e[1;35m" # magenta
+CW="\e[1;37m" # magenta
+CF="\e[2m"    # faint
+CN="\e[0m"    # none
 
-CBG="\033[42;1m" # Background Green
+CBG="\e[42;1m" # Background Green
 
 # night-mode
-CDY="\033[0;33m" # yellow
-CDG="\033[0;32m" # green
-CDR="\033[0;31m" # red
-CDC="\033[0;36m" # cyan
-CDM="\033[0;35m" # magenta
+CDY="\e[0;33m" # yellow
+CDG="\e[0;32m" # green
+CDR="\e[0;31m" # red
+CDC="\e[0;36m" # cyan
+CDM="\e[0;35m" # magenta
 
 # Clear from cursor to end of line
-CL="\033[0K"
+CL="\e[0K"
 
 if [[ -z $SF_DEBUG ]]; then
 	DEBUGF(){ :;}

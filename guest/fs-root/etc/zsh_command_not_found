@@ -2,15 +2,15 @@
 
 # source'd from /etc/profile.d/segfault.sh
 
-# CY="\033[1;33m" # yellow
-# CR="\033[1;31m" # red
-# CC="\033[1;36m" # cyan
-# CG="\033[1;32m" # green
-# CDC="\033[0;36m" # cyan
-# CDR="\033[0;31m" # red
-# CN="\033[0m"    # none
-# CW="\033[1;37m" # white
-# CF="\033[2m"    # faint
+# CY="\e[1;33m" # yellow
+# CR="\e[1;31m" # red
+# CC="\e[1;36m" # cyan
+# CG="\e[1;32m" # green
+# CDC="\e[0;36m" # cyan
+# CDR="\e[0;31m" # red
+# CN="\e[0m"    # none
+# CW="\e[1;37m" # white
+# CF="\e[2m"    # faint
 
 # ZSH specific
 function cnf_preexec() {
@@ -19,17 +19,17 @@ function cnf_preexec() {
     # HERE: command not found
     [ -n "$cnf_once" ] && return
     typeset -g cnf_once="1"
-    echo -en "\033[0;31m"
+    echo -en "\e[0;31m"
 }
 
 function cnf_precmd() {
     cnf_ret=$?
 
     unset cnf_once
-    echo -en "\033[0m"
+    echo -en "\e[0m"
     (($cnf_ret)) && [ -n "$cnf_command" ] && {
         whence -- "$cnf_command" >& /dev/null ||
-            echo -e "[SF] ¯\_(⊙︿⊙)_/¯ Like us to install \033[0;36m${cnf_command}\033[0m?\n\033[0m[SF] \033[1;37mTell us at https://t.me/thcorg\033[0m"
+            echo -e "[SF] ¯\_(⊙︿⊙)_/¯ Like us to install \e[0;36m${cnf_command}\e[0m?\n\e[0m[SF] \e[1;37mTell us at https://t.me/thcorg\e[0m"
         unset cnf_command
     }
 }

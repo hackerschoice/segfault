@@ -61,6 +61,7 @@ FILES_NORDVPN += "segfault-$(VER)/nordvpn/vpn_wg2status.sh"
 
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/tc/limits.conf"
+FILES_CONFIG += "segfault-$(VER)/config/etc/info/sf.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"

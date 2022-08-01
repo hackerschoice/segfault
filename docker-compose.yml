@@ -152,6 +152,7 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/ssh:/config/etc/ssh"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/seed"
+      - "${SF_BASEDIR:-.}/config/etc/info:/config/etc/info:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf:/sec:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 

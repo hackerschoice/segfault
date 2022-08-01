@@ -1,8 +1,8 @@
 #! /bin/bash
 
-CR="\033[1;31m" # red
-# CG="\033[1;32m" # green
-CN="\033[0m"    # none
+CR="\e[1;31m" # red
+# CG="\e[1;32m" # green
+CN="\e[0m"    # none
 
 ERREXIT()
 {

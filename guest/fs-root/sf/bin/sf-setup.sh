@@ -10,8 +10,8 @@
 # NOTE: Possible that /sec/root etc already exists (old SECRET used after
 # earlier instance exited) - in which case do nothing.
 
-CR="\033[1;31m" # red
-CN="\033[0m"    # none
+CR="\e[1;31m" # red
+CN="\e[0m"    # none
 
 ERREXIT()
 {

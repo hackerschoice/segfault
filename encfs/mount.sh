@@ -6,10 +6,10 @@
 #                     user's SECRET
 #    server         - data/onion-www for system wide /onion. Same password per
 #                     deployment.
-# CY="\033[1;33m" # yellow
-CR="\033[1;31m" # red
-# CC="\033[1;36m" # cyan
-# CN="\033[0m"    # none
+# CY="\e[1;33m" # yellow
+CR="\e[1;31m" # red
+# CC="\e[1;36m" # cyan
+# CN="\e[0m"    # none
 
 # Handle SIGTERM. Send TERM to encfs when docker-compose shuts down, unmount
 # and exit.

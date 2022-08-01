@@ -14,15 +14,15 @@ SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
 [[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
 unset SSH_SF_DEBUG
 
-CY="\033[1;33m" # yellow
-CR="\033[1;31m" # red
-CC="\033[1;36m" # cyan
-CG="\033[1;32m" # green
-CDC="\033[0;36m" # cyan
-CDR="\033[0;31m" # red
-CN="\033[0m"    # none
-CW="\033[1;37m" # white
-CF="\033[2m"    # faint
+CY="\e[1;33m" # yellow
+CR="\e[1;31m" # red
+CC="\e[1;36m" # cyan
+CG="\e[1;32m" # green
+CDC="\e[0;36m" # cyan
+CDR="\e[0;31m" # red
+CN="\e[0m"    # none
+CW="\e[1;37m" # white
+CF="\e[2m"    # faint
 
 ERREXIT()
 {
@@ -188,6 +188,8 @@ fi
 [[ -n $SF_DEBUG ]] && [[ $SF_DEBUG != "1" ]] && ERREXIT 133 "Bad SF_DEBUG value"
 ### ----END SANITIZE----
 
+# HACK: Use eval-trick to 'source' in a restricted bash shell
+[[ -f /config/etc/info/sf.conf ]] && eval "$(cat /config/etc/info/sf.conf)"
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
 
@@ -201,6 +203,8 @@ MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 mk_hostname
 
 HNLID_FILE="/config/db/hn/hn2lid-${SF_HOSTNAME}"
+# Execute under "root" (uid=1001) context:
+[[ ! -d "/config/db/hn" ]] && { mkdir -p "/config/db/hn" || ERREXIT; }
 
 if [[ -d "/config/db/db-${LID}" ]]; then
 	echo_pty -n "Connecting to server. Please wait..."
@@ -300,7 +304,7 @@ echo_pty -n "...."
 # /onion. Thus jump via docker.
 [[ -d "/sec/onion-www/${SF_HOSTNAME,,}" ]] || { 
 	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
-	exec_devnull docker exec sf-host mkdir "/sec/onion-www/${SF_HOSTNAME,,}"
+	exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "/sec/onion-www/${SF_HOSTNAME,,}"
 	DEBUGF "ret $?"
 }
 
@@ -343,7 +347,7 @@ exec_devnull docker run \
 	-v "${SF_SHMDIR}/encfs-sec/sf/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
 	--mount type=bind,source="${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,target=/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,readonly" \
 	-d \
-	sf-guest /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
+	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 
 echo_pty -n ".."
 

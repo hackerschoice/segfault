@@ -5,6 +5,7 @@ services:
     build: encfs
     image: sf-encfs
     restart: ${SF_RESTART:-on-failure}
+    init: true
     cap_add:
       - SYS_ADMIN
     security_opt:
@@ -174,6 +175,7 @@ services:
       - "${SF_BASEDIR:-.}/config/db:/config/db"
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
       - "${SF_BASEDIR:-.}/config/etc/info:/config/etc/info:ro"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf:/sec:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
@@ -181,12 +183,13 @@ services:
     image: nginx
     restart: ${SF_RESTART:-on-failure}
     depends_on:
-      - dnsmasq # FIXME: This delays nginx until SHMDIR/encfs-sec/sf/onion-www is available
       - sf-encfs
+    entrypoint: ["/wait_semaphore.sh", "/srv/www/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]
     dns: 255.255.255.255
     networks:
       nginx-net:
     volumes:
+      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/wait_semaphore.sh"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf/onion-www:/srv/www:slave,ro"
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 

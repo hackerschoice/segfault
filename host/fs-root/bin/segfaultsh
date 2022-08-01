@@ -257,7 +257,7 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--env SF_DEBUG="${SF_DEBUG}" \
 		--log-driver "${SF_DOCKER_LOG}" \
 		-v "${SF_BASEDIR}/data/user:/encfs/raw" \
-		-v "${SF_SHMDIR}/encfs-sec:/encfs/sec:shared" \
+		-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/encfs/sec:shared" \
 		-v "/var/run/docker.sock:/var/run/docker.sock" \
 		-d \
 		sf-encfs || ERREXIT 251 "Could not create /sec..."

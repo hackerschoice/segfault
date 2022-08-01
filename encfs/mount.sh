@@ -16,7 +16,7 @@ CR="\e[1;31m" # red
 _term()
 {
 	[[ -z $cpid ]] && exit
-	kill "$cpid"
+	kill "$cpid" # This will unmount
 }
 
 create_load_seed()
@@ -51,13 +51,17 @@ sf_server()
 	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" -- -o noexec,noatime &
 	cpid=$!
 
-	# Give it 5 seconds and check if it is encrypted.
-	sleep 5
-	[[ ! -e /encfs/sec/IS-NOT-ENCRYPTED.txt ]] && {
-		# We are encrypted!
-		touch /encfs/sec/IS-ENCRYPTED.txt
-		wait $cpid # SIGTERM will wake us
-	}
+	# Wait until it's mounted. Then mark directories with .IS-ENCRYPTED
+	while :; do
+		[[ ! -e /encfs/sec/IS-NOT-ENCRYPTED.txt ]] && break
+		sleep 0.5
+	done
+	[[ ! -d /encfs/sec/onion-www ]] && mkdir /encfs/sec/onion-www
+	[[ ! -d /encfs/sec/everyone ]] && mkdir /encfs/sec/everyone
+
+	touch /encfs/sec/onion-www/.IS-ENCRYPTED
+	touch /encfs/sec/.IS-ENCRYPTED
+	wait $cpid # SIGTERM will wake us
 	# SIGTERM or wrong SF_SEED
 	echo -e "${CR}[$cpid] EncFS EXITED with $?..."
 
@@ -86,7 +90,8 @@ check_markfile()
 [[ "$1" = "server" ]] && sf_server
 
 RAWDIR="/encfs/raw/user-${LID}"
-SECDIR="/encfs/sec/user-${LID}" # typically on host: /dev/shm/encfs-sec/user-${LID}
+# SECDIR="/encfs/sec/user-${LID}" # typically on host: /dev/shm/encfs-sec/user-${LID}
+SECDIR="/encfs/sec/" # typically on host: /dev/shm/encfs-sec/user-${LID}
 [[ -d "${RAWDIR}" ]] || mkdir -p "${RAWDIR}" 2>/dev/null
 [[ -d "${SECDIR}" ]] || mkdir -p "${SECDIR}" 2>/dev/null
 

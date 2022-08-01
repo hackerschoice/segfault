@@ -1,4 +1,4 @@
-VER := 0.1-beta8d
+VER := 0.1-beta8e
 
 all:
 	make -C guest
@@ -66,6 +66,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SE
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
+FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
 
 FILES += $(FILES_ROOT) $(FILES_NORDVPN) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)

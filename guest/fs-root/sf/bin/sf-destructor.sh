@@ -19,6 +19,7 @@ while :; do
 	# If encfs died (/sec no longer a directory)
 	[ -d /sec ] || break
 	sleep 30
+	# exec -a "[sleep-${SF_LID}]" bash -c "sleep 30" --CANT USE. NOT BASH.
 done
 echo "sf-destructor.sh: DONE"
 

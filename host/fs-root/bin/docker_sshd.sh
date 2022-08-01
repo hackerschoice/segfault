@@ -56,6 +56,8 @@ setup_sshd()
 
 [[ -d /config/db ]] || SLEEPEXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
 
+/sf/bin/wait_semaphore.sh /sec/.IS-ENCRYPTED bash -c exit || exit 123
+
 create_load_seed
 
 setup_sshd

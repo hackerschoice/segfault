@@ -6,7 +6,7 @@ CR="\e[1;31m" # red
 CN="\e[0m"    # none
 
 
-ERREXIT()
+SLEEPEXIT()
 {
 	local s
 	local code
@@ -25,10 +25,10 @@ create_load_seed()
 {
 	[[ -n $SF_SEED ]] && return
 	[[ ! -f "/config/etc/seed/seed.txt" ]] && {
-		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
+		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/etc/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
 	}
 	SF_SEED="$(cat /config/etc/seed/seed.txt)"
-	[[ -z $SF_SEED ]] && ERREXIT 254 "Failed to generated SF_SEED="
+	[[ -z $SF_SEED ]] && SLEEPEXIT 254 5 "Failed to generated SF_SEED="
 }
 
 setup_sshd()
@@ -54,7 +54,7 @@ setup_sshd()
 	done
 }
 
-[[ -d /config/db ]] || ERREXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
+[[ -d /config/db ]] || SLEEPEXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
 
 create_load_seed
 
@@ -63,15 +63,15 @@ setup_sshd
 # This is the entry point for SF-HOST (e.g. host/Dockerfile)
 # Fix ownership if mounted from within vbox
 [[ -e /config/etc/ssh/ssh_host_rsa_key ]] || {
-	[[ ! -d "/config/etc/ssh" ]] && { mkdir -p "/config/etc/ssh" || ERREXIT 255 5; }
+	[[ ! -d "/config/etc/ssh" ]] && { mkdir -p "/config/etc/ssh" || SLEEPEXIT 255 5; }
 
 	ssh-keygen -A -f "/config" 2>&1 # Always return 0, even on failure.
-	[[ ! -f "/config/etc/ssh/ssh_host_rsa_key" ]] && ERREXIT 255 5
+	[[ ! -f "/config/etc/ssh/ssh_host_rsa_key" ]] && SLEEPEXIT 255 5
 }
 
 [[ -e /config/etc/ssh/id_ed25519 ]] || {
 	ssh-keygen -q -t ed25519 -C "" -N "" -f /config/etc/ssh/id_ed25519 2>&1
-	[[ ! -f "/config/etc/ssh/id_ed25519" ]] && ERREXIT 255 5
+	[[ ! -f "/config/etc/ssh/id_ed25519" ]] && SLEEPEXIT 255 5
 }
 
 chmod 644 /config/etc/ssh/id_ed25519

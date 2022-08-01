@@ -22,10 +22,10 @@ _term()
 create_load_seed()
 {
 	[[ -n $SF_SEED ]] && return
-	[[ ! -f "/config/seed/seed.txt" ]] && {
-		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
+	[[ ! -f "/config/etc/seed/seed.txt" ]] && {
+		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/etc/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
 	}
-	SF_SEED="$(cat /config/seed/seed.txt)"
+	SF_SEED="$(cat /config/etc/seed/seed.txt)"
 	[[ -z $SF_SEED ]] && { echo -e >&2 "mount.sh: Failed to generated SF_SEED="; exit 254; }
 }
 
@@ -39,6 +39,10 @@ sf_server_init()
 	ENCFS_SERVER_PASS=$(echo -n "EncFS-SERVER-PASS-${SF_SEED}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 24)
 }
 
+# The server needs to be initialized differently. All instances are started
+# from docker compose. Some are started before EncFS can mount the directory.
+# NgingX is a good example. Thus Nginx needs to check unti IS-ENCRYPTED.TXT
+# appears and exit otherwise.
 sf_server()
 {
 	sf_server_init
@@ -46,7 +50,14 @@ sf_server()
 	echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >/encfs/sec/IS-NOT-ENCRYPTED.txt
 	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" -- -o noexec,noatime &
 	cpid=$!
-	wait $cpid # SIGTERM will wake us
+
+	# Give it 5 seconds and check if it is encrypted.
+	sleep 5
+	[[ ! -e /encfs/sec/IS-NOT-ENCRYPTED.txt ]] && {
+		# We are encrypted!
+		touch /encfs/sec/IS-ENCRYPTED.txt
+		wait $cpid # SIGTERM will wake us
+	}
 	# SIGTERM or wrong SF_SEED
 	echo -e "${CR}[$cpid] EncFS EXITED with $?..."
 

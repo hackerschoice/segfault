@@ -247,6 +247,7 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--cpu-shares=256 \
 		--blkio-weight=10 \
 		--oom-score-adj=500 \
+		--rm \
 		--name "encfs-${LID}" \
 		--cap-add SYS_ADMIN \
 		--device /dev/fuse \

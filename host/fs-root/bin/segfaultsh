@@ -349,7 +349,7 @@ exec_devnull docker run \
 	-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/sec:slave" \
 	-v "${SF_SHMDIR}/encfs-sec/everyone-root/everyone:/everyone:slave" \
 	-v "${SF_SHMDIR}/encfs-sec/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
-	--mount type=bind,source="${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,target=/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,readonly" \
+	-v "${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt:/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt:ro" \
 	-d \
 	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
 

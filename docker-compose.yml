@@ -197,7 +197,7 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
       - "${SF_BASEDIR:-.}/config/etc/info:/config/etc/info:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/everyone-root:/sec:slave"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx:

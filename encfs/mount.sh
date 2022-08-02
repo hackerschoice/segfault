@@ -11,12 +11,20 @@ CR="\e[1;31m" # red
 # CC="\e[1;36m" # cyan
 # CN="\e[0m"    # none
 
+do_exit()
+{
+	fusermount -zu /sec
+	[[ -n $cpid ]] && kill "$cpid" # This will unmount
+	unset cpid
+	[[ -n "$PASSFILE" ]] && [[ -e "$PASSFILE" ]] && rm -rf "${PASSFILE:?}"
+	exit "$1"
+}
+
 # Handle SIGTERM. Send TERM to encfs when docker-compose shuts down, unmount
 # and exit.
 _term()
 {
-	[[ -z $cpid ]] && exit
-	kill "$cpid" # This will unmount
+	do_exit 0
 }
 
 create_load_seed()
@@ -39,34 +47,51 @@ sf_server_init()
 	ENCFS_SERVER_PASS=$(echo -n "EncFS-SERVER-PASS-${SF_SEED}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 24)
 }
 
+
 # The server needs to be initialized differently. All instances are started
 # from docker compose. Some are started before EncFS can mount the directory.
-# NgingX is a good example. Thus Nginx needs to check unti IS-ENCRYPTED.TXT
+# NgingX is a good example. Thus Nginx needs to check until .ENCRYPTED.TXT
 # appears and exit otherwise.
+# We must start EncFS as a child so that we can use 'wait $cpid' or otherwise
+# we dont get the SIGTERM when the intance shuts down (sleep does not get it)
+# and encfs would get a SIGKILL (e.g. thus not able to unmount /sec)
 sf_server()
 {
 	sf_server_init
 
-	echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >/encfs/sec/IS-NOT-ENCRYPTED.txt
-	encfs --standard -o nonempty -o allow_other -f --extpass="echo \"${ENCFS_SERVER_PASS}\"" "/encfs/raw" "/encfs/sec" -- -o noexec,noatime &
+	[[ -f /sec/.IS-ENCRYPTED ]] && rm -f /sec/.IS-ENCRYPTED
+	echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >/sec/IS-NOT-ENCRYPTED.txt || { echo "Could not create Markfile"; exit 138; }
+
+	PASSFILE="/dev/shm/pass.txt"
+	echo "${ENCFS_SERVER_PASS}" >"${PASSFILE}"
+	bash -c "exec -a '[encfs-${2:-BAD}]' encfs -f --standard --public -o nonempty -S \"/raw\" \"/sec\" -- -o noexec,noatime" <"${PASSFILE}" &
 	cpid=$!
 
-	# Wait until it's mounted. Then mark directories with .IS-ENCRYPTED
+	# Wait until /sec is mounted. Then mark directories with .IS-ENCRYPTED
 	while :; do
-		[[ ! -e /encfs/sec/IS-NOT-ENCRYPTED.txt ]] && break
+		[[ ! -e /sec/IS-NOT-ENCRYPTED.txt ]] && break
+		kill -0 $cpid || do_exit 128 # bash or EncFS died
 		sleep 0.5
 	done
-	[[ ! -d /encfs/sec/onion-www ]] && mkdir /encfs/sec/onion-www
-	[[ ! -d /encfs/sec/everyone ]] && mkdir /encfs/sec/everyone
 
-	touch /encfs/sec/onion-www/.IS-ENCRYPTED
-	touch /encfs/sec/.IS-ENCRYPTED
+	# We must delete PASSFILE _after_ mounting is complete.
+	# Otherwise 'bash' starts in the background (but before it calls EncFS) and the current (parent)
+	# bash would delete the filename 
+	rm -f "${PASSFILE:?}"
+
+	[[ -n $2 ]] && [[ ! -d "/sec/${2}" ]] && mkdir "/sec/${2}"
+
+	touch /sec/.IS-ENCRYPTED
+
 	wait $cpid # SIGTERM will wake us
-	# SIGTERM or wrong SF_SEED
 	echo -e "${CR}[$cpid] EncFS EXITED with $?..."
+	do_exit 0 # exit with 0: Do not restart.
 
-	fusermount -zu /encfs/sec
-	exit 0
+	# BusyBox cant use custom process name for 'sleep':
+	# exec -a [sleep-1234] sleep infinity => applet not found
+	# bash executes 'sleep' (symlink to /bin/busybox) with with argv[0] == [sleep-1234]
+	# Dont use 'exec'. SIGTERM needs to return to this bash so we can
+	# terminate encfs.
 }
 
 # Wait until MARKFILE (on /sec cleartext) has disappeared.
@@ -87,7 +112,7 @@ check_markfile()
 }
 
 # For the 'server'
-[[ "$1" = "server" ]] && sf_server
+[[ "$1" = "server" ]] && sf_server "$@"
 
 RAWDIR="/encfs/raw/user-${LID}"
 # SECDIR="/encfs/sec/user-${LID}" # typically on host: /dev/shm/encfs-sec/user-${LID}
@@ -101,9 +126,10 @@ echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >"${SECDIR}/THIS-DIRECTORY-IS-N
 
 PASSFILE="/dev/shm/pass-${LID}.txt"
 echo "${LENCFS_PASS}" >"${PASSFILE}"
-bash -c "exec -a '[encfs-${LID}]' encfs --standard --public -o nonempty -o allow_other -S \"${RAWDIR}\" \"${SECDIR}\" <\"${PASSFILE}\""
+bash -c "exec -a '[encfs-${LID}]' encfs --standard --public -o nonempty -S \"${RAWDIR}\" \"${SECDIR}\" <\"${PASSFILE}\""
+ret=$?
 rm -f "${PASSFILE:?}"
-# encfs --standard --public -o nonempty -o allow_other --extpass="echo \"${LENCFS_PASS}\"" "${RAWDIR}" "${SECDIR}"
+[[ $ret -ne 0 ]] && exit 124
 
 # Give segfaultsh time to start guest shell instance
 sleep 5
@@ -116,7 +142,6 @@ while :; do
 done
 
 echo "Unmounting lg-${LID} [${SECDIR}]"
-# fusermount -zuq "${SECDIR}" || echo "fusermount: Error ($?)"
 fusermount -zu "${SECDIR}" || echo "fusermount: Error ($?)"
 rmdir "${SECDIR:-/dev/null/BAD}" 2>/dev/null
 echo "DONE"

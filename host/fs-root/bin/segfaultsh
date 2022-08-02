@@ -198,7 +198,8 @@ MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
 
-[[ -f "/sec/IS-NOT-ENCRYPTED.txt" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
+# Check if share got unmounted (e.g. EncFS died)
+[[ ! -f "/sec/.IS-ENCRYPTED" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
 
 mk_hostname
 
@@ -324,6 +325,8 @@ exec_devnull docker run \
 	--init \
 	--name "lg-${LID}" \
 	--init \
+	`# --cap-drop=NET_RAW \ --Needed for ping etc. ` \
+	--cap-drop=MKNOD \
 	--net sf-guest \
 	--dns "${SF_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
@@ -344,8 +347,8 @@ exec_devnull docker run \
 	--mount type=bind,source="${SF_SHMDIR}/run/vpn,target=/sf/run/vpn,readonly" \
 	--mount type=bind,source="${SF_SHMDIR}/run/gsnc/access-22.txt,target=/sf/run/gsnc-access-22.txt,readonly" \
 	-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/sec:slave" \
-	-v "${SF_SHMDIR}/encfs-sec/sf/everyone:/everyone:slave" \
-	-v "${SF_SHMDIR}/encfs-sec/sf/onion-www/${SF_HOSTNAME,,}:/onion:slave" \
+	-v "${SF_SHMDIR}/encfs-sec/everyone-root/everyone:/everyone:slave" \
+	-v "${SF_SHMDIR}/encfs-sec/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
 	--mount type=bind,source="${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,target=/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt,readonly" \
 	-d \
 	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."

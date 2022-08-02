@@ -1,11 +1,11 @@
 version: "3.7"
 services:
-  # EncFS for /onion and /everyone
-  sf-encfs:
+
+  # EncFS for /onion
+  sf-encfs-www:
     build: encfs
     image: sf-encfs
     restart: ${SF_RESTART:-on-failure}
-    init: true
     cap_add:
       - SYS_ADMIN
     security_opt:
@@ -13,14 +13,35 @@ services:
     environment:
       - SF_SEED
       - SF_DEBUG
-    command: ["/mount.sh", "server"]
+    command: ["/mount.sh", "server", "www"]
     network_mode: none
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
-      - "${SF_BASEDIR:-.}/data/sf:/encfs/raw"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf:/encfs/sec:shared"
+      - "${SF_BASEDIR:-.}/data/www-root:/raw"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:shared"
+
+  # EncFS for /everyone
+  sf-encfs-everyone:
+    build: encfs
+    image: sf-encfs
+    restart: ${SF_RESTART:-on-failure}
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - SF_SEED
+      - SF_DEBUG
+    command: ["/mount.sh", "server", "everyone"]
+    network_mode: none
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    volumes:
+      - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
+      - "${SF_BASEDIR:-.}/data/everyone-root:/raw"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/everyone-root:/sec:shared"
 
   dns-doh:
     image: crazymax/cloudflared
@@ -152,7 +173,7 @@ services:
         ipv4_address: 172.20.0.110
     depends_on:
       - dnsmasq
-      - sf-encfs
+      - sf-encfs-everyone
     restart: ${SF_RESTART:-on-failure}
     init: true
     dns: 255.255.255.255
@@ -176,21 +197,21 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
       - "${SF_BASEDIR:-.}/config/etc/info:/config/etc/info:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf:/sec:slave"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/everyone-root:/sec:slave"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx:
     image: nginx
     restart: ${SF_RESTART:-on-failure}
     depends_on:
-      - sf-encfs
-    entrypoint: ["/wait_semaphore.sh", "/srv/www/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]
+      - sf-encfs-www
+    entrypoint: ["/sf/bin/wait_semaphore.sh", "/sec/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]
     dns: 255.255.255.255
     networks:
       nginx-net:
     volumes:
-      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/wait_semaphore.sh"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/sf/onion-www:/srv/www:slave,ro"
+      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave,ro"
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
 networks:

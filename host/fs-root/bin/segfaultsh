@@ -304,9 +304,9 @@ echo_pty -n "...."
 ### Create ONION directory:
 # This script runs under UID=1000 (root) and does not have write permission to
 # /onion. Thus jump via docker.
-[[ -d "/sec/onion-www/${SF_HOSTNAME,,}" ]] || { 
+[[ -d "/sec/www/${SF_HOSTNAME,,}" ]] || { 
 	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
-	exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "/sec/onion-www/${SF_HOSTNAME,,}"
+	exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "/sec/www/${SF_HOSTNAME,,}"
 	DEBUGF "ret $?"
 }
 

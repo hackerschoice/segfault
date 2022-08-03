@@ -15,6 +15,7 @@ SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
 unset SSH_SF_DEBUG
 
 CY="\e[1;33m" # yellow
+CDY="\e[0;33m" # yellow
 CR="\e[1;31m" # red
 CC="\e[1;36m" # cyan
 CG="\e[1;32m" # green
@@ -44,26 +45,55 @@ else
 	SF_DOCKER_LOG="local"
 fi
 
+argv2esc()
+{
+	local s
+	local x
+	local str
+
+	for x in "$@"; do
+		# Esacpe ' with '"'"'
+		str="${x//\'/\'\"\'\"\'}"
+		s+=" '$str'"
+	done
+
+	echo "$s"
+}
+
 # The current 'restricted shell' does not allow for stdout redirection to /dev/null.
 # Thus execute in unrestricted shell with 'exec_devnull' and redirect stdout to /dev/null. 
 exec_devnull()
 {
+	local argstr
+	local bin
+
+	bin="$1"
+	shift 1
+
+	argstr="$(argv2esc "$@")"
 	if [[ -z $SF_DEBUG ]]; then
-		bash -c "exec $* 2>/dev/null >/dev/null"
+		bash -c "exec \"$bin\" $argstr 2>/dev/null >/dev/null"
 	else
-		# DEBUGF "EXEC '$*'"
+		# DEBUGF "EXEC \"$bin\" $argstr"
 		# HERE: DEBUG is enabled. Show STDOUT/STDERR
-		$*
+		bash -c "exec \"$bin\" $argstr"
 	fi
 }
 
 exec_errnull()
 {
+	local argstr
+	local bin
+
+	bin="$1"
+	shift 1
+
+	argstr="$(argv2esc "$@")"
 	if [[ -z $SF_DEBUG ]]; then
-		bash -c "exec $* 2>/dev/null"
+		bash -c "exec \"$bin\" $argstr 2>/dev/null"
 	else
 		# HERE: DEBUG is enabled. Show STDOUT/STDERR
-		$*
+		bash -c "exec \"$bin\" $argstr"
 	fi
 }
 
@@ -73,7 +103,7 @@ tofile()
 {
 	local str
 	# Replace ' with '"'"'
-	str="${1//\'/\'\"\'\"\'/}"
+	str="${1//\'/\'\"\'\"\'}"
 	# [[ -n $SF_DEBUG ]] && ls -al $(dirname $2)
 	bash -c "echo '$str' >'$2' 2>/dev/null" || ERREXIT 231 "tofile: Failed to create "$(basename "$2")""
 }
@@ -103,8 +133,9 @@ ${CN}${CF}host ${SF_HOSTNAME,,}
 ${CDR}__EOF__
 ${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_sf-${SF_HOSTNAME,,}${CN}
 ######################################################################
-Thereafter use this command to connect to your server:
+Thereafter use these commands:
 --> ${CDC}ssh root@${SF_HOSTNAME,,}${CN}
+--> ${CDC}scp root@${SF_HOSTNAME,,}:stuff.tar.gz ~/Downloads${CN}
 ----------------------------------------------------------------------"
 }
 
@@ -185,7 +216,7 @@ else
 	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 fi
 
-[[ -n $SF_DEBUG ]] && [[ $SF_DEBUG != "1" ]] && ERREXIT 133 "Bad SF_DEBUG value"
+[[ -n $SF_DEBUG ]] && SF_DEBUG=1
 ### ----END SANITIZE----
 
 # HACK: Use eval-trick to 'source' in a restricted bash shell
@@ -208,11 +239,20 @@ HNLID_FILE="/config/db/hn/hn2lid-${SF_HOSTNAME}"
 [[ ! -d "/config/db/hn" ]] && { mkdir -p "/config/db/hn" || ERREXIT; }
 
 if [[ -d "/config/db/db-${LID}" ]]; then
-	echo_pty -n "Connecting to server. Please wait..."
+	# S="Connecting to     : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
+	S="Spinning up       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
+	echo_pty -en "${S:0:65}"
 	touch "${HNLID_FILE}"
 else
 	print_disclaimer
-	echo_pty -n "Creating new server. Please wait...."
+	# #####################################################################
+	# Got 54 space
+	# Creating Server => 16 chars
+	# Color escape codes => 11 chars
+	# Hostname max = 54 - 16
+	# Final echo: 54 + 11
+	S="Creating Server ${CDY}${SF_HOSTNAME:0:38}${CN}..................................................."
+	echo_pty -en "${S:0:65}"
 
 	# A hostname is generated from the LID. Avoid collision when a hostname
 	# has already been created for a different LID.
@@ -284,14 +324,14 @@ docker exec \
 	MARKFILE=\"${MARKFILE}\" \
 	/mount.sh" || ERREXIT 244 "Failed to set up /sec..."
 
-echo_pty -n "...."
+echo_pty -n ".."
 
 
 # Attach to instance if already running
 [[ -n $IS_TRY_EXISTING ]] && {
 	DEBUGF "Attaching to existing instance lg-${LID}..."
 	exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && { 
-		echo_pty -e "........................[${CG}OK${CN}]"
+		echo_pty -e "..........[${CG}Ok${CN}]"
 		spawn_shell_exit "$@"
 		# NOT REACHED
 	}
@@ -325,7 +365,6 @@ exec_devnull docker run \
 	--init \
 	--name "lg-${LID}" \
 	--init \
-	`# --cap-drop=NET_RAW \ --Needed for ping etc. ` \
 	--cap-drop=MKNOD \
 	--net sf-guest \
 	--dns "${SF_DNS:-BAD}" \
@@ -374,7 +413,7 @@ echo_pty -n ".."
 # Setup instance
 docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
 
-echo_pty -e "....................[${CG}OK${CN}]"
+echo_pty -e "......[${CG}OK${CN}]"
 
 # Output help of how to connect elegantly
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access

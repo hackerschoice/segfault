@@ -62,6 +62,9 @@ create_load_seed
 
 setup_sshd
 
+ip route del default
+ip route add default via 172.22.0.254
+
 # This is the entry point for SF-HOST (e.g. host/Dockerfile)
 # Fix ownership if mounted from within vbox
 [[ -e /config/etc/ssh/ssh_host_rsa_key ]] || {

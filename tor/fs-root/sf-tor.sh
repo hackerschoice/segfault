@@ -20,6 +20,7 @@ ERREXIT()
 
 # Route all traffic that comes to this instance through TOR.
 iptables -t nat -A PREROUTING -p tcp --syn -j REDIRECT --to-ports 9040
+ip route add 172.22.0.22/32 via "172.20.0.2"
 
 [[ -d /var/lib/tor/hidden ]] || ERREXIT 254 "Not found: /var/lib/tor/hidden. Forgot -v option?"
 

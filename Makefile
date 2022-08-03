@@ -1,4 +1,4 @@
-VER := 0.1-beta8f
+VER := 0.2.1a
 
 all:
 	make -C guest

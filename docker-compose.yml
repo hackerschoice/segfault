@@ -72,7 +72,7 @@ services:
     image: sf-nordvpn
     depends_on:
       - dnsmasq
-    dns: 172.23.0.252 #dnsmasq on dns-doh-net
+    dns: 172.20.0.252
     cap_add:
       - NET_ADMIN #required
     environment:
@@ -83,8 +83,8 @@ services:
     networks:
       vpn-net:
         ipv4_address: 172.20.0.254
-      dns-doh-net:
-        ipv4_address: 172.23.0.254
+      # dns-doh-net:
+      #   ipv4_address: 172.23.0.254
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       # - net.ipv4.conf.all.src_valid_mark=1
@@ -99,12 +99,20 @@ services:
     depends_on:
       - router-fix-network
     networks:
+      incoming-net:
+        ipv4_address: 172.28.0.2
       vpn-net:
         ipv4_address: 172.20.0.2
       guest-net:
         ipv4_address: 10.11.255.253 # Will be replaced by init.sh with 10.11.0.1
+      sshd-net:
+        ipv4_address: 172.22.0.254
     cap_add:
       - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1 # SNAT
+    ports:
+      - "${SF_SSH_PORT:-22}:22"
     environment:
       - SF_DEBUG
       - SF_MAXOUT
@@ -169,14 +177,16 @@ services:
     # /bin/segfaultsh need to know the container name; set it to sf-host statically
     container_name: sf-host
     networks:
-      vpn-net:
-        ipv4_address: 172.20.0.110
+      sshd-net:
+        ipv4_address: 172.22.0.22
+    cap_add:
+      - NET_ADMIN
     depends_on:
       - dnsmasq
       - sf-encfs-everyone
     restart: ${SF_RESTART:-on-failure}
     init: true
-    dns: 255.255.255.255
+    dns: 10.11.255.252
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
     # Add any variables to docker_sshd.sh as well.
     environment:
@@ -189,8 +199,6 @@ services:
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_SEED
       - SF_DEBUG
-    ports:
-      - "${SF_SSH_PORT:-22}:22"
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/ssh:/config/etc/ssh"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
@@ -222,6 +230,22 @@ networks:
       driver: default
       config:
       - subnet: 172.20.0.0/24
+
+  incoming-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.28.0.0/24
+
+  sshd-net:
+    name: sf-sshd
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.22.0.0/24
+
 
   nginx-net:
     name: sf-nginx

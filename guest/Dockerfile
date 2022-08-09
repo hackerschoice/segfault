@@ -5,13 +5,17 @@ RUN	apt update -y && \
 	apt install -y --no-install-recommends \
 		ca-certificates \
 		curl
-RUN	apt install -y --no-install-recommends \
+RUN	apt update -y && \
+	apt install -y --no-install-recommends \
 		locales \
 		gcc \
 		g++ \
 		git \
 		make \
 		build-essential \
+		strace \
+		ltrace \
+		gdb \
 		automake \
 		byacc \
 		flex \
@@ -19,12 +23,14 @@ RUN	apt install -y --no-install-recommends \
 		man-db \
 		manpages-dev \
 		python-is-python3 \
-		patch
+		patch \
+		sudo
 RUN	apt install -y --no-install-recommends \
 		vim \
 		binutils \
 		whois \
 		dnsutils \
+		bc \
 		openssh-client \
 		iputils-ping \
 		iputils-tracepath \
@@ -55,6 +61,11 @@ RUN	apt install -y --no-install-recommends \
 		duf \
 		lynx \
 		netcat-traditional
+RUN	apt install -y --no-install-recommends \
+		golang-go \
+		pkg-config
+RUN	apt install -y --no-install-recommends \
+		x11-apps
 RUN	apt install -y --no-install-recommends \
 		zsh \
 		zsh-syntax-highlighting \

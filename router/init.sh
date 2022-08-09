@@ -119,10 +119,10 @@ DEV_I22="$(devbyip 172.28.0.)"
 	echo >&2 "DEV=${DEV} DEV_GW=${DEV_GW}"
 }
 
-# blacklist_routes
+blacklist_routes
 
 ip route del default && \
-# -----BEGING SSH traffic is routed via Internet-----
+# -----BEGIN SSH traffic is routed via Internet-----
 # Linux needs to know that a default route exists for the source or
 # otherwise it will drop the packet. Inform Linux that a route exist
 # to the SSHD.
@@ -130,7 +130,7 @@ iptables -A PREROUTING -i ${DEV_I22} -t mangle -p tcp -d 172.28.0.2 --dport 22 -
 ip rule add fwmark 722 table 207 && \
 ip route add default via 172.22.0.22 dev ${DEV_SSHD} table 207 && \
 
-# Any traffic from the SSHD host shall go out (directly) to the Internet.
+# Any traffic from the SSHD shall go out (directly) to the Internet.
 iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.22 --sport 22 -j MARK --set-mark 22 && \
 ip rule add fwmark 22 table 201 && \
 ip route add default via 172.28.0.1 dev ${DEV_I22} table 201 && \
@@ -160,7 +160,7 @@ iptables -t nat -A POSTROUTING -s 172.22.0.22 -o "${DEV}" -j MASQUERADE && \
 # TOR traffic (10.111.0.0/16) always goes to TOR (transparent proxy)
 ip route add 10.111.0.0/16 via "${TOR_GW}" && \
 echo -e >&2 "FW: SUCCESS" && \
-/tc.sh "${DEV_GW}" "${DEV}" && \
+/tc.sh "${DEV}" "${DEV_GW}" "${DEV_I22}" && \
 echo -e >&2 "TC: SUCCESS" && \
 
 # By default go via TOR until vpn_status exists

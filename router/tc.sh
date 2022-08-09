@@ -20,8 +20,13 @@ tc_set()
 
 [[ ! -f /config/tc/limits.conf ]] && { echo -e >&2 "WARNING: NO OUTGOING TRAFFIC LIMIT"; exit 0; }
 
-DEV_OUT=${1:-eth0}
-DEV_IN=${2:-eth1}
+# User's INCOMING traffic to his shell. Normally not limited.
+DEV_SHELL=${1:-eth1}
+
+# All outgoing interfaces
+DEV_GW=${2:-eth3}  # Traffic via VPN (User's shell)
+DEV_I22=${3:-eth0} # SSHD return traffic to User
+
 # shellcheck disable=SC1091
 source /config/tc/limits.conf
 
@@ -31,10 +36,13 @@ source /config/tc/limits.conf
 [[ -z $MAXIN ]] && MAXIN="${SF_MAXIN}"
 
 # Delete all. This might set $? to false
-tc qdisc del dev "${DEV_OUT}" root 2>/dev/null
-# force $? to be true
+tc qdisc del dev "${DEV_GW}" root 2>/dev/null
+tc qdisc del dev "${DEV_I22}" root 2>/dev/null
+true # force $? to be true
 
-[[ -n $MAXOUT ]] && { tc_set "${DEV_OUT}" "${MAXOUT}" || exit 255; }
-[[ -n $MAXIN ]] && { tc_set "${DEV_IN}" "${MAXIN}" || exit 255; }
+[[ -n $MAXOUT ]] && { tc_set "${DEV_GW}" "${MAXOUT}" || exit 255; }
+[[ -n $MAXOUT ]] && { tc_set "${DEV_I22}" "${MAXOUT}" || exit 255; }
+
+[[ -n $MAXIN ]] && { tc_set "${DEV_SHELL}" "${MAXIN}" || exit 255; }
 
 exit 0

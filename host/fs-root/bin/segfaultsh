@@ -145,9 +145,9 @@ print_goodbye()
 	[[ -z $IS_PTY ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
-	n="$(bash -c "docker exec \"lg-${LID}\" ps --no-headers aux 2>/dev/null|wc -l")"
+	n="$(bash -c "docker exec \"lg-${LID}\" pgrep . 2>/dev/null|wc -l")"
 	DEBUGF "Processes running: $n"
-	if [[ "$n" -gt 4 ]]; then
+	if [[ "$n" -gt 3 ]]; then
 		echo -e "\
 ${CY}WARNING: Another shell or background process is still running.${CN}
 -------> The encrypted filesystem in /sec will remain mounted until
@@ -239,8 +239,8 @@ HNLID_FILE="/config/db/hn/hn2lid-${SF_HOSTNAME}"
 [[ ! -d "/config/db/hn" ]] && { mkdir -p "/config/db/hn" || ERREXIT; }
 
 if [[ -d "/config/db/db-${LID}" ]]; then
-	# S="Connecting to     : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
-	S="Spinning up       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
+	# S="Spinning up       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
+	S="Your Server       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
 	echo_pty -en "${S:0:65}"
 	touch "${HNLID_FILE}"
 else

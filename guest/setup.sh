@@ -6,7 +6,7 @@ sed -i 's/#\(.*\)prompt_symbol=/\1prompt_symbol=/g' /etc/skel/.zshrc && \
 sed -i 's/\(\s*PROMPT=.*\)n└─\(.*\)/\1n%{%G└%}%{%G─%}\2/g' /etc/skel/.zshrc && \
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.zshrc && \
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.bashrc && \
-sed -i 's/ set mouse=a/"set mouse=a/g' /usr/share/vim/vim82/defaults.vim && \
+sed -i 's/\(\s*\)set mouse=/"\1set mouse=/g' /usr/share/vim/vim90/defaults.vim && \
 rm -f /etc/skel/.bashrc.original && \
 rm -f /usr/bin/kali-motd && \
 chsh -s /bin/zsh
@@ -30,5 +30,7 @@ chmod 755 /usr /etc /etc/profile.d && \
 chmod 644 /etc/profile.d/segfault.sh && \
 chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile && \
 ln -s batcat /usr/bin/bat && \
-echo DONE || exit 254
+echo DONE && exit 0
+
+exit 254
 

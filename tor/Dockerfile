@@ -4,7 +4,7 @@ RUN apk add --no-cache curl tor bash iptables && \
 	(echo -e "\
 SocksPort 0.0.0.0:9050\n\
 HiddenServiceDir /var/lib/tor/hidden/service-80/\n\
-HiddenServicePort 80 nginx:80\n\
+HiddenServicePort 80 172.20.1.80:80\n\
 HiddenServiceDir /var/lib/tor/hidden/service-22/\n\
 HiddenServicePort 22 172.22.0.22:22\n\
 VirtualAddrNetworkIPv4 10.111.0.0/16\n\

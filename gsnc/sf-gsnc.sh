@@ -15,6 +15,9 @@ create_load_seed()
 
 create_load_seed
 
+ip route del default
+ip route add default via 172.22.0.254
+
 # This is the GS_SECRET to get to SSHD (and gs-netcat in cleartext [-C] could be used).
 # It can be cryptographically weak. The security is provided by SSHD. 
 GS_SECRET=$(echo -n "GS-${SF_SEED}${SF_FQDN}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 12)

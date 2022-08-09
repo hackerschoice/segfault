@@ -7,6 +7,7 @@ RUN \
 	apk add --no-cache \
 		docker-cli \
 		bash \
+		xauth \
 		openssh-server
 
 COPY /fs-root/ /

@@ -44,8 +44,11 @@ blacklist_routes()
 
 devbyip()
 {
-	# shellcheck disable=SC2005
-	echo "$(ip addr show | grep -F "inet $1" | head)" | awk '{ print $7; }'
+	local dev
+	dev="$(ip addr show | grep -F "inet $1" | head -n1 | awk '{print $7;}')"
+	[[ -n $dev ]] && { echo "$dev"; return; }
+	echo -e >&2 "DEV for '${1}' not found. Using $2"
+	echo "${2:?}"
 }
 
 # Stop routing via VPN
@@ -99,17 +102,15 @@ monitor_failover()
 	done
 }
 
-DEV="$(devbyip 10.11.)"
-[[ -z $DEV ]] && { echo -e >&2 "DEV not found. Using DEV=eth1"; DEV="eth1"; }
+DEV_I22="$(devbyip 172.28.0. eth0)"
 
-DEV_GW="$(devbyip 172.20.0.)"
-[[ -z $DEV_GW ]] && { echo -e >&2 "DEV not found. Using DEV_GW=eth3"; DEV_GW="eth3"; }
+DEV="$(devbyip 10.11. eth1)"
 
-DEV_SSHD="$(devbyip 172.22.0.)"
-[[ -z $DEV_SSHD ]] && { echo -e >&2 "DEV not found. Using DEV_SSHD=eth2"; DEV_SSHD="eth2"; }
+DEV_SSHD="$(devbyip 172.22.0. eth2)"
 
-DEV_I22="$(devbyip 172.28.0.)"
-[[ -z $DEV_I22 ]] && { echo -e >&2 "DEV not found. Using DEV_I22=eth0"; DEV_I22="eth0"; }
+DEV_GW="$(devbyip 172.20.0. eth3)"
+
+DEV_DMZ="$(devbyip 172.20.1. eth4)"
 
 [[ -n $SF_DEBUG ]] && {
 	ip link show >&2
@@ -123,6 +124,9 @@ blacklist_routes
 
 ip route del default && \
 # -----BEGIN SSH traffic is routed via Internet-----
+# A bit more tricky to forward incoming SSH traffic to our SSHD
+# because we also like to see the source IP (User's Workstation's IP).
+#
 # Linux needs to know that a default route exists for the source or
 # otherwise it will drop the packet. Inform Linux that a route exist
 # to the SSHD.
@@ -130,12 +134,12 @@ iptables -A PREROUTING -i ${DEV_I22} -t mangle -p tcp -d 172.28.0.2 --dport 22 -
 ip rule add fwmark 722 table 207 && \
 ip route add default via 172.22.0.22 dev ${DEV_SSHD} table 207 && \
 
-# Any traffic from the SSHD shall go out (directly) to the Internet.
+# Any return traffic from the SSHD shall go out (directly) to the Internet.
 iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.22 --sport 22 -j MARK --set-mark 22 && \
 ip rule add fwmark 22 table 201 && \
 ip route add default via 172.28.0.1 dev ${DEV_I22} table 201 && \
 
-# Forward packts to SSHD (10.12.0.2)
+# Forward packets to SSHD (10.12.0.2)
 iptables -t nat -A PREROUTING -p tcp -d 172.28.0.2 --dport 22 -j DNAT --to-destination 172.22.0.22 && \
 # Make packets appear as if this router was listening on port 22
 iptables -t nat -A POSTROUTING -p tcp -s 172.22.0.22 --sport 22 -j SNAT --to-source 172.28.0.2 && \
@@ -148,8 +152,12 @@ iptables -t nat -A POSTROUTING -p tcp -s 172.22.0.22 --sport 22 -j SNAT --to-sou
 # Instead use a hack to force traffic from 172.28.0.1 to be coming
 # from 172.22.0.254 (This router's IP)
 iptables -t nat -A POSTROUTING -s 172.28.0.1 -o ${DEV_SSHD} -j MASQUERADE && \
-
 # -----END SSH traffic is routed via Internet-----
+
+# -----BEGIN GSNC traffic is routed via Internet----
+# GSNC TCP traffic to 443 and 7350 goes to (direct) Internet
+iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.21 -j MARK --set-mark 22
+# -----END GSNC traffic is routed via Internet----
 
 ifconfig "$DEV" 10.11.0.1/16 && \
 # MASQ all traffic because the VPN/TOR instances dont know the route back
@@ -157,6 +165,10 @@ ifconfig "$DEV" 10.11.0.1/16 && \
 iptables -t nat -A POSTROUTING -o "${DEV_GW}" -j MASQUERADE && \
 # MASQ SSHD's access to DNS (for ssh -D socks5h resolving)
 iptables -t nat -A POSTROUTING -s 172.22.0.22 -o "${DEV}" -j MASQUERADE && \
+# MASQ GSNC to (direct) Internet
+iptables -t nat -A POSTROUTING -s 172.22.0.21 -o "${DEV_I22}" -j MASQUERADE && \
+# MASQ traffic from TOR to DMZ (nginx)
+iptables -t nat -A POSTROUTING -o "${DEV_DMZ}" -j MASQUERADE && \
 # TOR traffic (10.111.0.0/16) always goes to TOR (transparent proxy)
 ip route add 10.111.0.0/16 via "${TOR_GW}" && \
 echo -e >&2 "FW: SUCCESS" && \

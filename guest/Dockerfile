@@ -25,7 +25,8 @@ RUN	apt update -y && \
 		python-is-python3 \
 		patch \
 		sudo
-RUN	apt install -y --no-install-recommends \
+RUN	apt update -y && \
+	apt install -y --no-install-recommends \
 		vim \
 		binutils \
 		whois \
@@ -61,12 +62,15 @@ RUN	apt install -y --no-install-recommends \
 		duf \
 		lynx \
 		netcat-traditional
-RUN	apt install -y --no-install-recommends \
+RUN	apt update -y && \
+	apt install -y --no-install-recommends \
 		golang-go \
 		pkg-config
-RUN	apt install -y --no-install-recommends \
+RUN	apt update -y && \
+	apt install -y --no-install-recommends \
 		x11-apps
-RUN	apt install -y --no-install-recommends \
+RUN	apt update -y && \
+	apt install -y --no-install-recommends \
 		zsh \
 		zsh-syntax-highlighting \
 		zsh-autosuggestions

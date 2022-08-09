@@ -62,6 +62,8 @@ services:
         ipv4_address: 172.23.0.252
       guest-net:
         ipv4_address: 10.11.255.252
+      sshd-net:
+        ipv4_address: 172.22.0.252
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dns-doh
@@ -107,6 +109,8 @@ services:
         ipv4_address: 10.11.255.253 # Will be replaced by init.sh with 10.11.0.1
       sshd-net:
         ipv4_address: 172.22.0.254
+      dmz-net:
+        ipv4_address: 172.20.1.254
     cap_add:
       - NET_ADMIN
     sysctls:
@@ -138,7 +142,6 @@ services:
     build: tor
     image: sf-tor
     networks:
-      nginx-net:
       vpn-net:
         ipv4_address: 172.20.0.111
     cap_add:
@@ -155,12 +158,16 @@ services:
   gsnc:
     build: gsnc
     image: sf-gsnc
-    depends_on:
-      - router
     networks:
-      vpn-net:
+      sshd-net:
+        ipv4_address: 172.22.0.21
+    dns: 172.22.0.252
+    cap_add:
+      - NET_ADMIN # need to set default route
+    depends_on:
+      - dnsmasq
+      - router
     restart: ${SF_RESTART:-on-failure}
-    dns: 172.20.0.252
     environment:
       - SF_SSH_PORT=${SF_SSH_PORT:-22}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
@@ -169,7 +176,7 @@ services:
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/gsnc:/sf/run/gsnc"
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
-    entrypoint: ["/sf-gsnc.sh", "172.20.0.110"]
+    entrypoint: ["/sf-gsnc.sh", "172.22.0.22"]
 
   segfault:
     build: host
@@ -179,14 +186,15 @@ services:
     networks:
       sshd-net:
         ipv4_address: 172.22.0.22
+    dns: 172.22.0.252
     cap_add:
-      - NET_ADMIN
+      - NET_ADMIN # need to set default route
     depends_on:
       - dnsmasq
+      - router
       - sf-encfs-everyone
     restart: ${SF_RESTART:-on-failure}
     init: true
-    dns: 10.11.255.252
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
     # Add any variables to docker_sshd.sh as well.
     environment:
@@ -214,9 +222,12 @@ services:
     depends_on:
       - sf-encfs-www
     entrypoint: ["/sf/bin/wait_semaphore.sh", "/sec/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]
-    dns: 255.255.255.255
     networks:
-      nginx-net:
+      dmz-net:
+        ipv4_address: 172.20.1.80
+    dns: 255.255.255.255
+    cap_add:
+      - NET_ADMIN # need to set default route
     volumes:
       - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave,ro"
@@ -247,8 +258,8 @@ networks:
       - subnet: 172.22.0.0/24
 
 
-  nginx-net:
-    name: sf-nginx
+  dmz-net:
+    name: sf-dmz
     driver: bridge
     ipam:
       config:

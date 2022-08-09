@@ -20,7 +20,9 @@ ERREXIT()
 
 # Route all traffic that comes to this instance through TOR.
 iptables -t nat -A PREROUTING -p tcp --syn -j REDIRECT --to-ports 9040
-ip route add 172.22.0.22/32 via "172.20.0.2"
+# Route to SSHD and NGINX via sf-router
+ip route add 172.22.0.22/32 via 172.20.0.2
+ip route add 172.20.1.80/32 via 172.20.0.2
 
 [[ -d /var/lib/tor/hidden ]] || ERREXIT 254 "Not found: /var/lib/tor/hidden. Forgot -v option?"
 
@@ -28,6 +30,7 @@ chown -R tor /var/lib/tor/hidden || ERREXIT
 chmod -R 700 /var/lib/tor/hidden || ERREXIT
 chmod 644 /var/lib/tor/hidden/service-22/hostname
 chmod 644 /var/lib/tor/hidden/service-80/hostname
+
 # echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
 if [[ -f /config/tor/torrc ]]; then
 	exec su -s /bin/ash - tor -c "tor -f /config/tor/torrc"

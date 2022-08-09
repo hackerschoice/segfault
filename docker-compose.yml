@@ -62,7 +62,7 @@ services:
         ipv4_address: 172.23.0.252
       guest-net:
         ipv4_address: 10.11.255.252
-      sshd-net:
+      access-net:
         ipv4_address: 172.22.0.252
     restart: ${SF_RESTART:-on-failure}
     depends_on:
@@ -107,7 +107,7 @@ services:
         ipv4_address: 172.20.0.2
       guest-net:
         ipv4_address: 10.11.255.253 # Will be replaced by init.sh with 10.11.0.1
-      sshd-net:
+      access-net:
         ipv4_address: 172.22.0.254
       dmz-net:
         ipv4_address: 172.20.1.254
@@ -159,7 +159,7 @@ services:
     build: gsnc
     image: sf-gsnc
     networks:
-      sshd-net:
+      access-net:
         ipv4_address: 172.22.0.21
     dns: 172.22.0.252
     cap_add:
@@ -184,7 +184,7 @@ services:
     # /bin/segfaultsh need to know the container name; set it to sf-host statically
     container_name: sf-host
     networks:
-      sshd-net:
+      access-net:
         ipv4_address: 172.22.0.22
     dns: 172.22.0.252
     cap_add:
@@ -249,8 +249,8 @@ networks:
       config:
       - subnet: 172.28.0.0/24
 
-  sshd-net:
-    name: sf-sshd
+  access-net:
+    name: sf-access
     driver: bridge
     ipam:
       driver: default

@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
-RUN apt update && \
-       apt install -y --no-install-recommends curl \
+RUN apt-get update && \
+       apt-get install -y --no-install-recommends curl \
        wget \
        ca-certificates \
        net-tools \

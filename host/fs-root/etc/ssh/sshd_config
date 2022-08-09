@@ -89,7 +89,7 @@ AuthorizedKeysFile	.ssh/authorized_keys
 # Feel free to re-enable these if your use case requires them.
 AllowTcpForwarding yes
 GatewayPorts no
-X11Forwarding yes
+#X11Forwarding no
 #X11DisplayOffset 10
 #X11UseLocalhost yes
 #PermitTTY yes

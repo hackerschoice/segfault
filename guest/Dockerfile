@@ -1,12 +1,10 @@
 FROM kalilinux/kali-rolling
 
 WORKDIR /root/
-RUN	apt update -y && \
-	apt install -y --no-install-recommends \
+RUN	apt-get update -y && \
+	apt-get install -y --no-install-recommends \
 		ca-certificates \
-		curl
-RUN	apt update -y && \
-	apt install -y --no-install-recommends \
+		curl \
 		locales \
 		gcc \
 		g++ \
@@ -24,9 +22,7 @@ RUN	apt update -y && \
 		manpages-dev \
 		python-is-python3 \
 		patch \
-		sudo
-RUN	apt update -y && \
-	apt install -y --no-install-recommends \
+		sudo \
 		vim \
 		binutils \
 		whois \
@@ -61,20 +57,14 @@ RUN	apt update -y && \
 		bat \
 		duf \
 		lynx \
-		netcat-traditional
-RUN	apt update -y && \
-	apt install -y --no-install-recommends \
-		golang-go \
-		pkg-config
-RUN	apt update -y && \
-	apt install -y --no-install-recommends \
-		x11-apps
-RUN	apt update -y && \
-	apt install -y --no-install-recommends \
+		netcat-traditional \
 		zsh \
 		zsh-syntax-highlighting \
-		zsh-autosuggestions
-RUN	curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
+		zsh-autosuggestions \
+		golang-go \
+		pkg-config \
+		x11-apps && \
+	curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep && \
 	dpkg -i /tmp/lsd.dep && \
 	rm -f /tmp/lsd.dep && \
 	localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8

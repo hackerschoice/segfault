@@ -148,12 +148,14 @@ print_goodbye()
 	n="$(bash -c "docker exec \"lg-${LID}\" pgrep . 2>/dev/null|wc -l")"
 	DEBUGF "Processes running: $n"
 	if [[ "$n" -gt 3 ]]; then
+		# Display the running processes
+		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3
 		echo -e "\
 ${CY}WARNING: Another shell or background process is still running.${CN}
--------> The encrypted filesystem in /sec will remain mounted until
+-------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
--------> Type ${CC}halt${CN} instead to stop this instance. This will
--------> also make /sec unavailabe until your next login."
+-------> Type ${CC}halt${CN} instead to stop the server. This will
+-------> also make /sec unavailabe until the next login."
 	fi
 	echo -e "\
 Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}

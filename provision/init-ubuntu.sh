@@ -103,17 +103,27 @@ init_basedir()
   [[ ! -d "${SF_BASEDIR}/config/db" ]] && SUDO_SF "mkdir \"${SF_BASEDIR}/config/db\""
 }
 
+# Try to merge new config into old directory and yield if
+# we did not overwrite old config
+mergedir()
+{
+  local src
+  local dst
+
+  [[ "$SFI_SRCDIR" == "$SF_BASEDIR" ]] && return
+
+  src="$1"
+  dst="$(dirname "$src")"
+
+  [[ ! -d "${SF_BASEDIR}/${src}" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/${src}\" \"${SF_BASEDIR}/${dst}\"" || CONFLICT+=("${src}")
+}
+
 init_config_run()
 {
-  # Copy nginx.conf
-  [[ ! -d "${SF_BASEDIR}/config/etc/nginx" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/nginx\" \"${SF_BASEDIR}/config/etc\""
+  mergedir "config/etc/nginx"
+  mergedir "config/etc/tc"
+  mergedir "config/etc/info"
 
-  # Copy Traffic Control (tc) config
-  [[ ! -d "${SF_BASEDIR}/config/etc/tc" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/tc\" \"${SF_BASEDIR}/config/etc\""
-
-  # Copy info directory 
-  [[ ! -d "${SF_BASEDIR}/config/etc/info" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/config/etc/info\" \"${SF_BASEDIR}/config/etc\""
-  
   # Create Master-SEED
   if [[ -z $SF_SEED ]]; then
     if [[ -f "${SF_BASEDIR}/config/etc/seed/seed.txt" ]]; then
@@ -137,6 +147,10 @@ init_config_run()
     [[ ! -d "$SF_DATADIR" ]] && mkdir -p "$SF_DATADIR"
     [[ ! -d "${SF_BASEDIR}/data" ]] && ln -s "$SF_DATADIR" "${SF_BASEDIR}/data"
   }
+
+  # Copy over sfbin
+  [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
+  SUDO_SF "cp -r \"${SFI_SRCDIR}/sfbin\" \"${SF_BASEDIR}/sfbin\""
 }
 
 # Add user
@@ -235,7 +249,8 @@ echo -e "***${CG}SUCCESS${CN}***"
 [[ -z $IS_DOCKER_NEED_MANUAL_START ]] || {
   WARN 5 "${WARNMSG} Please run:"
   INFO "(cd \"${SFI_SRCDIR}\" && \\ \n\
-    docker-compose down && docker network prune -f && docker container rm sf-host 2>/dev/null; \\ \n\
+    docker-compose down && docker stop \$(docker ps -q --filter name='^(lg-|encfs-)') && \\ \n\
+    docker network prune -f && docker container rm sf-host 2>/dev/null; \\ \n\
     SF_SEED=\"${SF_SEED}\" docker-compose up --force-recreate -d)"
 }
 [[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {
@@ -257,6 +272,14 @@ INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@$
 INFO "SSH Host Keys       : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/ssh_host_ed25519_key) (${STR})"
 [[ -z $IS_NEW_SSH_LOGIN_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
 INFO "SSH Login Keys      : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/id_ed25519) (${STR})"
+[[ -n $CONFLICT ]] && {
+  WARN 7 "Not updating these directories in ${SF_BASEDIR}:"
+  for x in "${CONFLICT[@]}"; do
+    INFO "${x}"
+  done
+
+
+}
 
 
 

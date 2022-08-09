@@ -1,12 +1,11 @@
-FROM alpine:latest
+FROM alpine
 
-RUN \
-	apk add --no-cache --upgrade && \
-	apk add --no-cache \
+RUN apk add --no-cache --upgrade \
+	&& apk add --no-cache \
 		docker-cli \
 		bash \
 		encfs
 
-ADD mount.sh /
+COPY mount.sh /
 
 CMD ["/mount.sh"]

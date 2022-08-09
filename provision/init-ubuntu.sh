@@ -167,6 +167,15 @@ install_docker
 # SSHD's login user (normally 'root' with uid 1000) needs to start docker instances
 usermod -a -G docker "${SF_HOST_USER}"
 
+# Free some space
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+snap list --all | awk '/disabled/{print $1, $3}' | while read pkg revision; do
+    snap remove "$pkg" --revision="$revision"
+done
+journalctl --vacuum-size=20M
+journalctl --vacuum-time=10d
+
 # NOTE: Only needed if source is mounted into vmbox (for testing)
 [[ "$(stat -c %G /segfault 2>/dev/null)" = "vboxsf" ]] && usermod -a -G vboxsf "${SF_HOST_USER}"
 

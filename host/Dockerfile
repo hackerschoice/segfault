@@ -1,10 +1,9 @@
-FROM alpine:latest
+FROM alpine
 
 # SF-HOST
 
-RUN \
-	apk add --no-cache --upgrade && \
-	apk add --no-cache \
+RUN	apk add --no-cache --upgrade \
+	&& apk add --no-cache \
 		docker-cli \
 		bash \
 		xauth \

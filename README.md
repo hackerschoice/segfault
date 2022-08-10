@@ -11,7 +11,7 @@ ssh root@segfault.net # the password is 'segfault'
 
 ## Deploy a Server Centre:
 ```shell
-git clone https://github.com/hackerschoice/segfault.git && \
+git clone --depth 1 https://github.com/hackerschoice/segfault.git && \
 cd segfault && \
 docker build -t sf-guest guest && \
 SF_BASEDIR=$(pwd) SF_SSH_PORT=2222 docker-compose up

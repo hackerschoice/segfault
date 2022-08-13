@@ -150,7 +150,7 @@ init_config_run()
 
   # Copy over sfbin
   [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
-  SUDO_SF "cp -r \"${SFI_SRCDIR}/sfbin\" \"${SF_BASEDIR}/sfbin\""
+  mergedir "sfbin"
 }
 
 # Add user

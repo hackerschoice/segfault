@@ -27,7 +27,7 @@ Take a look at ```provision/env.example``` for a sample ```.env``` file.
 
 # Provisioning
 
-Provisioning turns a bare minimum Linux into a Segfault Server Centre. The provisioning script installs docker, creates a dedicated user and sets up the  ```.env``` file and thereafter executes the same steps as in "Deploy a Server Centre". We use this script to 'ready' a freshly created AWS instance like so:
+Provisioning turns a bare minimum Linux into a Segfault Server Centre. The provisioning script installs docker, creates a dedicated user and sets up the  ```.env``` file and thereafter executes the same steps as in "Deploy a Server Centre". If you already have docker running then you do not need this step. We use this script to turn a freshly created AWS instance into a Segfault Server Centre:
 
 ```shell
 git clone https://github.com/hackerschoice/segfault.git

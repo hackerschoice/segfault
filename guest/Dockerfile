@@ -25,6 +25,7 @@ RUN	apt-get update -y \
 		man-db \
 		manpages-dev \
 		python-is-python3 \
+		virtualenv \
 		patch \
 		sudo \
 		vim \
@@ -58,19 +59,28 @@ RUN	apt-get update -y \
 		pip \
 		jq \
 		less \
+		lsof \
+		dirb \
 		bat \
 		duf \
 		lynx \
+		hydra \
 		netcat-traditional \
+		exiftool \
+		wpscan \
+		nikto \
 		zsh \
 		zsh-syntax-highlighting \
 		zsh-autosuggestions \
 		golang-go \
 		pkg-config \
 		x11-apps \
+	&& pip install ipython \
 	&& curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.dep \
 	&& dpkg -i /tmp/lsd.dep \
-	&& rm -f /tmp/lsd.dep \
+	&& curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.dep \
+	&& dpkg -i /tmp/geonet.deb \
+	&& rm -f /tmp/*.dep \
 	&& localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
 	&& /setup.sh \
 	&& rm -f /setup.sh

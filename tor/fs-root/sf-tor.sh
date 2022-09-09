@@ -18,6 +18,14 @@ ERREXIT()
 	exit "$code"
 }
 
+# add [src-dir] [dst-dir] [filename]
+xadd()
+{
+	[[ -e "/config/guest/onion_hostname-${1}" ]] && return
+
+	cp "/var/lib/tor/hidden/service-${1}/hostname" "/config/guest/onion_hostname-${1}"
+}
+
 # Route all traffic that comes to this instance through TOR.
 iptables -t nat -A PREROUTING -p tcp --syn -j REDIRECT --to-ports 9040
 # Route to SSHD and NGINX via sf-router
@@ -31,7 +39,10 @@ chmod -R 700 /var/lib/tor/hidden || ERREXIT
 chmod 644 /var/lib/tor/hidden/service-22/hostname
 chmod 644 /var/lib/tor/hidden/service-80/hostname
 
+xadd 22
+xadd 80
 # echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
+
 if [[ -f /config/tor/torrc ]]; then
 	exec su -s /bin/ash - tor -c "tor -f /config/tor/torrc"
 else

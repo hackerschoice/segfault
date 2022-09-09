@@ -23,14 +23,14 @@ create_vpn_status()
 
 	# Delete vpn_status unless there is at least 1 VPN
 	if [[ ${#loc[@]} -eq 0 ]]; then
-		rm -f "${DSTDIR}/vpn_status"
+		rm -f "/config/guest/vpn_status"
 		return
 	fi
 
 	echo -en "\
 IS_VPN_CONNECTED=1\n\
 VPN_LOCATION=\"${loc[*]}\"\n\
-VPN_EXIT_IP=\"${exit_ip[*]}\"\n" >"${DSTDIR}/vpn_status"
+VPN_EXIT_IP=\"${exit_ip[*]}\"\n" >"/config/guest/vpn_status"
 }
 
 post_down()

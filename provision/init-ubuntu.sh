@@ -47,8 +47,9 @@ install_docker()
   if [[ -z $SF_NO_INTERNET ]]; then
     apt-get install -y --no-install-recommends \
       docker-ce docker-ce-cli containerd.io docker-compose \
-      net-tools make || ERREXIT
+      net-tools make || ERREXIT 138 "Docker not running"
   fi
+  docker ps >/dev/null || ERREXIT 
 }
 
 init_user()
@@ -243,7 +244,7 @@ fi
   docker-compose pull && \
   docker-compose build -q && \
   docker network prune -f)
-if docker ps | egrep "sf-host|sf-router" >/dev/null; then
+if docker ps | grep -E "sf-host|sf-router" >/dev/null; then
   WARNMSG="A SEGFAULT is already running."
   IS_DOCKER_NEED_MANUAL_START=1
 else
@@ -257,9 +258,9 @@ echo -e "***${CG}SUCCESS${CN}***"
 [[ -z $IS_USING_EXISTING_ENV_FILE ]] || WARN 4 "Using existing .env file (${ENV})"
 [[ -z $IS_DOCKER_NEED_MANUAL_START ]] || {
   WARN 5 "${WARNMSG} Please run:"
-  INFO "(cd \"${SFI_SRCDIR}\" && \\ \n\
-    docker-compose down && docker stop \$(docker ps -q --filter name='^(lg-|encfs-)') && \\ \n\
-    docker network prune -f && docker container rm sf-host 2>/dev/null; \\ \n\
+  INFO "(cd \"${SFI_SRCDIR}\" && "'\\\n'"\
+    docker-compose down; docker stop \$(docker ps -q --filter name='^(lg-|encfs-)'); "'\\\n'"\
+    docker network prune -f; docker container rm sf-host 2>/dev/null; "'\\\n'"\
     SF_SEED=\"${SF_SEED}\" docker-compose up --force-recreate -d)"
 }
 [[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {

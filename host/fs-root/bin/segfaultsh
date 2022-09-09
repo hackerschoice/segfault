@@ -3,7 +3,14 @@
 # This is called by SSHD inside SF-HOST docker.
 # - All environments have been cleared by SSHD.
 # - Redirects not allowed in restricted shells.
-
+#
+# This script can be run from the source directory for testing.
+# SF_BASEDIR must point to the source directory.
+#    su - sf-user
+#    export SF_BASEDIR=/home/sf-user/x/segfault-0.2.2a
+#    cd /segfault/host/fs-root/bin
+#    SF_DEBUG=1 SF_EMU=1 SF_SEED=foobar3 ./segfaultsh
+#
 # Load/restore environment variables from file
 # `source' is prohibited in restricted bash shell (bash -r)
 # use `eval' trick to load environemnt variables into a restricted shell
@@ -17,13 +24,16 @@ unset SSH_SF_DEBUG
 CY="\e[1;33m" # yellow
 CDY="\e[0;33m" # yellow
 CR="\e[1;31m" # red
+CB="\e[1;34m" # blue
 CC="\e[1;36m" # cyan
 CG="\e[1;32m" # green
+CDG="\e[0;32m" # green
 CDC="\e[0;36m" # cyan
 CDR="\e[0;31m" # red
 CN="\e[0m"    # none
 CW="\e[1;37m" # white
 CF="\e[2m"    # faint
+CUL="\e[4m"
 
 ERREXIT()
 {
@@ -108,6 +118,112 @@ tofile()
 	bash -c "echo '$str' >'$2' 2>/dev/null" || ERREXIT 231 "tofile: Failed to create "$(basename "$2")""
 }
 
+# Set $1 to $2 if $1 is not already set.
+emu_set_env()
+{
+	eval "[[ -n \"\$$1\" ]]" && return
+	echo "[+] EMULATION: Setting $1=$2"
+	eval "$1"=\"${2}\"
+}
+
+init_emu_tor()
+{
+	local fn
+	fn="${SF_CFG_GUEST_DIR}/onion_hostname-$1"
+
+	[[ -e "$fn" ]] && return
+
+	local str
+	str="${1}-EMULATIONxxxxxalsdjfkljasdflkasdlkfjaldsfadlsgiahfgljzhfkawhrkt"
+	tofile "${str:0:56}.onion" "${fn}"
+}
+
+
+xmkdir()
+{
+	[[ -d "$1" ]] && return
+	mkdir -p "$1"
+}
+
+# segfaultsh started directly from the command shell (for testing & development)
+# SF_BASEDIR=/home/sf-user/segfault-src
+# SF_EMU_PREFIX="${SF_BASEDIR}/emu"
+# mkdir "$SF_EMU_PREFIX"
+# SF_DEBUG=1 SF_SEED=foobar3 ./segfaultsh
+init_emu()
+{
+	[[ -z $SF_EMU ]] && return
+
+	SF_EMU_DIR="${SF_BASEDIR}/emu"
+	SF_SEC_DIR="${SF_BASEDIR}/emu/sec/www-root"
+	SF_CONFIG_DIR="${SF_BASEDIR}/emu/config"
+	SF_INFO_DIR="${SF_BASEDIR}/config/etc/info"
+	SF_HOST_FS_ROOT="${SF_BASEDIR}/host/fs-root"
+	SF_WWW_ROOT_DIR="${SF_EMU_DIR}/encfs-sec/www-root"
+
+
+	[[ ! -d $SF_EMU_DIR ]] && mkdir "${SF_EMU_DIR}"
+
+	[[ ! -d "${SF_SEC_DIR}" ]] && mkdir -p "${SF_SEC_DIR}"
+	[[ ! -f "${SF_SEC_DIR}/.IS-ENCRYPTED" ]] && touch "${SF_SEC_DIR}/.IS-ENCRYPTED"
+
+	emu_set_env SF_DNS "1.1.1.1"
+	emu_set_env SF_FQDN "EMULATION.segfault.net"
+	emu_set_env SF_TOR "10.0.0.111"
+	emu_set_env SF_USER "root"
+	emu_set_env SSH_CONNECTION "1.2.3.4 31337 10.0.2.15 22"
+	export SSH_CONNECTION
+
+	# Overwrite defaults to run in EMULATOR
+	SF_CFG_GUEST_DIR="${SF_EMU_DIR}/config-for-guest"
+	SF_ENCFS_SEC_DIR="${SF_EMU_DIR}/encfs-sec"
+
+	xmkdir "${SF_ENCFS_SEC_DIR}"
+	xmkdir "${SF_CFG_GUEST_DIR}"
+	xmkdir "${SF_ENCFS_SEC_DIR}/user-${LID}"
+	xmkdir "${SF_ENCFS_SEC_DIR}/everyone-root"
+	xmkdir "${SF_ENCFS_SEC_DIR}/everyone-root/everyone"
+	xmkdir "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}"
+
+	[[ ! -f "${SF_CFG_GUEST_DIR}/id_ed25519" ]] && ssh-keygen -q -t ed25519 -C "" -N "" -f "${SF_CFG_GUEST_DIR}/id_ed25519"
+	[[ -f "${SF_CFG_GUEST_DIR}/id_ed25519.pub" ]] && rm -f "${SF_CFG_GUEST_DIR}/id_ed25519.pub"
+
+	init_emu_tor 22
+	init_emu_tor 80
+
+	exec_devnull docker network create -d bridge sf-guest
+}
+
+init_defaults()
+{
+	[[ -z $SF_BASEDIR ]] && ERREXIT 1 "SF_BASEDIR= not set"
+	SF_SEC_DIR="/sec/www-root"
+	SF_WWW_ROOT_DIR="/www-root"
+	SF_CONFIG_DIR="/config"
+	SF_INFO_DIR="/config/etc/info"
+	SF_CFG_GUEST_DIR="${SF_SHMDIR}/config-for-guest" # Mounted to /config/guest
+	SF_ENCFS_SEC_DIR="${SF_SHMDIR}/encfs-sec"
+}
+
+init_vars()
+{
+	init_defaults
+	init_emu
+
+	NOW="$(date +%s)"
+	YOURIP="${SSH_CONNECTION%%[[:space:]]*}"
+	# Do not store IP addresses. Hash it with a secret (SEED) instead.
+	local str
+	str="$(echo "IP-${YOURIP}-${SF_SEED}" | sha512sum)"
+	YOURIP_HASH="${str:0:16}"
+	[[ -z $YOURIP_HASH ]] && ERREXIT 2 "YOURIP_HASH= not set"
+
+	[[ -z $SF_FQDN ]] && SF_FQDN="this"
+	DB_DIR="${SF_CONFIG_DIR}/db"
+	SF_USER_DB_DIR="${SF_CONFIG_DIR}/db/db-${LID}"
+}
+
+
 print_disclaimer()
 {
 	echo 1>&2 -e "\
@@ -123,7 +239,7 @@ print_ssh_access()
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
 ${CDC}cat >~/.ssh/id_sf-${SF_HOSTNAME,,} ${CDR}<<__EOF__
-${CN}${CF}$(cat ~/.ssh/id_ed25519)
+${CN}${CF}$(cat "${SF_CONFIG_DIR}/guest/id_ed25519")
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
@@ -136,6 +252,8 @@ ${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_sf-${SF_HOSTNAME,,}${CN}
 Thereafter use these commands:
 --> ${CDC}ssh root@${SF_HOSTNAME,,}${CN}
 --> ${CDC}scp root@${SF_HOSTNAME,,}:stuff.tar.gz ~/Downloads${CN}
+--> ${CDC}sftp root@${SF_HOSTNAME,,}${CN}
+--> ${CDC}sshfs -o reconnect root@${SF_HOSTNAME,,}:/sec ~/sec ${CN}
 ----------------------------------------------------------------------"
 }
 
@@ -157,6 +275,17 @@ ${CY}WARNING: Another shell or background process is still running.${CN}
 -------> Type ${CC}halt${CN} instead to stop the server. This will
 -------> also make /sec unavailabe until the next login."
 	fi
+	[[ -z $SF_IS_PAYING ]] && {
+		echo -e "\
+${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@          ${CY}={{{ This Session was provided for ${CG}FREE${CY} }}}=${CDY}         @@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
+@@@          ${CB}${CUL}https://www.thc.org/segfault/buy-an-upgrade${CN}${CDY}          @@@
+@@@           ${CDR}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}${CDY}           @@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${CN}"
+
+	}
 	echo -e "\
 Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
@@ -185,7 +314,7 @@ spawn_shell_exit()
 mk_hostname()
 {
 	NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
-	readarray -t english </etc/english.txt
+	readarray -t english <"${SF_HOST_FS_ROOT}/etc/english.txt"
 	SF_HOSTNAME="UnknownUnknown"
 	if [[ "${#english[@]}" -eq 2048 ]]; then
 		SF_HOSTNAME="${english[$((NUM % 2048))]}"
@@ -194,6 +323,100 @@ mk_hostname()
 	DEBUGF "SF_HOSTNAME=$SF_HOSTNAME"
 	unset NUM
 	unset english
+}
+
+setup_fs_limit()
+{
+	# Return if no limit is set
+	[[ -z $SF_USER_ROOT_FS_LIMIT ]] && return 0 # True
+
+	# Backing FS must be of type XFS
+	[[ "$(docker info --format '{{json .DriverStatus}}' | jq -r '.[0][1]')" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_LIMIT is set"
+
+	# Backing FS is of type XFS.
+	# Let's try if we can mount it with restrictions:
+	# docker run -it --storage-opt size=12m sf-gsnc true || return
+
+	DOCKER_ARGS+=("--storage-opt")
+	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_LIMIT:?}")
+}
+
+load_limits()
+{
+	# Set the default values.
+	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
+	# then there is NO LIMIT.
+	#SF_USER_ROOT_FS_LIMIT=2GB
+	SF_USER_MEMORY_LIMIT=256MB
+	SF_USER_PIDS_LIMIT=32
+	SF_USER_CPU_SHARE=128
+	SF_USER_OOM_SCORE=1000
+
+	# HACK: Use eval-trick to 'source' in a restricted bash shell
+	[[ -f "${SF_INFO_DIR}/sf.conf" ]] && eval "$(cat "${SF_INFO_DIR}/sf.conf")"
+
+	# Then souce user specific limits
+	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(cat "${SF_USER_DB_DIR}/limits.conf")"
+
+	# DEBUGF "SF_USER_MEMORY_LIMIT=${SF_USER_MEMORY_LIMIT}"
+	# DEBUGF "SF_USER_PIDS_LIMIT=${SF_USER_PIDS_LIMIT}"
+	# DEBUGF "SF_USER_CPU_SHARE=${SF_USER_CPU_SHARE}"
+	# DEBUGF "SF_USER_OOM_SCORE=${SF_USER_OOM_SCORE}"
+	# DEBUGF "SF_USER_ROOT_FS_LIMIT=${SF_USER_ROOT_FS_LIMIT:-NO LIMIT}"
+
+	DOCKER_ARGS+=("--memory=${SF_USER_MEMORY_LIMIT}")
+	DOCKER_ARGS+=("--pids-limit=${SF_USER_PIDS_LIMIT}")
+	DOCKER_ARGS+=("--cpu-shares=${SF_USER_CPU_SHARE}")
+	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
+
+	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
+}
+
+# wait_for_conn_limit <ID> <ts_window>
+# Allow a max of 5 new connections within <ts_window>.
+# Give up after 120 seconds.
+#   ID - is either "all" for system wide limit or YOURIP_HASH for per IP limit
+wait_for_conn_limit()
+{
+	local ts_window
+	local id
+	local n
+	local fn
+
+	id="$1"
+	ts_window="$2"
+	fn="/dev/shm/conn-${id}.conf"
+	# Do not allow more than 5 new connections in 30 seconds.
+	ARR=(0 0 0 0 0)
+	[[ -f "${fn}" ]] && {
+		local ts_good
+		local c
+		c=0
+		while :; do
+			eval "$(cat "/dev/shm/conn-${id}.conf")"
+			NOW="$(date +%s)"
+
+			ts_good=$((NOW - ts_window))
+			[[ ${ARR[0]} -lt $ts_good ]] && break
+
+			[[ $c -gt 60 ]] && echo -e >&2 "giving up. Try again later." && exit 255
+			[[ $c -eq 0 ]] && echo -en >&2 "[${CY}SF${CN}] Waiting for resources..."
+			echo -n "."
+			sleep 2
+			((c++))
+		done
+		[[ $c -gt 0 ]] && echo -e >&2 "[${CG}OK${CN}]"
+	}
+	N=$(((N+1) % 5))
+	tofile "ARR=(${ARR[*]:1:4} $NOW)" "${fn}"
+}
+
+wait_for_resources()
+{
+	# 5 Connections within 60 seconds from the same IP.
+	wait_for_conn_limit "${YOURIP_HASH}" "60" 
+	# 5 Connections within 15 seconds all in all
+	wait_for_conn_limit "all" "15"
 }
 
 # Find out if SSHD allocated a TTY
@@ -208,6 +431,7 @@ else
 	PARAM=();
 fi
 
+
 ### ----BEGIN SANTIZE----
 # SECRET and SF_DEBUG are user supplied.
 # Connect to existing session
@@ -221,27 +445,29 @@ fi
 [[ -n $SF_DEBUG ]] && SF_DEBUG=1
 ### ----END SANITIZE----
 
-# HACK: Use eval-trick to 'source' in a restricted bash shell
-[[ -f /config/etc/info/sf.conf ]] && eval "$(cat /config/etc/info/sf.conf)"
-
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
 
-SF_VER="1.1"
+[[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
 MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
-[[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
+# Call init_vars() after LID is set
+init_vars
+# Load CPU/PID/OOM limits (systemwide or user specific)
+load_limits
+# Keep guest waiting until there are sufficient resources
+(wait_for_resources)
 
 # Check if share got unmounted (e.g. EncFS died)
-[[ ! -f "/sec/.IS-ENCRYPTED" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
+[[ ! -f "${SF_SEC_DIR}/.IS-ENCRYPTED" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
 
 mk_hostname
 
-HNLID_FILE="/config/db/hn/hn2lid-${SF_HOSTNAME}"
+HNLID_DIR="${SF_CONFIG_DIR}/db/hn/"
+HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
 # Execute under "root" (uid=1001) context:
-[[ ! -d "/config/db/hn" ]] && { mkdir -p "/config/db/hn" || ERREXIT; }
+[[ ! -d "${HNLID_DIR}" ]] && { mkdir -p "${HNLID_DIR}" || ERREXIT; }
 
-if [[ -d "/config/db/db-${LID}" ]]; then
-	# S="Spinning up       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
+if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	S="Your Server       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
 	echo_pty -en "${S:0:65}"
 	touch "${HNLID_FILE}"
@@ -268,9 +494,9 @@ else
 	}
 	IS_NEW_SERVER=1
 
-	mkdir -p "/config/db/db-${LID}" || ERREXIT
-	touch "/config/db/db-${LID}/created.txt" || ERREXIT
-	[[ -d /config/db/hn/ ]] || exec_devnull mkdir /config/db/hn
+	mkdir -p "${DB_DIR}/db-${LID}" || ERREXIT
+	touch "${DB_DIR}/db-${LID}/created.txt" || ERREXIT
+	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}"
 fi
 
@@ -287,8 +513,6 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 	# Run in background (-d)
 	# Use exec_devnull to redirect Container-ID to /dev/null (docker run -d).
 	exec_devnull docker run \
-		--cpu-shares=256 \
-		--blkio-weight=10 \
 		--oom-score-adj=500 \
 		--rm \
 		--name "encfs-${LID}" \
@@ -300,7 +524,7 @@ if [[ "$(exec_errnull docker container inspect "encfs-${LID}" -f '{{.State.Statu
 		--env SF_DEBUG="${SF_DEBUG}" \
 		--log-driver "${SF_DOCKER_LOG}" \
 		-v "${SF_BASEDIR}/data/user:/encfs/raw" \
-		-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/encfs/sec:shared" \
+		-v "${SF_ENCFS_SEC_DIR}/user-${LID}:/encfs/sec:shared" \
 		-v "/var/run/docker.sock:/var/run/docker.sock" \
 		-d \
 		sf-encfs || ERREXIT 251 "Could not create /sec..."
@@ -346,9 +570,16 @@ echo_pty -n ".."
 ### Create ONION directory:
 # This script runs under UID=1000 (root) and does not have write permission to
 # /onion. Thus jump via docker.
-[[ -d "/sec/www/${SF_HOSTNAME,,}" ]] || { 
+[[ -d "${SF_WWW_ROOT_DIR}" ]] || { 
 	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
-	exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "/sec/www/${SF_HOSTNAME,,}"
+	if [[ -z $SF_EMU ]]; then
+		exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
+	else
+
+		echo mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
+		mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
+		exit
+	fi
 	DEBUGF "ret $?"
 }
 
@@ -358,11 +589,10 @@ echo_pty -n ".."
 # when there are still shells using it ('docker exec').
 # Solution: Spawn a docker in the background that monitors the number of
 # processes and use 'docker exec' for every connection.
+
 exec_devnull docker run \
-	--cpu-shares=128 \
-	--blkio-weight=10 \
-	--oom-score-adj=1000 \
 	--hostname "sf-${SF_HOSTNAME}" \
+	"${DOCKER_ARGS[@]}" \
 	--rm \
 	--init \
 	--name "lg-${LID}" \
@@ -379,17 +609,13 @@ exec_devnull docker run \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
 	--env SF_LID="${LID}" \
 	--env SF_IS_LOGINSHELL=1 \
+	--env SF_IS_GOLD_PROMPT="${SF_IS_GOLD_PROMPT}" \
 	-e SSH_CONNECTION \
-	-e SSH_CLIENT \
 	--log-driver "${SF_DOCKER_LOG}" \
-	--mount type=bind,source="${SF_BASEDIR}/config/etc/ssh/id_ed25519,target=/config/id_ed25519,readonly" \
-	--mount type=bind,source="${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden/service-22/hostname,target=/config/onion_hostname-22,readonly" \
-	--mount type=bind,source="${SF_BASEDIR}/config/${SF_FQDN:-this}/tor/hidden/service-80/hostname,target=/config/onion_hostname-80,readonly" \
-	--mount type=bind,source="${SF_SHMDIR}/run/vpn,target=/sf/run/vpn,readonly" \
-	--mount type=bind,source="${SF_SHMDIR}/run/gsnc/access-22.txt,target=/sf/run/gsnc-access-22.txt,readonly" \
-	-v "${SF_SHMDIR}/encfs-sec/user-${LID}:/sec:slave" \
-	-v "${SF_SHMDIR}/encfs-sec/everyone-root/everyone:/everyone:slave" \
-	-v "${SF_SHMDIR}/encfs-sec/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
+	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
+	-v "${SF_ENCFS_SEC_DIR}/user-${LID}:/sec:slave" \
+	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:slave" \
+	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
 	-v "${SF_BASEDIR}/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt:/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt:ro" \
 	-d \
 	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" /sf/bin/sf-destructor.sh || ERREXIT 251 "Failed to set up guest instance..."
@@ -421,9 +647,6 @@ echo_pty -e "......[${CG}OK${CN}]"
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access
 
 DEBUGF "Status: $(docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
-[[ -z $SF_DEBUG ]] || {
-	docker exec "lg-${LID}" ls -ald /root /sec/root
-}
 # Spawn shell
 spawn_shell_exit "$@"
 # NOT REACHED

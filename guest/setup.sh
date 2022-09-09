@@ -11,6 +11,7 @@ rm -f /etc/skel/.bashrc.original && \
 rm -f /usr/bin/kali-motd && \
 chsh -s /bin/zsh
 useradd  -s /bin/zsh user && \
+ln -s openssh /usr/lib/ssh && \
 sed -i 's/\/root/\/sec\/root/g' /etc/passwd && \
 sed -i 's/\/home\//\/sec\/home\//g' /etc/passwd && \
 mkdir -p /sec && \

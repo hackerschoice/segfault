@@ -23,6 +23,8 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:shared"
 
   # EncFS for /everyone
+  # This needs to be separated so that a compromise of ngingx does not
+  # allow the attacker to see /everyone of everyone.
   sf-encfs-everyone:
     build: encfs
     image: sf-encfs
@@ -93,7 +95,8 @@ services:
       - net.ipv4.ip_forward=1
     restart: ${SF_RESTART:-on-failure}
     volumes:
-      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
 
   router:
     build: router
@@ -154,6 +157,7 @@ services:
     volumes:
       - "${SF_BASEDIR:-.}/config/${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}/tor/hidden:/var/lib/tor/hidden"
       - "${SF_BASEDIR:-.}/config/etc/tor:/config/tor:ro"
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
 
   gsnc:
     build: gsnc
@@ -174,7 +178,7 @@ services:
       - SF_DEBUG
       - SF_SEED
     volumes:
-      - "${SF_SHMDIR:-/dev/shm/sf}/run/gsnc:/sf/run/gsnc"
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
     entrypoint: ["/sf-gsnc.sh", "172.22.0.22"]
 
@@ -208,12 +212,10 @@ services:
       - SF_SEED
       - SF_DEBUG
     volumes:
-      - "${SF_BASEDIR:-.}/config/etc/ssh:/config/etc/ssh"
-      - "${SF_BASEDIR:-.}/config/db:/config/db"
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
-      - "${SF_BASEDIR:-.}/config/etc/info:/config/etc/info:ro"
-      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave"
+      - "${SF_BASEDIR:-.}/config:/config"
+      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx:
@@ -229,7 +231,7 @@ services:
     cap_add:
       - NET_ADMIN # need to set default route
     volumes:
-      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh"
+      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave,ro"
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
@@ -256,7 +258,6 @@ networks:
       driver: default
       config:
       - subnet: 172.22.0.0/24
-
 
   dmz-net:
     name: sf-dmz

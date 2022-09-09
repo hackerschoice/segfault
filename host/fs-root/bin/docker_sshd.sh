@@ -54,9 +54,15 @@ setup_sshd()
 	done
 }
 
-[[ -d /config/db ]] || SLEEPEXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config,ro -v \${SF_BASEDIR}/config/db:/config/db"
+[[ ! -d /config ]] && SLEEPEXIT 255 5 "${CR}Not found: /config/db${CN}. Try -v \${SF_BASEDIR}/config:/config"
 
-/sf/bin/wait_semaphore.sh /sec/.IS-ENCRYPTED bash -c exit || exit 123
+[[ ! -d /config/db ]] && { mkdir /config/db || SLEEPEXIT 255 5 "${CR}Cant create /config/db${CN}"; }
+
+# Wait for systemwide encryption to be available.
+# Note: Do not need to wait for /everyone because no other service
+# depends on it and by the time a user loggs in it's either ready (and mounted)
+# or wont get mounted to user.
+/sf/bin/wait_semaphore.sh /sec/www-root/.IS-ENCRYPTED bash -c exit || exit 123
 
 create_load_seed
 
@@ -90,6 +96,10 @@ chmod 644 /config/etc/ssh/id_ed25519
 	chown "${SF_USER}":nobody /home/"${SF_USER}"/.ssh/authorized_keys /home/"${SF_USER}"/.ssh/id_ed25519
 }
 
+SF_CFG_GUEST_DIR="/config/guest"
+[[ ! -d "${SF_CFG_GUEST_DIR}" ]] && SLEEPEXIT 255 3 "Not found: ${SF_CFG_GUEST_DIR}"
+[[ ! -f "${SF_CFG_GUEST_DIR}/id_ed25519" ]] && cp "/config/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
+
 # SSHD resets the environment variables. The environment variables relevant to the guest
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
@@ -121,9 +131,7 @@ addgroup "${SF_USER}" "$(stat -c %G /config/db)" 2>/dev/null # Ignore if already
 chmod g+wx /config/db || exit $?
 
 # This will execute 'segfaultsh' on root-login (uid=1000)
-exec 0<&-
-/usr/sbin/sshd -u0 -D
-# /usr/sbin/sshd -u0 -p 22
-
-tail -f /dev/null
-
+exec 0<&- # Close STDIN
+exec /usr/sbin/sshd -u0 -D
+### NOT REACHED
+exit 255

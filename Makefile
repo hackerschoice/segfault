@@ -10,6 +10,7 @@ all:
 	make -C nordvpn
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
+FILES_GUEST += "segfault-$(VER)/guest/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/Dockerfile"
 FILES_GUEST += "segfault-$(VER)/guest/Makefile"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/sbin/halt"

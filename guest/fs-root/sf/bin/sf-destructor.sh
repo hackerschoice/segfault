@@ -8,10 +8,12 @@
 # This runs inside the sf-guest context (e.g. no access to docker socket)
 
 echo "Processes running: $(pgrep .|wc -l)"
-SL_BIN="/usr/bin/[SF-${SF_LID}] sleep"
+SL_BIN_NAME="[SF-${SF_LID}] sleep"
+SL_BIN="/dev/shm/${SL_BIN_NAME}"
 ln -s /usr/bin/sleep "${SL_BIN}"
+PATH="${PATH}:/dev/shm"
 # Give user time to attach to a detached docker instance (docker exec)
-"${SL_BIN}" 29
+"${SL_BIN_NAME}" 29 || sleep 29
 
 while :; do
 	n="$(pgrep .|wc -l)"
@@ -20,7 +22,7 @@ while :; do
 	[ "$n" -lt 5 ] && break
 	# If encfs died (/sec no longer a directory)
 	[ -d /sec ] || break
-	"${SL_BIN}" 30 || sleep 30
+	"${SL_BIN_NAME}" 30 || sleep 30
 	# exec -a "[sleep-${SF_LID}]" bash -c "sleep 30" --CANT USE. NOT BASH.
 done
 echo "sf-destructor.sh: DONE"

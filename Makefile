@@ -28,6 +28,7 @@ FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
+FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker-exec-sigproxy"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/ssh/sshd_config"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/english.txt"
 

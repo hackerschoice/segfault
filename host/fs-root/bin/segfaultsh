@@ -198,7 +198,7 @@ init_defaults()
 {
 	[[ -z $SF_BASEDIR ]] && ERREXIT 1 "SF_BASEDIR= not set"
 	SF_SEC_DIR="/sec/www-root"
-	SF_WWW_ROOT_DIR="/www-root"
+	SF_WWW_ROOT_DIR="/sec/www-root"
 	SF_CONFIG_DIR="/config"
 	SF_INFO_DIR="/config/etc/info"
 	SF_CFG_GUEST_DIR="${SF_SHMDIR}/config-for-guest" # Mounted to /config/guest
@@ -212,6 +212,7 @@ init_vars()
 
 	NOW="$(date +%s)"
 	YOURIP="${SSH_CONNECTION%%[[:space:]]*}"
+	[[ -z $YOURIP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
 	# Do not store IP addresses. Hash it with a secret (SEED) instead.
 	local str
 	str="$(echo "IP-${YOURIP}-${SF_SEED}" | sha512sum)"
@@ -224,6 +225,7 @@ init_vars()
 }
 
 
+# Called when a new server is created.
 print_disclaimer()
 {
 	echo 1>&2 -e "\
@@ -277,7 +279,7 @@ ${CY}WARNING: Another shell or background process is still running.${CN}
 	fi
 	[[ -z $SF_IS_PAYING ]] && {
 		echo -e "\
-${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\r${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@          ${CY}={{{ This Session was provided for ${CG}FREE${CY} }}}=${CDY}         @@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
@@ -291,6 +293,15 @@ Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 }
 
+print_to_many_servers()
+{
+	echo >&2 -e "\
+[${CR}ERROR${CN}]
+--> ${CDY}You ($YOURIP) have to many servers running${CN}
+--> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
+--> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
+}
+
 echo_pty()
 {
 	[[ -n $IS_PTY ]] || return
@@ -301,9 +312,9 @@ spawn_shell_exit()
 {
 	# $@ is either ("-c", "<command>") or empty
 	DEBUGF "ARG(${#})=$*"
-	[[ ${#} -ne 0 ]] && [[ ${#} -ne 2 ]] && ERREXIT 127 "BAD ($*)"
+	# [[ ${#} -ne 0 ]] && [[ ${#} -ne 2 ]] && ERREXIT 127 "BAD ($*)"
 
-	docker exec "$ARG" "lg-${LID}" nice -n19 zsh "${PARAM[@]}" "$@"
+	docker-exec-sigproxy exec "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	print_goodbye
 
@@ -349,8 +360,10 @@ load_limits()
 	#SF_USER_ROOT_FS_LIMIT=2GB
 	SF_USER_MEMORY_LIMIT=256MB
 	SF_USER_PIDS_LIMIT=32
-	SF_USER_CPU_SHARE=128
+	SF_USER_CPU_SHARE=2
 	SF_USER_OOM_SCORE=1000
+	SF_USER_NICE_SCORE=19
+	SF_LIMIT_SERVER_BY_IP=8
 
 	# HACK: Use eval-trick to 'source' in a restricted bash shell
 	[[ -f "${SF_INFO_DIR}/sf.conf" ]] && eval "$(cat "${SF_INFO_DIR}/sf.conf")"
@@ -365,6 +378,8 @@ load_limits()
 	# DEBUGF "SF_USER_ROOT_FS_LIMIT=${SF_USER_ROOT_FS_LIMIT:-NO LIMIT}"
 
 	DOCKER_ARGS+=("--memory=${SF_USER_MEMORY_LIMIT}")
+	# Setting memory-swap and memory to same value will disable swapping
+	DOCKER_ARGS+=("--memory-swap=${SF_USER_MEMORY_LIMIT}")
 	DOCKER_ARGS+=("--pids-limit=${SF_USER_PIDS_LIMIT}")
 	DOCKER_ARGS+=("--cpu-shares=${SF_USER_CPU_SHARE}")
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
@@ -389,12 +404,12 @@ wait_for_conn_limit()
 	# Do not allow more than 5 new connections in 30 seconds.
 	ARR=(0 0 0 0 0)
 	[[ -f "${fn}" ]] && {
+		NOW="$(date +%s)"
 		local ts_good
 		local c
 		c=0
 		while :; do
-			eval "$(cat "/dev/shm/conn-${id}.conf")"
-			NOW="$(date +%s)"
+			eval "$(grep ^ARR "${fn}")"
 
 			ts_good=$((NOW - ts_window))
 			[[ ${ARR[0]} -lt $ts_good ]] && break
@@ -404,10 +419,10 @@ wait_for_conn_limit()
 			echo -n "."
 			sleep 2
 			((c++))
+			((NOW+=2))
 		done
 		[[ $c -gt 0 ]] && echo -e >&2 "[${CG}OK${CN}]"
 	}
-	N=$(((N+1) % 5))
 	tofile "ARR=(${ARR[*]:1:4} $NOW)" "${fn}"
 }
 
@@ -419,18 +434,68 @@ wait_for_resources()
 	wait_for_conn_limit "all" "15"
 }
 
-# Find out if SSHD allocated a TTY
+# Check if max servers per IP are in use.
+check_limit_server_by_ip()
+{
+	local fn
+	local arr_new
+
+	[[ -z $SF_LIMIT_SERVER_BY_IP ]] && return
+	[[ -n $SF_IS_PAYING ]] && return
+
+	[[ -n $IS_TRY_EXISTING ]] && {
+		# SECRET= was supplied.
+		# If it's running then allow to connect to existing (it's not a new server).
+		exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && return
+	}
+
+	fn="/dev/shm/ip-${YOURIP_HASH}.conf"
+
+	[[ -f "$fn" ]] && {
+		eval "$(grep ^ARR "$fn")"
+
+		local n
+		local lid
+		n=0
+		for lid in "${ARR[@]}"; do
+			[[ -z $lid ]] && break
+			### Check if anyone of the shells is still alive
+			exec_devnull docker container inspect "lg-${lid}" -f '{{.State.Status}}' || continue
+			((n++))
+			arr_new+=($lid)
+		done
+
+		## Eyy, good idea to check if they are idle?
+		[[ "$n" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && {
+			print_to_many_servers
+
+			ERREXIT 255
+		}
+	}
+
+	tofile "ARR=(${arr_new[*]} $LID)" "$fn"
+}
+
+# Find out if SSHD spawns a shell or a command.
+# and if SSHD insists on a TTY (ssh -t <user@host> <command>)
 # - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
-# - Set docker arguments to login-shell if this is a TTY session.
 if bash -c "tty >/dev/null"; then
 	ARG="-it"
-	PARAM=("-il")
-	IS_PTY=1
 else
 	ARG="-i"
-	PARAM=();
 fi
 
+if [[ ${#} -eq 2 ]]; then
+	# HERE: command via "-c" "cmd"
+	PARAM=("-c" "${2}");
+elif [[ ${#} -eq 0 ]]; then
+	# - Set docker arguments to login-shell or profile wont get read.
+	PARAM=("-il")
+	# For -c "cmd" we silence output but for login shells we show
+	IS_PTY=1
+else
+	ERREXIT 255 "BAD PARAMS: '${*}'"
+fi
 
 ### ----BEGIN SANTIZE----
 # SECRET and SF_DEBUG are user supplied.
@@ -455,7 +520,10 @@ init_vars
 # Load CPU/PID/OOM limits (systemwide or user specific)
 load_limits
 # Keep guest waiting until there are sufficient resources
-(wait_for_resources)
+wait_for_resources
+
+### Check if the limit has been reached for this user
+check_limit_server_by_ip
 
 # Check if share got unmounted (e.g. EncFS died)
 [[ ! -f "${SF_SEC_DIR}/.IS-ENCRYPTED" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
@@ -466,6 +534,7 @@ HNLID_DIR="${SF_CONFIG_DIR}/db/hn/"
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
 # Execute under "root" (uid=1001) context:
 [[ ! -d "${HNLID_DIR}" ]] && { mkdir -p "${HNLID_DIR}" || ERREXIT; }
+
 
 if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	S="Your Server       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."
@@ -558,7 +627,7 @@ echo_pty -n ".."
 	DEBUGF "Attaching to existing instance lg-${LID}..."
 	exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && { 
 		echo_pty -e "..........[${CG}Ok${CN}]"
-		spawn_shell_exit "$@"
+		spawn_shell_exit
 		# NOT REACHED
 	}
 	echo_pty -n ".."
@@ -570,17 +639,13 @@ echo_pty -n ".."
 ### Create ONION directory:
 # This script runs under UID=1000 (root) and does not have write permission to
 # /onion. Thus jump via docker.
-[[ -d "${SF_WWW_ROOT_DIR}" ]] || { 
+[[ ! -d "${SF_WWW_ROOT_DIR}" ]] && { 
 	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
 	if [[ -z $SF_EMU ]]; then
 		exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
 	else
-
-		echo mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
-		mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
-		exit
+		mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}" || ERREXIT
 	fi
-	DEBUGF "ret $?"
 }
 
 # Starting GUEST shell
@@ -590,6 +655,8 @@ echo_pty -n ".."
 # Solution: Spawn a docker in the background that monitors the number of
 # processes and use 'docker exec' for every connection.
 
+
+### Start the care taker...
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
@@ -648,6 +715,6 @@ echo_pty -e "......[${CG}OK${CN}]"
 
 DEBUGF "Status: $(docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
 # Spawn shell
-spawn_shell_exit "$@"
+spawn_shell_exit
 # NOT REACHED
 

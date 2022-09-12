@@ -17,12 +17,14 @@ PATH="${PATH}:/dev/shm"
 
 while :; do
 	n="$(pgrep .|wc -l)"
+	# if 
+	[ -z $n ] && break
 	[ -n $SF_DEBUG ] && { echo "Running: $n"; ps --no-headers aux; }
 	# init, destructor, wc, sub-shell
-	[ "$n" -lt 5 ] && break
+	[ "$n" -ge 5 ] || break # This also breaks if "$n" is bad.
 	# If encfs died (/sec no longer a directory)
 	[ -d /sec ] || break
-	"${SL_BIN_NAME}" 30 || sleep 30
+	"${SL_BIN_NAME}" 30 || sleep 30 || break
 	# exec -a "[sleep-${SF_LID}]" bash -c "sleep 30" --CANT USE. NOT BASH.
 done
 echo "sf-destructor.sh: DONE"

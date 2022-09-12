@@ -80,11 +80,11 @@ docker_exec(int argc, char *argv[])
 	if (pid != 0)
 	{
 		// HERE: Parent.
-		// Close STDIN. Child takes over STDIN and docker does his stty-raw thingie
-		close(0);
-		close(1);
-		if (dout != stderr)
-			close(2);
+		// Need STDIN open to fix stty after docker exits...
+		// close(0);
+		// close(1);
+		// if (dout != stderr)
+		// 	close(2);
 		return;
 	}
 
@@ -282,14 +282,10 @@ main(int argc, char *argv[])
 
 	tios_error = tcgetattr(STDIN_FILENO, &tios);
 
-	// Catch all signals...
+	// Catch _all_ signals...
 	int n;
 	for (n = 1; n < 64; n++)
 		signal(n, cb_signal);
-
-	// signal(SIGINT, cb_signal);
-	// signal(SIGHUP, cb_signal);
-	// signal(SIGTERM, cb_signal);
 
 	atexit(do_exit);
 	// Create listening socket

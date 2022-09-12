@@ -78,6 +78,7 @@ RUN	apt-get update -y \
 		dstat \
 		proxychains \
 		gnupg \
+		gem \
 		pip \
 		jq \
 		less \

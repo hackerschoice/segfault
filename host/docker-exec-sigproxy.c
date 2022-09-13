@@ -29,13 +29,6 @@
 // docker instance. Thus we need to 'break out' of that instance to get access
 // to the host's pid system and to find out the host-pid of the ash process.
 // If you do not do this then comment out "SIGPROXY_INSIDE_CONTAINER"....
-//
-// Notes to compile for our needs (not relevant to anyone else):
-// docker run --name alpine-gcc -it alpine
-//     apk update && apk add gcc libc-dev && exit
-// docker commit alpine-gcc alpine-gcc
-// docker run --rm -v$(pwd):/src -w /src -it alpine-gcc sh -c "gcc -Wall -O2 -o fs-root/bin/docker-exec-sigproxy docker-exec-sigproxy.c"
-// And we then ship the compiled binary inside our image.
 
 #include <sys/types.h>
 #include <sys/socket.h>

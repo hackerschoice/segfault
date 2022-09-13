@@ -66,6 +66,7 @@ RUN	apt-get update -y \
 		pagekite \
 		socat \
 		thc-ipv6 \
+		weevely \
 	&& /pkg-install.sh FULL apt-get install -y --no-install-recommends \
 		ngrep \
 		python-is-python3 \

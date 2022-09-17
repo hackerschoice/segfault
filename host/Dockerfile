@@ -9,6 +9,7 @@ RUN	apk add --no-cache --upgrade \
 		bash \
 		xauth \
 		openssh-server \
+		jq \
 	&& echo "/bin/segfaultsh" >>/etc/shells
 
 CMD ["/bin/docker_sshd.sh"]

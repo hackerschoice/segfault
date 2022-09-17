@@ -21,8 +21,6 @@ ERREXIT()
 # add [src-dir] [dst-dir] [filename]
 xadd()
 {
-	[[ -e "/config/guest/onion_hostname-${1}" ]] && return
-
 	cp "/var/lib/tor/hidden/service-${1}/hostname" "/config/guest/onion_hostname-${1}"
 }
 

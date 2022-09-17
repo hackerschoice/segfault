@@ -15,7 +15,8 @@ tc_set()
 		  allot 1500 prio 5 bounded isolated
 
 	# Send all traffic through the shaped class
-	tc filter add dev "${dev}" parent 1: matchall flowid 1:1
+	# Amazon Linux 2 does not come with cls_matchall module
+	tc filter add dev "${dev}" parent 1: matchall flowid 1:1 || { echo -e >&2 "cls_matchall.ko not available? Disable traffic limit."; return 0; }
 }
 
 [[ ! -f /config/tc/limits.conf ]] && { echo -e >&2 "WARNING: NO OUTGOING TRAFFIC LIMIT"; exit 0; }

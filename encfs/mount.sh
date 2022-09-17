@@ -14,7 +14,7 @@ CR="\e[1;31m" # red
 do_exit()
 {
 	fusermount -zu /sec
-	[[ -n $cpid ]] && kill "$cpid" # This will unmount
+	[[ -n $cpid ]] && kill "$cpid" 2>/dev/null # This will unmount
 	unset cpid
 	[[ -n "$PASSFILE" ]] && [[ -e "$PASSFILE" ]] && rm -rf "${PASSFILE:?}"
 	exit "$1"
@@ -70,7 +70,7 @@ sf_server()
 	# Wait until /sec is mounted. Then mark directories with .IS-ENCRYPTED
 	while :; do
 		[[ ! -e /sec/IS-NOT-ENCRYPTED.txt ]] && break
-		kill -0 $cpid || do_exit 128 # bash or EncFS died
+		kill -0 $cpid 2>/dev/null || do_exit 128 # bash or EncFS died
 		sleep 0.5
 	done
 
@@ -135,13 +135,12 @@ rm -f "${PASSFILE:?}"
 sleep 5
 # Monitor: Unmount when user instance is no longer running.
 while :; do
-	docker container inspect "lg-${LID}" -f '{{.State.Status}}' || break
+	docker container inspect "lg-${LID}" -f '{{.State.Status}}' &>/dev/null || break
 	# Break if EncFS died
-	pgrep encfs || break
+	pgrep encfs >/dev/null || break
 	sleep 10
 done
 
 echo "Unmounting lg-${LID} [${SECDIR}]"
 fusermount -zu "${SECDIR}" || echo "fusermount: Error ($?)"
 rmdir "${SECDIR:-/dev/null/BAD}" 2>/dev/null
-echo "DONE"

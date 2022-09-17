@@ -82,7 +82,7 @@ monitor_failover()
 	while :; do
 		if [[ -n $IS_SET_TOR ]]; then
 			# HERE: TOR is set
-			if [[ -f /sf/run/vpn/vpn_status ]]; then
+			if [[ -f /config/guest/vpn_status ]]; then
 				# HERE: VPN is back
 				echo -e >&2 "$(date) WARN: Switching route to VPN."
 				tor_unset
@@ -91,7 +91,7 @@ monitor_failover()
 		else
 			# HERE: TOR is NOT set
 			# Run a ping test. On failure 
-			if [[ ! -f /sf/run/vpn/vpn_status ]]; then
+			if [[ ! -f /config/guest/vpn_status ]]; then
 				# HERE: VPN is gone
 				echo -e >&2 "$(date) WARN: Switching route to TOR."
 				vpn_unset
@@ -127,9 +127,14 @@ ip route del default && \
 # A bit more tricky to forward incoming SSH traffic to our SSHD
 # because we also like to see the source IP (User's Workstation's IP).
 #
-# Linux needs to know that a default route exists for the source or
-# otherwise it will drop the packet. Inform Linux that a route exist
-# to the SSHD.
+# Must rp_filter=2 (see docker-compose.yml)
+# # iptables -t raw -A PREROUTING -p tcp -d 172.20.0.2 --dport 22 -j TRACE
+# # iptables -t raw -L -v -n --line-numbers
+# # modprobe nf_log_ipv4 && sysctl net.netfilter.nf_log.2=nf_log_ipv4
+# - iptables -L PREROUTING -t mangle -n
+# - ip rule show
+# - ip route show table 207
+# Forward all SSHD traffic to sf-host:22.
 iptables -A PREROUTING -i ${DEV_I22} -t mangle -p tcp -d 172.28.0.2 --dport 22 -j MARK --set-mark 722 && \
 ip rule add fwmark 722 table 207 && \
 ip route add default via 172.22.0.22 dev ${DEV_SSHD} table 207 && \
@@ -139,7 +144,7 @@ iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.22 --sport 22
 ip rule add fwmark 22 table 201 && \
 ip route add default via 172.28.0.1 dev ${DEV_I22} table 201 && \
 
-# Forward packets to SSHD (10.12.0.2)
+# Forward packets to SSHD (172.22.0.22)
 iptables -t nat -A PREROUTING -p tcp -d 172.28.0.2 --dport 22 -j DNAT --to-destination 172.22.0.22 && \
 # Make packets appear as if this router was listening on port 22
 iptables -t nat -A POSTROUTING -p tcp -s 172.22.0.22 --sport 22 -j SNAT --to-source 172.28.0.2 && \

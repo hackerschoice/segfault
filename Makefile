@@ -1,4 +1,4 @@
-VER := 0.2.2a
+VER := 0.2.5a
 
 all:
 	make -C guest
@@ -26,9 +26,9 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"
 
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"
+FILES_HOST += "segfault-$(VER)/host/docker-exec-sigproxy.c"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
-FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker-exec-sigproxy"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/ssh/sshd_config"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/english.txt"
 
@@ -36,7 +36,10 @@ FILES_TOR += "segfault-$(VER)/tor/Dockerfile"
 FILES_TOR += "segfault-$(VER)/tor/Makefile"
 FILES_TOR += "segfault-$(VER)/tor/fs-root/sf-tor.sh"
 
-FILES_PROVISION += "segfault-$(VER)/provision/init-ubuntu.sh"
+FILES_PROVISION += "segfault-$(VER)/provision/funcs_aws.sh"
+FILES_PROVISION += "segfault-$(VER)/provision/funcs_al2.sh"
+FILES_PROVISION += "segfault-$(VER)/provision/funcs_ubuntu.sh"
+FILES_PROVISION += "segfault-$(VER)/provision/init-linux.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/system/funcs"
 FILES_PROVISION += "segfault-$(VER)/provision/env.example"
 

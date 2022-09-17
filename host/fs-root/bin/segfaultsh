@@ -262,20 +262,24 @@ Thereafter use these commands:
 # Output GOODBYE message with infos how to connect back to this shell
 print_goodbye()
 {
+	local str
 	[[ -z $IS_PTY ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
 	n="$(bash -c "docker exec \"lg-${LID}\" pgrep . 2>/dev/null|wc -l")"
 	DEBUGF "Processes running: $n"
 	if [[ "$n" -gt 3 ]]; then
+		echo -e "Number of processes running: ${CDY}$((n-3))${CN}"
 		# Display the running processes
-		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3
+		str="shell or background process is"
+		[[ "$n" -gt 4 ]] && str="shells or background processes are"
+		echo -e "${CY}WARNING: ${CR}$((n-3))${CY} ${str} still running:${CN}"
+		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do echo -e "${CDY}--> ${CDG}$x${CN}"; done
 		echo -e "\
-${CY}WARNING: Another shell or background process is still running.${CN}
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
--------> Type ${CC}halt${CN} instead to stop the server. This will
--------> also make /sec unavailabe until the next login."
+-------> Type ${CC}halt${CN} instead to stop this server. This will
+-------> also make /sec unavailabe until your next log in."
 	fi
 	[[ -z $SF_IS_PAYING ]] && {
 		echo -e "\
@@ -312,7 +316,6 @@ spawn_shell_exit()
 {
 	# $@ is either ("-c", "<command>") or empty
 	DEBUGF "ARG(${#})=$*"
-	# [[ ${#} -ne 0 ]] && [[ ${#} -ne 2 ]] && ERREXIT 127 "BAD ($*)"
 
 	docker-exec-sigproxy exec "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
@@ -360,10 +363,11 @@ load_limits()
 	#SF_USER_ROOT_FS_LIMIT=2GB
 	SF_USER_MEMORY_LIMIT=256MB
 	SF_USER_PIDS_LIMIT=32
-	SF_USER_CPU_SHARE=2
-	SF_USER_OOM_SCORE=1000
-	SF_USER_NICE_SCORE=19
+	SF_USER_CPU_SHARE=8
+	SF_USER_OOM_SCORE=500
+	SF_USER_NICE_SCORE=10
 	SF_LIMIT_SERVER_BY_IP=8
+	SF_ULIMIT_NOFILE="256:1024"
 
 	# HACK: Use eval-trick to 'source' in a restricted bash shell
 	[[ -f "${SF_INFO_DIR}/sf.conf" ]] && eval "$(cat "${SF_INFO_DIR}/sf.conf")"
@@ -471,6 +475,14 @@ check_limit_server_by_ip()
 
 			ERREXIT 255
 		}
+
+		[[ "$n" -ge 1 ]] && {
+			# The 3rd and more servers from same IP get less CPU share
+			SF_USER_CPU_SHARE=2
+			SF_USER_OOM_SCORE=1000
+			SF_USER_NICE_SCORE=19
+			DEBUGF "${n}. server from ${YOURIP}. CPU_SHARE=${SF_USER_CPU_SHARE}, OOM=${SF_USER_OOM_SCORE}."
+		}
 	}
 
 	tofile "ARR=(${arr_new[*]} $LID)" "$fn"
@@ -530,7 +542,7 @@ check_limit_server_by_ip
 
 mk_hostname
 
-HNLID_DIR="${SF_CONFIG_DIR}/db/hn/"
+HNLID_DIR="${SF_CONFIG_DIR}/db/hn"
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
 # Execute under "root" (uid=1001) context:
 [[ ! -d "${HNLID_DIR}" ]] && { mkdir -p "${HNLID_DIR}" || ERREXIT; }
@@ -565,6 +577,7 @@ else
 
 	mkdir -p "${DB_DIR}/db-${LID}" || ERREXIT
 	touch "${DB_DIR}/db-${LID}/created.txt" || ERREXIT
+	# exec_errnull date +%s >"${DB_DIR}/db-${LID}/created.txt" || ERREXIT
 	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}"
 fi
@@ -662,6 +675,7 @@ exec_devnull docker run \
 	"${DOCKER_ARGS[@]}" \
 	--rm \
 	--init \
+	--ulimit nofile="${SF_ULIMIT_NOFILE}" \
 	--name "lg-${LID}" \
 	--init \
 	--cap-drop=MKNOD \

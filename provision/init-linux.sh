@@ -7,6 +7,9 @@
 # Environment variables:
 #     SF_HOST_USER   - The user on the server under which 'segfault' is installed. (e.g. /home/ubuntu)
 #     SF_NO_INTERNET - DEBUG: Runs script without Internet
+#     SF_DEBUG=1     - Output DEBUG information
+#     SF_DATADIR=    - Location of ./data (e.g. /sf/data)
+#     SF_CONFDIR=    - Location of ./config (e.g. /sf/config)
 
 SFI_SRCDIR="$(cd "$(dirname "${0}")/.." || exit; pwd)"
 # shellcheck disable=SC1091
@@ -21,43 +24,31 @@ SUDO_SF()
   sudo -u "${SF_HOST_USER}" bash -c "$*"
 }
 
-install_docker()
+init_vars()
 {
-  command -v docker >/dev/null && return
-
-  # Add docker repository to APT
-  if [[ ! -s /usr/share/keyrings/docker-archive-keyring.gpg ]]; then
-    [[ -z $SF_NO_INTERNET ]] && apt update -y && apt -y install --no-install-recommends ca-certificates \
-      curl \
-      gnupg \
-      lsb-release \
-      apt-transport-https
-
-    [[ -s /usr/share/keyrings/docker-archive-keyring.gpg ]] || {
-      rm -rf /usr/share/keyrings/docker-archive-keyring.gpg 2>/dev/null # Delete in case it is zero bytes
-      [[ -z $SF_NO_INTERNET ]] && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-          $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-    }
-
-    [[ -z $SF_NO_INTERNET ]] && apt-get update -y
+  if command -v apt-get >/dev/null; then
+    source "${SFI_SRCDIR}/provision/funcs_ubuntu.sh"
+  elif command -v yum >/dev/null; then
+    source "${SFI_SRCDIR}/provision/funcs_al2.sh"
+  else
+    ERREXIT 255 "Unknown Linux flavor: No apt-get and no yum."
   fi
-
-  ### Install Docker and supporting tools
-  if [[ -z $SF_NO_INTERNET ]]; then
-    apt-get install -y --no-install-recommends \
-      docker-ce docker-ce-cli containerd.io docker-compose \
-      net-tools make || ERREXIT 138 "Docker not running"
-  fi
-  docker ps >/dev/null || ERREXIT 
 }
+
 
 init_user()
 {
   # INIT: Find valid user to use for installation
   [[ -z $SF_HOST_USER ]] && {
-    # EC2 default is 'ubuntu'. Fall-back to 'sf-user' otherwise.
-    id -u ubuntu &>/dev/null && SF_HOST_USER="ubuntu" || SF_HOST_USER="sf-user"
+    # EC2 default is 'ubuntu' or 'ec2-user'. Fall-back to 'sf-user' otherwise.
+    if id -u ubuntu &>/dev/null; then
+      SF_HOST_USER="ubuntu"
+    elif id -u ec2-user &>/dev/null; then
+      SF_HOST_USER="ec2-user"
+    else
+      SF_HOST_USER="sf-user"
+    fi
+
     export SF_HOST_USER
   }
 
@@ -70,6 +61,8 @@ init_user()
 
   SF_HOST_USER_ID="$(id -u "$SF_HOST_USER")"
   DEBUGF "SF_HOST_USER_ID=${SF_HOST_USER_ID} (SF_HOST_USER=${SF_HOST_USER})"
+
+  chown -R "${SF_HOST_USER}" "${SFI_SRCDIR:?}"
 }
 
 init_host_sshd()
@@ -91,6 +84,24 @@ init_host_sshd()
   }
 }
 
+# sf_linkdir [dst] [src]
+sf_linkdir()
+{
+  local dst
+  local src
+  dst="${1:?}"
+  src="${2:?}"
+
+  # If dst does not exit then ignore
+  [[ ! -d "${dst}" ]] && return
+  # If both directories are already the same
+  [[ "${src}" -ef "${dst}" ]] && return
+
+  [[ -d "${src}" ]] && { rmdir "${src}" || ERREXIT 254 "Cant link ${src} to ${dst} because ${src} is not empty."; }
+  ln -s "${dst}" "${src}" || ERREXIT
+}
+
+# Setup BASEDIR and create links to /sf hirachy (if it exists).
 init_basedir()
 {
   # INIT: Find good location for dynamic configuration
@@ -99,9 +110,6 @@ init_basedir()
     SF_BASEDIR="$(cd "/home/${SF_HOST_USER}/segfault" || exit; pwd)"
   }
   DEBUGF "SF_BASEDIR=${SF_BASEDIR}"
-
-  [[ ! -d "${SF_BASEDIR}/config" ]] && SUDO_SF "mkdir \"${SF_BASEDIR}/config\""
-  [[ ! -d "${SF_BASEDIR}/config/db" ]] && SUDO_SF "mkdir \"${SF_BASEDIR}/config/db\""
 }
 
 # Try to merge new config into old directory and yield if
@@ -111,19 +119,39 @@ mergedir()
   local src
   local dst
 
+
   [[ "$SFI_SRCDIR" == "$SF_BASEDIR" ]] && return
 
   src="$1"
   dst="$(dirname "$src")"
 
-  [[ ! -d "${SF_BASEDIR}/${src}" ]] && SUDO_SF "cp -r \"${SFI_SRCDIR}/${src}\" \"${SF_BASEDIR}/${dst}\"" || CONFLICT+=("${src}")
+  # create ./config/etc if it does not exist yet.
+  [[ ! -d "${SF_BASEDIR}/${dst}" ]] && mkdir -p "${SF_BASEDIR}/${dst}"
+
+  DEBUGF "Merge $src $dst"
+  [[ ! -d "${SF_BASEDIR}/${src}" ]] && { cp -r "${SFI_SRCDIR}/${src}" "${SF_BASEDIR}/${dst}" || ERREXIT; } || CONFLICT+=("${src}")
 }
 
 init_config_run()
 {
+  [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
+  [[ -z $SF_CONFDIR ]] && SF_CONFDIR="${SF_BASEDIR}/config"
+
+  # Create ./data or symlink correctly.
+  [[ ! -d "${SF_DATADIR}" ]] && mkdir -p "${SF_DATADIR}"
+  [[ ! "${SF_BASEDIR}/data" -ef "${SF_DATADIR}" ]] && ln -s "${SF_DATADIR}" "${SF_BASEDIR}/data"
+
+
+  [[ ! -d "${SF_CONFDIR}" ]] && mkdir -p "${SF_CONFDIR}"
+  [[ ! "${SF_BASEDIR}/config" -ef "${SF_CONFDIR}" ]] && {
+    # cp -rn "${SF_BASEDIR}/config/*" "${SF_CONFDIR}/"
+    [[ -d "${SF_BASEDIR}/config" ]] && mv "${SF_BASEDIR}/config" "${SF_BASEDIR}/config.orig-$(date +%s)"
+    ln -s "${SF_CONFDIR}" "${SF_BASEDIR}/config"
+  }
+
+  mergedir "config/etc/info"
   mergedir "config/etc/nginx"
   mergedir "config/etc/tc"
-  mergedir "config/etc/info"
 
   # Create Master-SEED
   if [[ -z $SF_SEED ]]; then
@@ -143,17 +171,45 @@ init_config_run()
     SF_SHMDIR="/tmp/sf-u${SF_HOST_USER_ID}"
   fi
 
-  # Create ./data or symlink correctly.
-  [[ -n $SF_DATADIR ]] && {
-    [[ ! -d "$SF_DATADIR" ]] && mkdir -p "$SF_DATADIR"
-    [[ ! -d "${SF_BASEDIR}/data" ]] && ln -s "$SF_DATADIR" "${SF_BASEDIR}/data"
-  }
-
   # Copy over sfbin
-  [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
+  [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
 }
 
+docker_fixdir()
+{
+  [[ ! -d /sf/docker ]] && return
+  [[ "/sf/docker" -ef "/var/lib/docker" ]] && return
+
+  # Stop docker. Should not be running but who knows..
+  docker ps >/dev/null && {
+    WARN 1 "Docker already running. Stopping it for now..."
+    systemctl stop docker
+    systemctl stop docker.socket
+  }
+
+  # Delete if there is any old data in there...
+  rm -rf /sf/docker/* &>/dev/null
+
+  mv /var/lib/docker/* /sf/docker/ || return
+  rmdir /var/lib/docker || return
+  ln -s /sf/docker /var/lib/docker || return
+}
+
+docker_start()
+{
+  docker ps >/dev/null && return
+  systemctl start docker
+}
+
+
+DEBUGF "Initializing variables..."
+init_vars
+
+DEBUGF "Updating..."
+"${PKG_UPDATE[@]}"
+
+DEBUGF "Adding user..."
 # Add user
 init_user
 
@@ -164,16 +220,21 @@ init_basedir
 
 # Install Docker and docker-cli
 install_docker
+docker_fixdir
+docker_start
 
 # SSHD's login user (normally 'root' with uid 1000) needs to start docker instances
 usermod -a -G docker "${SF_HOST_USER}"
 
 # Free some space
-apt-get clean
-rm -rf /var/lib/apt/lists/*
-snap list --all | awk '/disabled/{print $1, $3}' | while read pkg revision; do
+pkg_clean
+command -v snap >/dev/null && snap list --all | awk '/disabled/{print $1, $3}' | while read pkg revision; do
     snap remove "$pkg" --revision="$revision"
 done
+if grep "^#SystemMaxUse=$" /etc/systemd/journald.conf >/dev/null; then
+  sed -E -i  's/#(SystemMaxUse)=$/\1=10M/g' /etc/systemd/journald.conf
+  systemctl restart systemd-journald
+fi
 journalctl --vacuum-size=20M
 journalctl --vacuum-time=10d
 
@@ -182,21 +243,24 @@ journalctl --vacuum-time=10d
 
 # SNAPSHOT #3 (2022-07-22)
 # exit
-
-# Create SSH-KEYS and directories.
-[[ -d "${SF_BASEDIR}/config/etc/ssh" ]] || {
-  IS_NEW_SSH_HOST_KEYS=1
-  SUDO_SF "mkdir -p \"${SF_BASEDIR}/config/etc/ssh\" && ssh-keygen -A -f \"${SF_BASEDIR}\"/config"
-}
-[[ -f "${SF_BASEDIR}/config/etc/ssh/id_ed25519" ]] || {
-  IS_NEW_SSH_LOGIN_KEYS=1
-  SUDO_SF "ssh-keygen -q -t ed25519 -C \"\" -N \"\" -f \"${SF_BASEDIR}/config/etc/ssh/id_ed25519\""
-}
-
 init_config_run
 
+# Create SSH-KEYS and directories.
+# [[ ! -d "${SF_BASEDIR}/config/etc/ssh" ]] && mkdir -p "${SF_BASEDIR}/config/etc/ssh"
+## NOTE: We can not use -A here as -f is not valid on many distros....
+# [[ ! -f "${SF_BASEDIR}/config/etc/ssh/ssh_host_ed25519_key" ]] && {
+#   DEBUGF "Creating SSHD HOST KEY"
+#   ssh-keygen -A -f "${SF_BASEDIR}/config" || ERREXIT
+#   IS_NEW_SSH_HOST_KEYS=1
+# }
+# [[ ! -f "${SF_BASEDIR}/config/etc/ssh/id_ed25519" ]] && {
+#   ssh-keygen -q -t ed25519 -C "" -N "" -f "${SF_BASEDIR}/config/etc/ssh/id_ed25519" || ERREXIT
+#   IS_NEW_SSH_LOGIN_KEYS=1
+# }
+
+
 ### Create guest, encfs and other docker images.
-[[ -z $SF_NO_INTERNET ]] && { SUDO_SF "cd ${SFI_SRCDIR} && make" || exit; }
+[[ -z $SF_NO_INTERNET ]] && { SUDO_SF "cd ${SFI_SRCDIR} && SF_PACKAGES=\"${SF_PACKAGES}\" make" || exit; }
 
 # SNAPSHOT #4 (2022-07-22)
 # SNAPSHOT #4.1 (2022-07-23)
@@ -241,9 +305,8 @@ else
 fi
 
 (cd "${SFI_SRCDIR}" && \
-  docker-compose pull && \
   docker-compose build -q && \
-  docker network prune -f)
+  docker network prune -f) || ERREXIT
 if docker ps | grep -E "sf-host|sf-router" >/dev/null; then
   WARNMSG="A SEGFAULT is already running."
   IS_DOCKER_NEED_MANUAL_START=1
@@ -278,10 +341,10 @@ INFO "Password            : ${CDY}${SF_USER_PASSWORD:-segfault}${CN}"
 INFO "SSH                 : ${CDC}ssh ${PORTSTR}${SF_USER:-root}@${SF_FQDN:-UNKNOWN}${CN}"
 INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@${SF_FQDN%.*}.gsocket${CN}"
 
-[[ -z $IS_NEW_SSH_HOST_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
-INFO "SSH Host Keys       : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/ssh_host_ed25519_key) (${STR})"
-[[ -z $IS_NEW_SSH_LOGIN_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
-INFO "SSH Login Keys      : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/id_ed25519) (${STR})"
+# [[ -z $IS_NEW_SSH_HOST_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
+# INFO "SSH Host Keys       : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/ssh_host_ed25519_key) (${STR})"
+# [[ -z $IS_NEW_SSH_LOGIN_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
+# INFO "SSH Login Keys      : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/id_ed25519) (${STR})"
 [[ -n $CONFLICT ]] && {
   WARN 7 "Not updating these directories in ${SF_BASEDIR}:"
   for x in "${CONFLICT[@]}"; do

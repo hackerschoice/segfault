@@ -39,7 +39,7 @@ Take a look at `provision/env.example` for a sample `.env` file. Configure the t
 
 # Provisioning
 
-Provisioning turns a freshly created Linux (a bare minimum Installation) into a SSC. It's how we 'ready' a newly launched AWS Instance for SSC deployment. You likely dont ever need this but [we wrote it down anyway](wiki/AWS-Deployment).
+Provisioning turns a freshly created Linux (a bare minimum Installation) into a SSC. It's how we 'ready' a newly launched AWS Instance for SSC deployment. You likely dont ever need this but [we wrote it down anyway](https://github.com/hackerschoice/segfault/wiki/AWS-Deployment).
 
 ---
 # BETA TESTING BETA TESTING

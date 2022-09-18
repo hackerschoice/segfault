@@ -30,10 +30,10 @@ _term()
 create_load_seed()
 {
 	[[ -n $SF_SEED ]] && return
-	[[ ! -f "/config/etc/seed/seed.txt" ]] && {
-		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/etc/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
+	[[ ! -f "/config/host/etc/seed/seed.txt" ]] && {
+		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/host/etc/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
 	}
-	SF_SEED="$(cat /config/etc/seed/seed.txt)"
+	SF_SEED="$(cat /config/host/etc/seed/seed.txt)"
 	[[ -z $SF_SEED ]] && { echo -e >&2 "mount.sh: Failed to generated SF_SEED="; exit 254; }
 }
 

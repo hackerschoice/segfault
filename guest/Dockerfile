@@ -7,7 +7,6 @@ WORKDIR /root/
 #   SF_PACKAGES=ALL make
 ARG SF_PACKAGES=${SF_PACKAGES:-"MINI BASE NET"}
 
-COPY /fs-root/ /
 COPY setup.sh pkg-install.sh /
 
 RUN	apt-get update -y \
@@ -142,10 +141,14 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c "{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }" \
 	&& { rm -f /tmp/*.deb; true; } \
-	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin" \
-	&& /setup.sh \
-	&& rm -f /setup.sh /pkg-install.sh
+	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin"
+
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*
+
+# Do fs-root last (on vmbox it messes with chmod and setup.sh fixes it)
+COPY /fs-root/ /
+RUN		/setup.sh \
+	&& rm -f /setup.sh /pkt-install.sh
 
 CMD ["zsh", "-il"]

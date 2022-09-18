@@ -1,4 +1,4 @@
-VER := 0.2.5a
+VER := 0.2.7a
 
 all:
 	make -C guest
@@ -65,9 +65,8 @@ FILES_NORDVPN += "segfault-$(VER)/nordvpn/10-adduser"
 FILES_NORDVPN += "segfault-$(VER)/nordvpn/vpn_wg2status.sh"
 
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
-FILES_CONFIG += "segfault-$(VER)/config/etc/tc/limits.conf"
-FILES_CONFIG += "segfault-$(VER)/config/etc/info/sf.conf"
-FILES_CONFIG += "segfault-$(VER)/config/etc/info/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
+FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
+FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"

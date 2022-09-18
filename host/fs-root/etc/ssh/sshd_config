@@ -16,9 +16,9 @@ AddressFamily inet # disable IPv6 to make X11 work in docker
 #ListenAddress 0.0.0.0
 #ListenAddress ::
 
-HostKey /config/etc/ssh/ssh_host_rsa_key
-HostKey /config/etc/ssh/ssh_host_ecdsa_key
-HostKey /config/etc/ssh/ssh_host_ed25519_key
+HostKey /config/host/etc/ssh/ssh_host_rsa_key
+HostKey /config/host/etc/ssh/ssh_host_ecdsa_key
+HostKey /config/host/etc/ssh/ssh_host_ed25519_key
 
 # Ciphers and keying
 #RekeyLimit default none

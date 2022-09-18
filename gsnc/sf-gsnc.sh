@@ -3,15 +3,15 @@
 create_load_seed()
 {
 	[[ -n $SF_SEED ]] && return
-	[[ ! -f "/config/etc/seed/seed.txt" ]] && {
-		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/etc/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
+	[[ ! -f "/config/host/etc/seed/seed.txt" ]] && {
+		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >/config/host/etc/seed/seed.txt || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
 	}
-	SF_SEED="$(cat /config/etc/seed/seed.txt)"
+	SF_SEED="$(cat /config/host/etc/seed/seed.txt)"
 	[[ -z $SF_SEED ]] && { echo >&2 "Failed to generated SF_SEED="; exit 254; }
 }
 
 [[ ! -d /config/guest ]] && { echo >&2 "Forgot -v \${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest?"; sleep 5; exit 253; }
-[[ ! -d /config/etc/seed ]] && { echo >&2 "Forgot -v config/etc/seed:/config/etc/seed?"; sleep 5; exit 252; }
+[[ ! -d /config/host/etc/seed ]] && { echo >&2 "Forgot -v config/etc/seed:/config/host/etc/seed?"; sleep 5; exit 252; }
 
 create_load_seed
 

@@ -18,7 +18,7 @@ services:
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
+      - "${SF_BASEDIR:-.}/config/etc/seed:/config/host/etc/seed"
       - "${SF_BASEDIR:-.}/data/www-root:/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:shared"
 
@@ -41,7 +41,7 @@ services:
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
+      - "${SF_BASEDIR:-.}/config/etc/seed:/config/host/etc/seed"
       - "${SF_BASEDIR:-.}/data/everyone-root:/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/everyone-root:/sec:shared"
 
@@ -129,7 +129,7 @@ services:
     restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
-      - "${SF_BASEDIR:-.}/config/etc/tc:/config/tc:ro"
+      - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
     entrypoint: ["/init.sh"]
 
@@ -159,7 +159,7 @@ services:
       - nginx
     volumes:
       - "${SF_BASEDIR:-.}/config/${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}/tor/hidden:/var/lib/tor/hidden"
-      - "${SF_BASEDIR:-.}/config/etc/tor:/config/tor:ro"
+      - "${SF_BASEDIR:-.}/config/etc/tor:/config/host/etc/tor:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
 
   gsnc:
@@ -182,7 +182,7 @@ services:
       - SF_SEED
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/etc/seed"
+      - "${SF_BASEDIR:-.}/config/etc/seed:/config/host/etc/seed"
     entrypoint: ["/sf-gsnc.sh", "172.22.0.22"]
 
   segfault:
@@ -215,7 +215,7 @@ services:
       - SF_SEED
       - SF_DEBUG
     volumes:
-      - "${SF_BASEDIR:-.}/config:/config"
+      - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"

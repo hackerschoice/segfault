@@ -41,8 +41,8 @@ xadd 22
 xadd 80
 # echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
 
-if [[ -f /config/tor/torrc ]]; then
-	exec su -s /bin/ash - tor -c "tor -f /config/tor/torrc"
+if [[ -f /config/host/etc/tor/torrc ]]; then
+	exec su -s /bin/ash - tor -c "tor -f /config/host/etc/tor/torrc"
 else
 	exec su -s /bin/ash - tor -c "tor"
 fi

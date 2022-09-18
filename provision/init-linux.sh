@@ -77,7 +77,7 @@ init_host_sshd()
 
   # Move original SSH server out of the way...
   [[ "${port}" -eq 22 ]] && grep "Port 22" /etc/ssh/sshd_config >/dev/null && {
-    sed -i "s/#Port ${port}/Port ${SF_SSH_PORT_MASTER}/g" /etc/ssh/sshd_config
+    sed -i -E "s/#Port ${port}/Port ${SF_SSH_PORT_MASTER}/g" /etc/ssh/sshd_config
     DEBUGF "Restarting SSHD on port ${SF_SSH_PORT_MASTER}"
     service sshd restart
     IS_SSH_GOT_MOVED=1
@@ -129,7 +129,8 @@ mergedir()
   [[ ! -d "${SF_BASEDIR}/${dst}" ]] && mkdir -p "${SF_BASEDIR}/${dst}"
 
   DEBUGF "Merge $src $dst"
-  [[ ! -d "${SF_BASEDIR}/${src}" ]] && { cp -r "${SFI_SRCDIR}/${src}" "${SF_BASEDIR}/${dst}" || ERREXIT; } || CONFLICT+=("${src}")
+  [[ ! -d "${SF_BASEDIR}/${src}" ]] && { cp -r "${SFI_SRCDIR}/${src}" "${SF_BASEDIR}/${dst}" || ERREXIT; } || { CONFLICT+=("${src}"); return 1; }
+  return 0
 }
 
 init_config_run()
@@ -141,17 +142,14 @@ init_config_run()
   [[ ! -d "${SF_DATADIR}" ]] && mkdir -p "${SF_DATADIR}"
   [[ ! "${SF_BASEDIR}/data" -ef "${SF_DATADIR}" ]] && ln -s "${SF_DATADIR}" "${SF_BASEDIR}/data"
 
-
   [[ ! -d "${SF_CONFDIR}" ]] && mkdir -p "${SF_CONFDIR}"
   [[ ! "${SF_BASEDIR}/config" -ef "${SF_CONFDIR}" ]] && {
-    # cp -rn "${SF_BASEDIR}/config/*" "${SF_CONFDIR}/"
     [[ -d "${SF_BASEDIR}/config" ]] && mv "${SF_BASEDIR}/config" "${SF_BASEDIR}/config.orig-$(date +%s)"
     ln -s "${SF_CONFDIR}" "${SF_BASEDIR}/config"
   }
 
-  mergedir "config/etc/info"
+  mergedir "config/etc/sf" && IS_ETCSF_UPDATE=1
   mergedir "config/etc/nginx"
-  mergedir "config/etc/tc"
 
   # Create Master-SEED
   if [[ -z $SF_SEED ]]; then
@@ -247,7 +245,7 @@ init_config_run
 
 # Create SSH-KEYS and directories.
 # [[ ! -d "${SF_BASEDIR}/config/etc/ssh" ]] && mkdir -p "${SF_BASEDIR}/config/etc/ssh"
-## NOTE: We can not use -A here as -f is not valid on many distros....
+## NOTE: We can not use -A here as -A together with -f is not valid on many distros....
 # [[ ! -f "${SF_BASEDIR}/config/etc/ssh/ssh_host_ed25519_key" ]] && {
 #   DEBUGF "Creating SSHD HOST KEY"
 #   ssh-keygen -A -f "${SF_BASEDIR}/config" || ERREXIT
@@ -285,24 +283,27 @@ init_config_run
 
 DEBUGF "SF_FQDN=${SF_FQDN}"
 # Create '.env' file for docker-compose
-SF_BASEDIR_ESC="${SF_BASEDIR//\//\\/}"
-SF_NORDVPN_PRIVATE_KEY_ESC="${SF_NORDVPN_PRIVATE_KEY//\//\\/}"
-SF_FQDN_ESC="${SF_FQDN//\//\\/}"
-SF_SHMDIR_ESC="${SF_SHMDIR//\//\\/}"
 # .env needs to be where the images are build (in the source directory)
 ENV="${SFI_SRCDIR}/.env"
 if [[ -e "${ENV}" ]]; then
   IS_USING_EXISTING_ENV_FILE=1
 else
   SUDO_SF "cp \"${SFI_SRCDIR}/provision/env.example\" \"${ENV}\" && \
-  sed -i 's/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR_ESC}/' \"${ENV}\" && \
-  sed -i 's/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR_ESC}/' \"${ENV}\" && \
-  sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN_ESC}/' \"${ENV}\"" || ERREXIT 120 failed
+  sed -i 's/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR//\//\\/}/' \"${ENV}\" && \
+  sed -i 's/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR//\//\\/}/' \"${ENV}\" && \
+  sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN//\//\\/}/' \"${ENV}\"" || ERREXIT 120 failed
   [[ -n $SF_SSH_PORT ]] && { SUDO_SF "sed -i 's/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 121 failed; }
-  [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY_ESC}/' \"${ENV}\"" || ERREXIT 121 failed; }
-  [[ -n $SF_MAXOUT ]] && { SUDO_SF "sed -i 's/.*SF_MAXOUT.*/SF_MAXOUT=${SF_MAXOUT}/' \"${ENV}\"" || ERREXIT 121 failed; }
-  [[ -n $SF_MAXIN ]] && { SUDO_SF "sed -i 's/.*SF_MAXIN.*/SF_MAXIN=${SF_MAXIN}/' \"${ENV}\"" || ERREXIT 121 failed; }
+  [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
 fi
+
+# Copy all relevant env variables into config/etc/sf.conf
+[[ -n $IS_ETCSF_UPDATE ]] && {
+  set | grep ^SF_ | while read x; do
+    name="${x%%=*}"
+    val="$(eval echo \$"$name")"
+    sed -i -E "s/^#${name}=.*/${name}=${val//\//\\/}/" "${SF_BASEDIR}/config/etc/sf/sf.conf"
+  done
+}
 
 (cd "${SFI_SRCDIR}" && \
   docker-compose build -q && \

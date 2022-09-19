@@ -228,11 +228,13 @@ cb_signal(int sig)
 			if (WIFEXITED(wstatus))
 				exit(WEXITSTATUS(wstatus));
 
+			// Disable signal handler for this signal.
 			signal(WTERMSIG(wstatus), SIG_DFL);
 			// Kill myself with the same signal.
 			kill(getpid(), WTERMSIG(wstatus));
+			return; // On return the above signal will be delivered.
 		}
-		exit(255); // SHOULD NOT HAPPEN
+		exit(252); // SHOULD NOT HAPPEN
 	}
 
 	// Forward signal to exec'ed pid.
@@ -242,9 +244,12 @@ cb_signal(int sig)
 	// NOTE: This docker-cli is inside a docker already. Thus we need to break out:
 	snprintf(cmd, sizeof cmd, "docker run --rm --pid=host -v "DFL_CONTAINER_DIR"/%s/%s.pid:/pid alpine sh -c 'kill -%d $(cat /pid)'", container_id, exec_id, sig);
 #else
-	snprintf(cmd, sizeof cmd, "kill -%d $(cat "DFL_CONTAINER_DIR"/%s/%s.pid:)", container_id, exec_id, sig);
+	snprintf(cmd, sizeof cmd, "kill -%d $(cat "DFL_CONTAINER_DIR"/%s/%s.pid)", sig, container_id, exec_id);
 #endif
+	DEBUGF("cmd=%s\n", cmd);
+	signal(SIGCHLD, SIG_IGN);
 	system(cmd);
+	signal(SIGCHLD, cb_signal);
 
 	// Forward signal to child.
 	if (pid > 0)
@@ -275,10 +280,14 @@ main(int argc, char *argv[])
 
 	tios_error = tcgetattr(STDIN_FILENO, &tios);
 
-	// Catch _all_ signals...
-	int n;
-	for (n = 1; n < 64; n++)
-		signal(n, cb_signal);
+	signal(SIGHUP, cb_signal);
+	signal(SIGINT, cb_signal);
+	signal(SIGQUIT, cb_signal);
+	signal(SIGUSR1, cb_signal);
+	signal(SIGUSR2, cb_signal);
+	signal(SIGPIPE, cb_signal);
+	signal(SIGTERM, cb_signal);
+	signal(SIGURG, cb_signal);
 
 	atexit(do_exit);
 	// Create listening socket

@@ -37,7 +37,7 @@ alias lt='ls -Alhrt'
 _sf_info_non_perm()
 {
 	# On success show this...
-	echo -e "${CDB}[${CDY}SF${CDB}] ${CR}Your changes will get lost."
+	echo -e "${CDB}[${CDY}SF${CDB}] ${CR}Your changes will be lost."
 	echo -e "${CDB}[${CDY}SF${CDB}] ${CB}${CUL}https://www.thc.org/segfault/faq/#lost${CN}"
 }
 

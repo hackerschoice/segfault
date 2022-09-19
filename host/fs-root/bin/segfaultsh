@@ -274,7 +274,8 @@ print_goodbye()
 		str="shell or background process is"
 		[[ "$n" -gt 4 ]] && str="shells or background processes are"
 		echo -e "${CY}WARNING: ${CR}$((n-3))${CY} ${str} still running:${CN}"
-		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do echo -e "${CDY}--> ${CDG}$x${CN}"; done
+		# exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do echo -e "${CDY}--> ${CDG}${x:0:75}${CN}"; done
+		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do p="${x%% *}      "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.

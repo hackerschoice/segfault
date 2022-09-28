@@ -1,4 +1,4 @@
-VER := 0.2.7a
+VER := 0.2.8a
 
 all:
 	make -C guest
@@ -7,7 +7,6 @@ all:
 	make -C encfs
 	make -C router
 	make -C gsnc
-	make -C nordvpn
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/pkg-install.sh"
@@ -57,13 +56,6 @@ FILES_GSNC += "segfault-$(VER)/gsnc/Makefile"
 FILES_GSNC += "segfault-$(VER)/gsnc/Dockerfile"
 FILES_GSNC += "segfault-$(VER)/gsnc/sf-gsnc.sh"
 
-FILES_NORDVPN += "segfault-$(VER)/nordvpn/Makefile"
-FILES_NORDVPN += "segfault-$(VER)/nordvpn/Dockerfile"
-FILES_NORDVPN += "segfault-$(VER)/nordvpn/md5-orig.txt"
-FILES_NORDVPN += "segfault-$(VER)/nordvpn/run"
-FILES_NORDVPN += "segfault-$(VER)/nordvpn/10-adduser"
-FILES_NORDVPN += "segfault-$(VER)/nordvpn/vpn_wg2status.sh"
-
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
@@ -72,7 +64,7 @@ FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
 
-FILES += $(FILES_ROOT) $(FILES_NORDVPN) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES += $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

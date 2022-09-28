@@ -25,7 +25,7 @@ xadd()
 }
 
 # Route all traffic that comes to this instance through TOR.
-iptables -t nat -A PREROUTING -p tcp --syn -j REDIRECT --to-ports 9040
+iptables -t nat -A PREROUTING -p tcp ! -d sf-tor --syn -j REDIRECT --to-ports 9040
 # Route to SSHD and NGINX via sf-router
 ip route add 172.22.0.22/32 via 172.20.0.2
 ip route add 172.20.1.80/32 via 172.20.0.2

@@ -271,8 +271,8 @@ print_goodbye()
 	if [[ "$n" -gt 3 ]]; then
 		echo -e "Number of processes running: ${CDY}$((n-3))${CN}"
 		# Display the running processes
-		str="shell or background process is"
-		[[ "$n" -gt 4 ]] && str="shells or background processes are"
+		str="process is"
+		[[ "$n" -gt 4 ]] && str="processes are"
 		echo -e "${CY}WARNING: ${CR}$((n-3))${CY} ${str} still running:${CN}"
 		# exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do echo -e "${CDY}--> ${CDG}${x:0:75}${CN}"; done
 		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do p="${x%% *}      "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
@@ -681,6 +681,7 @@ exec_devnull docker run \
 	--init \
 	--cap-drop=MKNOD \
 	--net sf-guest \
+	--add-host tor:172.20.0.111 \
 	--dns "${SF_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
 	--env SF_TOR="${SF_TOR}" \

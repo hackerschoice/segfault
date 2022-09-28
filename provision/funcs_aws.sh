@@ -63,6 +63,7 @@ aws_fs_add()
 # 	_aws_mkdirln "config" fast slow
 # 	_aws_mkdirln "data" slow fast
 # }
+[[ "${UID}" -ne 0 ]] && { echo >&2 "Need root"; exit 255; }
 
 echo -e "${CDY}Create Filesystem and link SF-hirachy. Skip if already exists.${CN}"
 echo -e "${CDY}Available Devices:${CN}"

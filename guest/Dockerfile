@@ -5,7 +5,8 @@ WORKDIR /root/
 # Valid options are:
 #   MINI BASE DEVEL NET HACK LARGE HUGE ALL
 #   SF_PACKAGES=ALL make
-ARG SF_PACKAGES=${SF_PACKAGES:-"MINI BASE NET"}
+# Default is "MINI BASE NET" (see pkg-install.sh)
+ARG SF_PACKAGES
 
 COPY setup.sh pkg-install.sh /
 
@@ -26,10 +27,14 @@ RUN	apt-get update -y \
 		zsh-syntax-highlighting \
 	&& /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		bc \
+		bsdmainutils \
+		dos2unix \
 		less \
 		openssh-sftp-server \
 		screen \
+		sharutils \
 		tmux \
+		unzip \
 		xxd \
 	&& /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		automake \
@@ -39,6 +44,7 @@ RUN	apt-get update -y \
 		byacc \
 		flex \
 		g++ \
+		gawk \
 		gcc \
 		gdb \
 		git \
@@ -52,6 +58,7 @@ RUN	apt-get update -y \
 		strace \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
+		ftp \
 		iputils-tracepath \
 		gsocket \
 		nano \
@@ -66,10 +73,14 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		hydra \
 		irssi \
+		nbtscan \
+		netdiscover \
 		nmap \
 		pagekite \
+		snmpcheck \
 		socat \
 		thc-ipv6 \
+		webshells \
 		weevely \
 	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		ngrep \
@@ -103,6 +114,7 @@ RUN	apt-get update -y \
 		wpscan \
 		smbclient \
 		smbmap \
+		snmp \
 		sslscan \
 		sshpass \
 		ssh-audit \
@@ -130,12 +142,21 @@ RUN	apt-get update -y \
 		rust-all \
 		ruby \
 		x11-apps \
+	&& /pkg-install.sh HUGE go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest \
 	&& /pkg-install.sh LARGE pip install --pre scapy[basic] \
 	&& /pkg-install.sh LARGE pip install \
 		git-dumper \
-		ipyton \
+		ipython \
 		shodan \
-	&& /pkg-install.sh HACK pip install sqlmap \
+	&& /pkg-install.sh HACK pip install \
+		hashid \
+		sqlmap \
+	&& /pkg-install.sh HACK bash -c "{ curl -fsSL https://github.com/projectdiscovery/uncover/releases/download/v0.0.8/uncover_0.0.8_linux_amd64.zip -o /tmp/pkg.zip \
+		&& unzip /tmp/pkg.zip uncover -d /usr/bin && rm -f /tmp/pkg.zip \
+		&& curl -fsSL https://github.com/projectdiscovery/httpx/releases/download/v1.2.4/httpx_1.2.4_linux_amd64.zip -o /tmp/pkg.zip \
+		&& unzip /tmp/pkg.zip httpx -d /usr/bin && rm -f /tmp/pkg.zip \
+		&& curl -fsSL https://github.com/projectdiscovery/nuclei/releases/download/v2.7.7/nuclei_2.7.7_linux_amd64.zip -o /tmp/pkg.zip \
+		&& unzip /tmp/pkg.zip nuclei -d /usr/bin && rm -f /tmp/pkg.zip }" \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \

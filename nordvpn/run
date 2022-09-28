@@ -41,7 +41,18 @@ EOF
 } && sync )
 
 echo "[$(date -Iseconds)] Connecting..."
-wg-quick up wg0 
+wg-quick up wg0
+n=0
+while :; do
+  last=$(wg show wg0 latest-handshakes 2>/dev/null)
+  last="${last##*[[:space:]]}"
+  [[ $last -gt 0 ]] && break
+
+  ((n++))
+  [[ $n -gt 20 ]] && { echo "Timeout..."; sleep 5; exit; }
+  sleep 0.5
+done
+
 echo "[$(date -Iseconds)] Connected! \(ᵔᵕᵔ)/"
 
 if [[ -n ${RECONNECT} ]]; then
@@ -51,28 +62,25 @@ fi
 n=0
 while :; do
   last=$(wg show wg0 latest-handshakes 2>/dev/null)
+  last="${last##*[[:space:]]}"
+
   [ -z "$last" ] && break
 
-  hs_age=$(( $(date -u +%s) - $(echo "$last" | awk '{print $2}') ))
+  hs_age=$(( $(date -u +%s) - "${last}" ))
   if [ $hs_age -le 180 ]; then
     [ $n -gt 0 ] && echo "[$(date -Iseconds)] Re-Handshake complete!"
     n=0
   else
-    n=$((n+1))
+    ((n++))
     echo -e "[$(date -Iseconds)] Strike #${n}: No handshake for $hs_age sec..."
     [ $n -gt 3 ] && break
   fi
   sleep 10
   [[ -n $RECONNECT ]] && {
     re=$((re - 10))
-    [ $re -le 0 ] && { echo "RECONNECTING..."; sleep 5; exit; }
+    [ $re -le 0 ] && break
   }
 done
 
 echo "[$(date -Iseconds)] RESTARTING..."
 sleep 5
-exit
-if [[ -n ${RECONNECT} ]]; then
-  echo "[$(date -Iseconds)] Reconnecting in ${RECONNECT} seconds"
-fi
-sleep "${RECONNECT:-infinity}"

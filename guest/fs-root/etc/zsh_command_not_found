@@ -14,8 +14,10 @@
 
 # ZSH specific
 function cnf_preexec() {
-    typeset -g cnf_command="${1%% *}"
-    whence -- "$cnf_command" >& /dev/null && return
+    local cmd
+    cmd="${1#"${1%%[^[:space:]]*}"}" # remove leading whitespace characters
+    typeset -g cnf_command="${cmd%% *}"
+    whence -- "${cnf_command}" >& /dev/null && return
     # HERE: command not found
     [ -n "$cnf_once" ] && return
     typeset -g cnf_once="1"
@@ -28,8 +30,8 @@ function cnf_precmd() {
     unset cnf_once
     echo -en "\e[0m"
     (($cnf_ret)) && [ -n "$cnf_command" ] && {
-        whence -- "$cnf_command" >& /dev/null ||
-            echo -e "[SF] ¯\_(⊙︿⊙)_/¯ Like us to install \e[0;36m${cnf_command}\e[0m?\n\e[0m[SF] \e[1;37mTell us at https://t.me/thcorg\e[0m"
+        whence -- "${cnf_command}" >& /dev/null ||
+            echo -e "\e[0;34m[\e[0;33mSF\e[0;34m]\e[0m ¯\_(⊙︿⊙)_/¯ Like us to install \e[0;36m${cnf_command}\e[0m?\n\e[0;34m[\e[0;33mSF\e[0;34m] \e[1;37mTell us at https://t.me/thcorg\e[0m"
         unset cnf_command
     }
 }

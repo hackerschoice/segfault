@@ -294,6 +294,8 @@ else
   sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN//\//\\/}/' \"${ENV}\"" || ERREXIT 120 failed
   [[ -n $SF_SSH_PORT ]] && { SUDO_SF "sed -i 's/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 121 failed; }
   [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
+  [[ -n $SF_MULLVAD_CONFIG ]] && { SUDO_SF "sed -i 's/.*SF_MULLVAD_CONFIG.*/SF_MULLVAD_CONFIG=${SF_MULLVAD_CONFIG//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
+  [[ -n $SF_CRYPTOSTORM_CONFIG ]] && { SUDO_SF "sed -i 's/.*SF_CRYPTOSTORM_CONFIG.*/SF_CRYPTOSTORM_CONFIG=${SF_CRYPTOSTORM_CONFIG//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
 fi
 
 # Copy all relevant env variables into config/etc/sf.conf

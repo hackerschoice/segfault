@@ -4,7 +4,6 @@
 # - Force default route to NordLynx 
 
 TOR_GW="172.20.0.111"
-VPN_GW="172.20.0.254"
 GOOD_ROUTES+=("10.11.0.0/16")
 GOOD_ROUTES+=("10.111.0.0/16") # TOR
 GOOD_ROUTES+=("172.20.0.0/24") # VPN gateways
@@ -38,6 +37,7 @@ blacklist_routes()
 	done
 
 	for ip in "${BAD_ROUTES[@]}"; do
+		iptables -A FORWARD -p tcp -d "$ip" -j REJECT --reject-with tcp-reset
 		iptables -A FORWARD -d "$ip" -j REJECT
 	done
 }
@@ -51,54 +51,60 @@ devbyip()
 	echo "${2:?}"
 }
 
-# Stop routing via VPN
-vpn_unset()
+use_vpn()
 {
-	ip route del default via "${VPN_GW}"
+	local gw
+	local gw_ip
+
+	unset IS_TOR
+
+	local _ip
+	local f
+	for f in /sf/run/vpn/status-*; do
+		[[ ! -f "$f" ]] && break
+		_ip="$(<"$f")"
+		_ip="${_ip%%$'\n'*}"
+		_ip="${_ip##*=}"
+		_ip="${_ip//[^0-9\.]/}" # Sanitize
+		[[ -z $_ip ]] && continue
+		gw+=("nexthop" "via" "${_ip}" "weight" "100")
+		gw_ip+=("${_ip}")
+	done
+
+	[[ -z $gw ]] && return
+
+	echo -e >&2 "$(date) Switching to VPN (gw=${gw_ip[@]})" 
+	ip route del default
+	ip route add default "${gw[@]}"
 }
 
-# Start routing via VPN
-vpn_set()
+use_tor()
 {
-	ip route add default via "${VPN_GW}"
-}
+	IS_TOR=1
 
-tor_unset()
-{
-	unset IS_SET_TOR
-	ip route del default via "${TOR_GW}"
-}
-
-tor_set()
-{
-	IS_SET_TOR=1
+	echo -e >&2 "$(date) Switching to TOR" 
+	ip route del default 2>/dev/null
 	ip route add default via "${TOR_GW}"
 }
 
 monitor_failover()
 {
 	# ts=$(date +%s)
+	local status_sha
+
 
 	while :; do
-		if [[ -n $IS_SET_TOR ]]; then
-			# HERE: TOR is set
-			if [[ -f /config/guest/vpn_status ]]; then
-				# HERE: VPN is back
-				echo -e >&2 "$(date) WARN: Switching route to VPN."
-				tor_unset
-				vpn_set
-			fi
-		else
-			# HERE: TOR is NOT set
-			# Run a ping test. On failure 
-			if [[ ! -f /config/guest/vpn_status ]]; then
-				# HERE: VPN is gone
-				echo -e >&2 "$(date) WARN: Switching route to TOR."
-				vpn_unset
-				tor_set
-			fi
-		fi
-		bash -c "exec -a '[sleep router failover]' sleep 5"
+		bash -c "exec -a '[sleep router failover]' sleep 1"
+		sha="$(sha256sum /config/guest/vpn_status 2>/dev/null)"
+		[[ "$status_sha" ==  "$sha" ]] && continue
+
+		# Status has changed
+		status_sha="${sha}"
+
+		# If vpn_status no longer exists then switch to TOR
+		[[ ! -f /config/guest/vpn_status ]] && { use_tor; continue; }
+
+		use_vpn
 	done
 }
 
@@ -164,6 +170,56 @@ iptables -t nat -A POSTROUTING -s 172.28.0.1 -o ${DEV_SSHD} -j MASQUERADE && \
 iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.21 -j MARK --set-mark 22
 # -----END GSNC traffic is routed via Internet----
 
+# -----BEGIN REVERSE CONNECTION-----
+### Create routing tables for reverse connection and when multipath routing is used:
+# We are using multipath routing _and_ reverse port forwarding from the VPN Provider.
+# See Cryptostorm's http://10.31.33.7/fwd as an example:
+# The reverse connection has the true source IP but our router's multipath route
+# might return the SYN/ACK via a different path. Thus we mark all new incoming
+# connections (from the VPN provider) and route the reply out the same GW it came in
+# from. The (cheap) alternative would be to use SNAT and MASQ but then the guest's
+# root server would not see the true source IP of the reverse connection.
+
+# Get the MAC address of all routers.
+unset ips
+for n in {240..254}; do ips+=("172.20.0.${n}"); done
+fping -c3 -4 -q "${ips[@]}" 2>/dev/null 
+
+# Mark every _NEW_ connection from VPN 
+unset ips
+iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --restore-mark
+iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark --mark "11${n}" -j ACCEPT
+for n in {240..254}; do
+	mac="$(ip neigh show 172.20.0."${n}")"
+	mac="${mac##*lladdr }"
+	mac="${mac%% *}"
+	[[ "${#mac}" -ne 17 ]] && continue # empty or '172.20.0.240 dev eth4 FAILED'
+
+	ips+=("${n}")
+	# Mark any _NEW_ connection by GW's mac.
+	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p tcp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${n}"
+done
+iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --save-mark
+
+# Route return traffic back to VPN-GW the packet came in from.
+# Every return packet is marked (11nnn). If it is marked (e.g. it is a return packet)
+# then also mark it as 12nnn. Then use customer routing rule for all packets
+# marked 12nnn.
+# Note: We can not route on 11nnn because this would as well incoming packets (and
+# we only need to route return packets). 
+
+# Load the ConnTrack MARKS:
+iptables -A PREROUTING -t mangle -i "${DEV}" -j CONNMARK --restore-mark
+for n in "${ips[@]}"; do
+	# On return path (-i DEV), add 12nnn mark for every packet that was initially tracked (11nnn).
+	iptables -A PREROUTING -t mangle -i "${DEV}" -m mark --mark "11${n}" -j MARK --set-mark "12${n}"
+	# Add a routing table for return packets to force them via GW (mac) they came in from.
+	ip rule add fwmark "12${n}" table "8${n}"
+	ip route add default via "172.20.0.${n}" dev ${DEV_GW} table "8${n}"
+done
+
+# -----END REVERSE CONNECTION-----
+
 ifconfig "$DEV" 10.11.0.1/16 && \
 # MASQ all traffic because the VPN/TOR instances dont know the route back
 # to sf-guest (10.11.0.0/16).
@@ -181,7 +237,7 @@ echo -e >&2 "FW: SUCCESS" && \
 echo -e >&2 "TC: SUCCESS" && \
 
 # By default go via TOR until vpn_status exists
-tor_set && \
+use_tor && \
 monitor_failover
 
 # REACHED IF ANY CMD FAILS

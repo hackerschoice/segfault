@@ -63,6 +63,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERV
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/vpn_wg2status.sh"
 
 FILES += $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)

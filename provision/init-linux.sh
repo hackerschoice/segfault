@@ -310,6 +310,7 @@ fi
 (cd "${SFI_SRCDIR}" && \
   docker-compose build -q && \
   docker network prune -f) || ERREXIT
+
 if docker ps | grep -E "sf-host|sf-router" >/dev/null; then
   WARNMSG="A SEGFAULT is already running."
   IS_DOCKER_NEED_MANUAL_START=1
@@ -353,11 +354,5 @@ INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@$
   for x in "${CONFLICT[@]}"; do
     INFO "${x}"
   done
-
-
 }
-
-
-
-
 

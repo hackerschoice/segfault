@@ -52,7 +52,7 @@ post_up()
 		t="${t##*[[:space:]]}"
 		EP_IP="${t%:*}"
 
-		geo=$(curl https://ipinfo.io 2>/dev/null) && {
+		geo=$(curl --retry 3 --max-time 15 https://ipinfo.io 2>/dev/null) && {
 			t=$(echo "$geo" | jq .country)
 			country="${t//[^A-Za-z]}"
 			t=$(echo "$geo" | jq .city)
@@ -69,8 +69,8 @@ post_up()
 SFVPN_MY_IP=\"$(ipbydev eth0)\"\n\
 SFVPN_EXEC_TS=$(date -u +%s)\n\
 SFVPN_ENDPOINT_IP=\"${EP_IP}\"\n\
-SFVPN_LOCATION=\"${city}/${country}\"\n\
-SFVPN_EXIT_IP=\"${exit_ip}\"\n" >"${LOGFNAME}"
+SFVPN_LOCATION=\"${city:-???}/${country:-???}\"\n\
+SFVPN_EXIT_IP=\"${exit_ip:-0.0.0.0}\"\n" >"${LOGFNAME}"
 	fi
 
 	create_vpn_status

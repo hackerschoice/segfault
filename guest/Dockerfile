@@ -156,7 +156,7 @@ RUN	apt-get update -y \
 		&& curl -fsSL https://github.com/projectdiscovery/httpx/releases/download/v1.2.4/httpx_1.2.4_linux_amd64.zip -o /tmp/pkg.zip \
 		&& unzip /tmp/pkg.zip httpx -d /usr/bin && rm -f /tmp/pkg.zip \
 		&& curl -fsSL https://github.com/projectdiscovery/nuclei/releases/download/v2.7.7/nuclei_2.7.7_linux_amd64.zip -o /tmp/pkg.zip \
-		&& unzip /tmp/pkg.zip nuclei -d /usr/bin && rm -f /tmp/pkg.zip }" \
+		&& unzip /tmp/pkg.zip nuclei -d /usr/bin && rm -f /tmp/pkg.zip; }" \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \

@@ -47,30 +47,32 @@ post_up()
 	local geo
 	local city
 	local exit_ip
+	local ep_ip
 
 	t="$(wg show "${DEV:-wg0}" endpoints)" && {
 		t="${t##*[[:space:]]}"
-		EP_IP="${t%:*}"
+		ep_ip="${t%:*}"
 
-		geo=$(curl --retry 3 --max-time 15 https://ipinfo.io 2>/dev/null) && {
-			t=$(echo "$geo" | jq .country)
+		geo=$(curl -fsSL --retry 3 --max-time 15 https://ipinfo.io 2>/dev/null) && {
+			t=$(echo "$geo" | jq '.country | select(. != null)')
 			country="${t//[^A-Za-z]}"
-			t=$(echo "$geo" | jq .city)
+			t=$(echo "$geo" | jq '.city |  select(. != null)')
 			city="${t//[^A-Za-z]/}"
-			t=$(echo "$geo" | jq .ip)
+			t=$(echo "$geo" | jq '.ip | select(. != null)')
 			exit_ip="${t//[^0-9.]/}"
 		}
+		[[ -z $exit_ip ]] && exit_ip=$(curl -fsSL --max-time 15 ifconfig.me 2>/dev/null)
 	} # wg show
 
-	if [[ -z $EP_IP ]]; then
+	if [[ -z $ep_ip ]]; then
 		rm -f "${LOGFNAME}"
 	else
 		echo -en "\
 SFVPN_MY_IP=\"$(ipbydev eth0)\"\n\
 SFVPN_EXEC_TS=$(date -u +%s)\n\
-SFVPN_ENDPOINT_IP=\"${EP_IP}\"\n\
-SFVPN_LOCATION=\"${city:-???}/${country:-???}\"\n\
-SFVPN_EXIT_IP=\"${exit_ip:-0.0.0.0}\"\n" >"${LOGFNAME}"
+SFVPN_ENDPOINT_IP=\"${ep_ip}\"\n\
+SFVPN_LOCATION=\"${city:-Artemis}/${country:-Moon}\"\n\
+SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 	fi
 
 	create_vpn_status

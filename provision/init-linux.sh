@@ -33,6 +33,8 @@ init_vars()
   else
     ERREXIT 255 "Unknown Linux flavor: No apt-get and no yum."
   fi
+
+  [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set."
 }
 
 
@@ -140,6 +142,7 @@ init_config_run()
 
   # Create ./data or symlink correctly.
   [[ ! -d "${SF_DATADIR}" ]] && mkdir -p "${SF_DATADIR}"
+  [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
   [[ ! "${SF_BASEDIR}/data" -ef "${SF_DATADIR}" ]] && ln -s "${SF_DATADIR}" "${SF_BASEDIR}/data"
 
   [[ ! -d "${SF_CONFDIR}" ]] && mkdir -p "${SF_CONFDIR}"
@@ -150,17 +153,10 @@ init_config_run()
 
   mergedir "config/etc/sf" && IS_ETCSF_UPDATE=1
   mergedir "config/etc/nginx"
+  mergedir "config/etc/redis"
 
-  # Create Master-SEED
-  if [[ -z $SF_SEED ]]; then
-    if [[ -f "${SF_BASEDIR}/config/etc/seed/seed.txt" ]]; then
-      SF_SEED="$(cat "${SF_BASEDIR}/config/etc/seed/seed.txt")"
-    else
-      [[ -d "${SF_BASEDIR}/config/etc/seed" ]] || SUDO_SF mkdir "${SF_BASEDIR}/config/etc/seed"
-      SF_SEED="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32)"
-      SUDO_SF "echo \"${SF_SEED}\" >\"${SF_BASEDIR}/config/etc/seed/seed.txt\"" || ERREXIT
-    fi
-  fi
+  curl -fsSL 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' \
+    | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
 
   # Setup /dev/shm/sf-u1001/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then
@@ -243,20 +239,6 @@ journalctl --vacuum-time=10d
 # exit
 init_config_run
 
-# Create SSH-KEYS and directories.
-# [[ ! -d "${SF_BASEDIR}/config/etc/ssh" ]] && mkdir -p "${SF_BASEDIR}/config/etc/ssh"
-## NOTE: We can not use -A here as -A together with -f is not valid on many distros....
-# [[ ! -f "${SF_BASEDIR}/config/etc/ssh/ssh_host_ed25519_key" ]] && {
-#   DEBUGF "Creating SSHD HOST KEY"
-#   ssh-keygen -A -f "${SF_BASEDIR}/config" || ERREXIT
-#   IS_NEW_SSH_HOST_KEYS=1
-# }
-# [[ ! -f "${SF_BASEDIR}/config/etc/ssh/id_ed25519" ]] && {
-#   ssh-keygen -q -t ed25519 -C "" -N "" -f "${SF_BASEDIR}/config/etc/ssh/id_ed25519" || ERREXIT
-#   IS_NEW_SSH_LOGIN_KEYS=1
-# }
-
-
 ### Create guest, encfs and other docker images.
 [[ -z $SF_NO_INTERNET ]] && { SUDO_SF "cd ${SFI_SRCDIR} && SF_PACKAGES=\"${SF_PACKAGES}\" make" || exit; }
 
@@ -316,7 +298,7 @@ if docker ps | grep -E "sf-host|sf-router" >/dev/null; then
   IS_DOCKER_NEED_MANUAL_START=1
 else
   docker container rm sf-host &>/dev/null
-  (cd "${SFI_SRCDIR}" && SF_SEED="${SF_SEED}" docker-compose up --force-recreate -d) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
+  (cd "${SFI_SRCDIR}" && SF_SEED="${SF_SEED}" sfbin/sf up --force-recreate -d) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
 fi
 
 GS_SECRET=$(echo -n "GS-${SF_SEED}${SF_FQDN}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 12)
@@ -328,7 +310,7 @@ echo -e "***${CG}SUCCESS${CN}***"
   INFO "(cd \"${SFI_SRCDIR}\" && "'\\\n'"\
     docker-compose down; docker stop \$(docker ps -q --filter name='^(lg-|encfs-)'); "'\\\n'"\
     docker network prune -f; docker container rm sf-host 2>/dev/null; "'\\\n'"\
-    SF_SEED=\"${SF_SEED}\" docker-compose up --force-recreate -d)"
+    SF_SEED=\"${SF_SEED}\" sfbin/sf up --force-recreate -d)"
 }
 [[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {
   WARN 6 "NordVPN ${CR}DISABLED${CN}. Set SF_NORDVPN_PRIVATE_KEY= to enable."
@@ -345,10 +327,6 @@ INFO "Password            : ${CDY}${SF_USER_PASSWORD:-segfault}${CN}"
 INFO "SSH                 : ${CDC}ssh ${PORTSTR}${SF_USER:-root}@${SF_FQDN:-UNKNOWN}${CN}"
 INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@${SF_FQDN%.*}.gsocket${CN}"
 
-# [[ -z $IS_NEW_SSH_HOST_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
-# INFO "SSH Host Keys       : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/ssh_host_ed25519_key) (${STR})"
-# [[ -z $IS_NEW_SSH_LOGIN_KEYS ]] &&  STR="existing" || STR="${CR}***NEW***${CN}"
-# INFO "SSH Login Keys      : $(cd "${SF_BASEDIR}/config" && md5sum etc/ssh/id_ed25519) (${STR})"
 [[ -n $CONFLICT ]] && {
   WARN 7 "Not updating these directories in ${SF_BASEDIR}:"
   for x in "${CONFLICT[@]}"; do

@@ -183,7 +183,7 @@ iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.21 -j MARK --
 # Get the MAC address of all routers.
 unset ips
 for n in {240..254}; do ips+=("172.20.0.${n}"); done
-fping -c3 -4 -q "${ips[@]}" 2>/dev/null 
+fping -c3 -A -t20 -p10 -4 -q "${ips[@]}" 2>/dev/null 
 
 # Mark every _NEW_ connection from VPN 
 unset ips

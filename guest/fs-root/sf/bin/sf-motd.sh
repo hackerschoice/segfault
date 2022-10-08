@@ -25,13 +25,39 @@ CUL="\e[4m"
 # shellcheck disable=SC1091
 source "/config/guest/vpn_status" 2>/dev/null
 
-[[ -z $IS_VPN_CONNECTED ]] && VPN_DST="${CR}TOR ${CF}(no VPN)${CN}" || VPN_DST="${CDG}${VPN_EXIT_IP} (${VPN_LOCATION:-UNKNOWN})${CN}"
-YOURIP="${SSH_CONNECTION%%[[:space:]]*}"
+if [[ -z $IS_VPN_CONNECTED ]]; then
+	VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"
+else
+	i=0
+	while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do
+		str="${VPN_PROVIDER[$i]}                          "
+		VPN_DST+="${str:0:17} : "
+		str="${VPN_EXIT_IP[$i]}                 "
+		VPN_DST+="${CDG}${str:0:15}"
+		str="${VPN_GEOIP[$i]}"
+		[[ ! -z $str ]] && VPN_DST+=" ${CF}(${str})"
+		VPN_DST+="${CN}"$'\n'
+		((i++))
+	done
+	# VPN_DST="${CDG}${VPN_EXIT_IP} ${CF}(${VPN_LOCATION:-UNKNOWN})${CN}"
+fi
+[[ -f "/config/self/ip" ]]    &&    YOUR_IP="$(</config/self/ip)"
+[[ -f "/config/self/geoip" ]] && YOUR_GEOIP="$(</config/self/geoip)"
+
+loc="${YOUR_IP:-UNKNOWN}                 "
+loc="${loc:0:15}"
+[[ -n $YOUR_GEOIP ]] && loc+=" ${CF}($YOUR_GEOIP)"
+
+[[ -f /config/self/reverse_ip ]] && {
+	IPPORT="${CDG}$(</config/self/reverse_ip):$(</config/self/reverse_port)"
+	[[ -f /config/self/reverse_geoip ]] && IPPORT+=" ${CF}($(<config/self/reverse_geoip))"
+}
+[[ -z $IPPORT ]] && IPPORT="${CDR}N/A${CN}"
 
 echo -e "\
-Your workstation  : ${CDY}${YOURIP:-UNKNOWN}${CN}
-VPN Exit Node     : ${VPN_DST}
-DNS over HTTPS    : ${CDG}Cloudflare${CN}
+Your workstation  : ${CDY}${loc}${CN}
+${VPN_DST}\
+Reverse Port      : ${IPPORT}${CN}
 TOR Proxy         : ${CDG}${SF_TOR:-UNKNOWN}:9050${CN}
 Shared storage    : ${CDM}/everyone ${CF}(encrypted)${CN}
 Your storage      : ${CDM}/sec      ${CF}(encrypted)${CN}"

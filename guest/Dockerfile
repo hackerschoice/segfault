@@ -49,6 +49,7 @@ RUN	apt-get update -y \
 		gdb \
 		git \
 		hexedit \
+		html2text \
 		libc-devtools \
 		libevent-dev \
 		libssl-dev \
@@ -56,6 +57,7 @@ RUN	apt-get update -y \
 		make \
 		patch \
 		strace \
+		xterm \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
 		ftp \

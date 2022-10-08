@@ -114,11 +114,15 @@ chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
 echo "SF_DNS=\"${SF_DNS}\"
 SF_TOR=\"${SF_TOR}\"
 SF_SEED=\"${SF_SEED}\"
+SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
 SF_SHMDIR=\"${SF_SHMDIR}\"
 SF_FQDN=\"${SF_FQDN}\"" >/dev/shm/env.txt
+
+# segfaultsh needs to create directories in here..
+chown "$SF_USER" "/config/self-for-guest"
 
 # The owner of the original socket is not known at 'docker build' time. Thus 
 # we need to dynamically add it so that the shell started by SSHD can

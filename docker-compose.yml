@@ -1,49 +1,86 @@
 version: "3.7"
 services:
 
-  # EncFS for /onion
-  sf-encfs-www:
-    build: encfs
-    image: sf-encfs
+  sf-redis:
+    image: redis
+    read_only: true
+    hostname: sf-redis
     restart: ${SF_RESTART:-on-failure}
-    cap_add:
-      - SYS_ADMIN
-    security_opt:
-      - apparmor:unconfined
     environment:
-      - SF_SEED
-      - SF_DEBUG
-    command: ["/mount.sh", "server", "www"]
-    network_mode: none
-    devices:
-      - "/dev/fuse:/dev/fuse"
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+    networks:
+      redis-net:
+        ipv4_address: 172.20.2.254
+    # Should use "sfbin/sf up" to generate SF_REDIS_AUTH
+    command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH:?}" ]
     volumes:
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/host/etc/seed"
-      - "${SF_BASEDIR:-.}/data/www-root:/raw"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:shared"
+      - "${SF_BASEDIR:-.}/config/etc/redis/redis.conf:/redis.conf:ro"
 
-  # EncFS for /everyone
-  # This needs to be separated so that a compromise of ngingx does not
-  # allow the attacker to see /everyone of everyone.
-  sf-encfs-everyone:
-    build: encfs
-    image: sf-encfs
+  sf-encfsd:
+    build: encfsd
+    image: sf-encfsd
     restart: ${SF_RESTART:-on-failure}
+    depends_on:
+      - sf-redis
     cap_add:
       - SYS_ADMIN
     security_opt:
       - apparmor:unconfined
     environment:
-      - SF_SEED
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_SEED=${SF_SEED:?}
       - SF_DEBUG
-    command: ["/mount.sh", "server", "everyone"]
-    network_mode: none
+    command: ["/encfsd.sh"]
+    networks:
+      redis-net:
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/host/etc/seed"
-      - "${SF_BASEDIR:-.}/data/everyone-root:/raw"
-      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/everyone-root:/sec:shared"
+      - "${SF_BASEDIR:-.}/data:/encfs/raw"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+
+  sf-destructor:
+    build: encfsd
+    image: sf-encfsd
+    restart: ${SF_RESTART:-on-failure}
+    depends_on:
+      - sf-redis
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_DEBUG
+    pid: "service:sf-encfsd"
+    command: ["/destructor.sh"]
+    networks:
+      redis-net:
+    devices:
+      - "/dev/fuse:/dev/fuse"
+    volumes:
+      - "${SF_BASEDIR:-.}/data:/encfs/raw"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+
+  sf-portd:
+    build: encfsd
+    image: sf-encfsd
+    restart: ${SF_RESTART:-on-failure}
+    depends_on:
+      - sf-redis
+    environment:
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_DEBUG
+    command: ["/portd.sh"]
+    networks:
+      redis-net:
+    volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   dns-doh:
     image: crazymax/cloudflared
@@ -54,6 +91,9 @@ services:
 
   dnsmasq:
     image: 4km3/dnsmasq:2.85-r2
+    restart: ${SF_RESTART:-on-failure}
+    depends_on:
+      - dns-doh
     cap_add:
       - NET_ADMIN
     command: ["--no-resolv", "--domain-needed", "--server=172.23.0.2#5053", "--server=/onion/172.20.0.111#5353"]
@@ -66,32 +106,34 @@ services:
         ipv4_address: 10.11.255.53
       access-net:
         ipv4_address: 172.22.0.53
-    restart: ${SF_RESTART:-on-failure}
-    depends_on:
-      - dns-doh
 
   nordvpn:
     image: hackerschoice/cryptostorm
+    container_name: sf-nordvpn
+    restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dnsmasq
+      - sf-redis
     dns: 172.20.0.53
     cap_add:
       - NET_ADMIN #required
     environment:
       - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
-      - PROVIDER=nordvpn
-      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log post_up %i nordvpn
-      - POST_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log post_down %i
+      - PROVIDER=NordVPN
+      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log up %i
+      - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_DEBUG
     networks:
       vpn-net:
         ipv4_address: 172.20.0.254
+      redis-net:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       # - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
-    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
@@ -99,25 +141,31 @@ services:
 
   cryptostorm:
     image: hackerschoice/cryptostorm
+    container_name: sf-cryptostorm
+    restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dnsmasq
+      - sf-redis
     dns: 172.20.0.53
     cap_add:
       - NET_ADMIN #required
     environment:
       - CONFIG=${SF_CRYPTOSTORM_CONFIG:-}
+      - PROVIDER=CryptoStorm
       - DNS=1.1.1.1 # Cryptostorm's DNS is often broken
-      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log post_up %i cryptostorm
-      - POST_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log post_down %i
+      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log up %i
+      - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_DEBUG
     networks:
       vpn-net:
         ipv4_address: 172.20.0.253
+      redis-net:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
-    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
@@ -125,25 +173,30 @@ services:
 
   mullvad:
     image: hackerschoice/cryptostorm
+    container_name: sf-mullvad
+    restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dnsmasq
+      - sf-redis
     dns: 172.20.0.53
     cap_add:
       - NET_ADMIN #required
     environment:
       - CONFIG=${SF_MULLVAD_CONFIG:-}
-      - PROVIDER=mullvad
-      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log post_up %i mullvad
-      - POST_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log post_down %i
+      - PROVIDER=Mullvad
+      - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log up %i
+      - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_DEBUG
     networks:
       vpn-net:
         ipv4_address: 172.20.0.252
+      redis-net:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
-    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
@@ -231,10 +284,9 @@ services:
       - SF_SSH_PORT=${SF_SSH_PORT:-22}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_DEBUG
-      - SF_SEED
+      - SF_SEED=${SF_SEED:?}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
-      - "${SF_BASEDIR:-.}/config/etc/seed:/config/host/etc/seed"
     entrypoint: ["/sf-gsnc.sh", "172.22.0.22"]
 
   segfault:
@@ -243,16 +295,17 @@ services:
     # /bin/segfaultsh need to know the container name; set it to sf-host statically
     container_name: sf-host
     networks:
+      # WARNING: sshd's port forward/socks can access those networks.
       access-net:
         ipv4_address: 172.22.0.22
+      redis-net:
     dns: 172.22.0.53
     cap_add:
       - NET_ADMIN # need to set default route
     depends_on:
       - dnsmasq
       - router
-      - sf-encfs-everyone
-      - sf-encfs-www
+      - sf-encfsd
     restart: ${SF_RESTART:-on-failure}
     init: true
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
@@ -265,20 +318,23 @@ services:
       - SF_USER=${SF_USER:-root}
       - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
-      - SF_SEED
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_SEED=${SF_SEED:?}
       - SF_DEBUG
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
+      - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"
       - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
+      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx:
     image: nginx
     restart: ${SF_RESTART:-on-failure}
     depends_on:
-      - sf-encfs-www
+      - sf-encfsd
     entrypoint: ["/sf/bin/wait_semaphore.sh", "/sec/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]
     networks:
       dmz-net:
@@ -321,6 +377,13 @@ networks:
     ipam:
       config:
         - subnet: 172.20.1.0/24
+
+  redis-net:
+    name: sf-redis-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24
 
   dns-doh-net:
     name: sf-dns-doh

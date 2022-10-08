@@ -6,6 +6,7 @@ COPY /fs-root/ /
 RUN	apk add --no-cache --upgrade \
 	&& apk add --no-cache \
 		docker-cli \
+		redis \
 		bash \
 		xauth \
 		openssh-server \

@@ -4,7 +4,7 @@ all:
 	make -C guest
 	make -C host
 	make -C tor
-	make -C encfs
+	make -C encfsd
 	make -C router
 	make -C gsnc
 
@@ -42,15 +42,18 @@ FILES_PROVISION += "segfault-$(VER)/provision/init-linux.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/system/funcs"
 FILES_PROVISION += "segfault-$(VER)/provision/env.example"
 
-FILES_ENCFS += "segfault-$(VER)/encfs/Makefile"
-FILES_ENCFS += "segfault-$(VER)/encfs/Dockerfile"
-FILES_ENCFS += "segfault-$(VER)/encfs/mount.sh"
+FILES_ENCFSD += "segfault-$(VER)/encfsd/Makefile"
+FILES_ENCFSD += "segfault-$(VER)/encfsd/Dockerfile"
+FILES_ENCFSD += "segfault-$(VER)/encfsd/destructor.sh"
+FILES_ENCFSD += "segfault-$(VER)/encfsd/encfsd.sh"
+FILES_ENCFSD += "segfault-$(VER)/encfsd/portd.sh"
 
 FILES_ROUTER += "segfault-$(VER)/router/Makefile"
 FILES_ROUTER += "segfault-$(VER)/router/Dockerfile"
 FILES_ROUTER += "segfault-$(VER)/router/fix-network.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init.sh"
 FILES_ROUTER += "segfault-$(VER)/router/tc.sh"
+FILES_ROUTER += "segfault-$(VER)/router/rportfw.sh"
 
 FILES_GSNC += "segfault-$(VER)/gsnc/Makefile"
 FILES_GSNC += "segfault-$(VER)/gsnc/Dockerfile"
@@ -64,8 +67,10 @@ FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/vpn_wg2status.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 
-FILES += $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFS) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES += $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

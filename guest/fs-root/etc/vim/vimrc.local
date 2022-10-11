@@ -1,0 +1,8 @@
+set showcmd
+set showmatch
+set ignorecase
+set smartcase
+set incsearch
+set hlsearch
+set viminfo=""
+set noswapfile

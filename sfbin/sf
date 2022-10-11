@@ -1,0 +1,33 @@
+#! /bin/bash
+
+[[ "$1" != up ]] && exec docker-compose "$@"
+
+# HERE: "up"
+BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
+source "${BINDIR}/funcs.sh" || exit 254
+
+[[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set"
+
+# Sub-Shell because we source .env but need clean environment afterwards.
+(
+	[[ -z $SF_BASEDIR ]] && [[ -f .env ]] && eval $(grep ^SF_BASEDIR .env)
+	[[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEDIR= not set or ./.env not found."
+
+	[[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
+	[[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
+		WARN "Not found: data/share/GeoLite2-City.mmdb"
+		echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/data/share/\" 'GeoLite2-City.mmdb'\`."
+	}
+)
+
+
+[[ -z $SF_REDIS_AUTH ]] && {
+	# SF_REDIS_AUTH=$(dd bs=1024 count=1 if=/dev/urandom status=none | sha512sum | base64 -w0)
+	SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0)
+	SF_REDIS_AUTH="${SF_REDIS_AUTH//[^[:alnum:]]}"
+	SF_REDIS_AUTH="${SF_REDIS_AUTH:0:32}"
+	export SF_REDIS_AUTH
+}
+
+exec docker-compose "$@"
+

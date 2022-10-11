@@ -30,7 +30,7 @@ if [[ -z $IS_VPN_CONNECTED ]]; then
 else
 	i=0
 	while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do
-		str="${VPN_PROVIDER[$i]}                          "
+		str="Exit ${VPN_PROVIDER[$i]}                          "
 		VPN_DST+="${str:0:17} : "
 		str="${VPN_EXIT_IP[$i]}                 "
 		VPN_DST+="${CDG}${str:0:15}"

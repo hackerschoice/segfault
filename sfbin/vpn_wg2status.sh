@@ -148,7 +148,7 @@ DSTDIR="$(dirname "${LOGFNAME}")"
 source /check_vpn.sh
 wait_for_handshake "${DEV}" || { echo -e "Handshake did not complete"; exit 255; }
 
-check_vpn "${PROVIDER}" || { echo -e "VPN Check failed"; exit 255; }
+check_vpn "${PROVIDER}" "${DEV}" || { echo -e "VPN Check failed"; exit 255; }
 
 [[ "$OP" == "up" ]] && { up; exit; }
 

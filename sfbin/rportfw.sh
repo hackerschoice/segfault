@@ -66,16 +66,18 @@ fw_del_byip()
 # Remove the Port Forward & FW rules for a list of ports.
 # Called from portd.sh when a container exited (by sf-destructor)
 #
-# [<PORT>...]
-cmd_delports()
+# [<IPPORT>...]
+cmd_delipports()
 {
+	local ipport
 	local r_port
 
 	[[ "${PROVIDER,,}" != "cryptostorm" ]] && return
 
-	DEBUGF "cmd_delports ${PROVIDER} '${*}'"
+	DEBUGF "cmd_delipports ${PROVIDER} '${*}'"
 
-	for r_port in "$@"; do
+	for ipport in "$@"; do
+		r_port="${ipport##*:}"
 		curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd "-ddelfwd=${r_port}"
 		fw_del "${r_port}"
 	done
@@ -167,11 +169,5 @@ shift 1
 
 [[ "$cmd" == fwport ]] && { cmd_fwport "$@"; exit; }
 [[ "$cmd" == moreports ]] && { cmd_moreports "$@"; exit; }
-[[ "$cmd" == delports ]] && { cmd_delports "$@"; exit; }     # [<PORT> ...]
-# [[ "$cmd" == fw_delip ]] && { fw_del_byip "$@"; exit; }            # [CONTAINER-IP]
+[[ "$cmd" == delipports ]] && { cmd_delipports "$@"; exit; }     # [<IPPORT> ...]
 [[ "$cmd" == fw_delall ]] && { fw_del_byip "10.11."; exit; }
-
-# what happens if multiple segfaultsh logging in and taking ips ... will this replentish
-# up to trashhold and what if max is reached (=5 on muvald)?
-
-# FIXME: work on vpn reconnecting and test it.

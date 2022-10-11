@@ -154,9 +154,6 @@ cmd_getport()
 	local err
 	lid="$1"
 
-	# Add all LIDs that requested a reverse port fw to global set.
-	redr SADD "portd:req_port" "${lid}" >/dev/null
-
 	# Get a Port
 	# [PROVIDER] [PORT]
 	i=0
@@ -193,26 +190,41 @@ cmd_getport()
 
 }
 
-
 # Calld from cmd_remport
 # Exec in VPN context to deletion of ports.
 #
-# [PROVIDER] [<PORT> ...]
+# [PROVIDER] [LID] [<IPPORT> ...]
 remport_provider()
 {
+	local lid
 	local provider
-	provider="$1"
+	lid="$1"
+	provider="$2"
 
-	shift 1
+	shift 2
 	[[ ${#@} -lt 1 ]] && return
 
-	DEBUGF "PARAM-${#@} $*"
+	# DEBUGF "PARAM-${#@} $*"
 
-	docker exec "sf-${provider,,}" /sf/bin/rportfw.sh delports "$@"
+	# FIXME: Shall we rather queue the ports for deletion and delete them in
+	# bulk when we drop below WM_LOW?
+	# Otherwise curl is called every time an instance exits: An observer
+	# monitoring the VPN Provider _and_ the SF could correlate reverse port
+	# with user's IP.
+	# DELIPPORTS+=($@)
+	docker exec "sf-${provider,,}" /sf/bin/rportfw.sh delipports "$@"
+
+	# Delete from assgned-$provider list the specifuc IPPORT
+	local ipport
+	local members
+	for ipport in "$@"; do
+		members+=("${lid} ${ipport}")
+	done
+	redr SREM "portd:assigned-${provider}" "${members[@]}" >/dev/null
 }
 
 # Remove Ports from LID. Typically called when instance is terminated.
-# We never add ports back to the pool so that the same port
+# We never add ports back to the pool. This means that the same port
 # is less likely to be reused.
 #
 # The downside is that this causes a CURL request to the VPN provider
@@ -229,7 +241,6 @@ cmd_remport()
 	local provider
 
 	DEBUGF "CMD_REMPORT lid=$lid"
-	redr SREM "portd:req_port" "${lid}" >/dev/null
 
 	# Remove routing
 	# -> Dont need to. There is no harm leaving it.
@@ -254,12 +265,9 @@ cmd_remport()
 	done
 
 	# Delete ports for each provider
-	# FIXME: We could queue the ports up and then check every 15 minutes if we need to make
-	# a call to the VPN Provider.
-	# On the other hand we like to get rid of a Port as soon as possible.
-	remport_provider "CryptoStorm" "${c_ipports[@]}"
-	remport_provider "NordVPN" "${n_ipports[@]}"
-	remport_provider "Mullvad" "${m_ipports[@]}"
+	remport_provider "${lid}" "CryptoStorm" "${c_ipports[@]}"
+	remport_provider "${lid}" "NordVPN" "${n_ipports[@]}"
+	remport_provider "${lid}" "Mullvad" "${m_ipports[@]}"
 }
 
 # VPN provider goes UP.
@@ -306,11 +314,13 @@ cmd_vpndown()
 		# port forwards assigned to it.
 		# Remove Lid's key/value for this port forward.
 		red SREM "portd:assigned-${lid}" "${provider} ${ipport}" >/dev/null
-		value+=("${provider}")
+		value+=("${provider} ${ipport}")
 	done
 
 
-	# FIXME-2022: remote from SCARD portd:ports
+	# Remove from portd:ports
+	red SREM "portd:ports" "${value[@]}" >/dev/null
+
 	# Delete container files
 	rm -f "${files[@]}" &>/dev/null
 
@@ -342,11 +352,13 @@ cmd_fillstock()
 	local good
 	local ret
 	local req_num
+	local max_needed
 	while [[ $in_stock -lt $WM_HIGH ]]; do
 		unset good
+		max_needed=$((WM_HIGH - in_stock))
 
-		req_num=$(( (WM_HIGH - in_stock) / ${#arr[@]} + 1))
-		[[ $req_num -gt $WM_HIGH ]] && req_num="$WM_HIGH"
+		req_num=$(( $max_needed / ${#arr[@]} + 1))
+		[[ $req_num -gt $max_needed ]] && req_num="$max_needed"
 		for provider in "${arr[@]}"; do
 			members=($(docker exec "sf-${provider,,}" /sf/bin/rportfw.sh moreports "${req_num}"))
 			ret=$?
@@ -412,7 +424,7 @@ redis_loop_forever()
 		fi
 
 		# Check the fill stock every 60-70 seconds
-		[[ $((fillstock_last_sec + 6)) -lt $NOW ]] && { fillstock_last_sec="$NOW"; cmd_fillstock; }		
+		[[ $((fillstock_last_sec + 60)) -lt $NOW ]] && { fillstock_last_sec="$NOW"; cmd_fillstock; }		
 	done 
 }
 

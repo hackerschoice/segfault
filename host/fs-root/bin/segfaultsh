@@ -235,7 +235,7 @@ mk_portforward()
 	ipport=$(echo -e "DEL portd:response-${LID}\"\n\
 RPUSH portd:blcmd \"getport ${LID}\"\n\
 BLPOP portd:response-${LID} 5" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h sf-redis) || return
-	DEBUGF "ipport='$ipport'"
+	# DEBUGF "ipport='$ipport'"
 	ipport="${ipport##*$'\n'}"
 	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to set up Reverse Port Forward (ipport='$ipport')"; return; }
 
@@ -248,8 +248,8 @@ print_disclaimer()
 {
 	echo 1>&2 -e "\
 ${CR}######################################################################
-#### ${CY}DISCLAIMER: TO BE USED FOR CREATIVE AND GOOD PURPOSES ONLY..${CR} ####
-#### ${CY}USE AT YOUR OWN RISK.     ---> DON'T FUCK UP <---            ${CR}####
+#### ${CY}DISCLAIMER: TO BE USED FOR CREATIVE AND GOOD PURPOSES ONLY.. ${CR}####
+#### ${CY}TO TINKER AND TO EXPLORE.     >>>USE AT YOUR OWN RISK<<<     ${CR}####
 ######################################################################${CN}"
 }
 

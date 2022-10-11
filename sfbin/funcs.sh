@@ -20,16 +20,25 @@ CDC="\e[0;36m" # cyan
 CDM="\e[0;35m" # magenta
 CUL="\e[4m"
 
+
 ERR()
 {
-	echo -e >&2 "[${CR}ERROR${CN}] $*"
+	echo -e >&2 "[$(date '+%F %T' -u)] [${CR}ERROR${CN}] $*"
 }
 
 WARN()
 {
-	echo -e >&2 "[${CDY}WARN${CN}] $*"
+	echo -e >&2 "[$(date '+%F %T' -u)] [${CDY}WARN${CN}] $*"
 }
 
+LOG()
+{
+	local lid
+	lid="$1"
+
+	shift 1
+	echo -e "[$(date '+%F %T' -u)] [${CDM}${lid}${CN}] $*"
+}
 
 ERREXIT()
 {

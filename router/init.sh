@@ -51,12 +51,73 @@ devbyip()
 	echo "${2:?}"
 }
 
+init_revport()
+{
+	[[ -n $IS_REVPORT_INIT ]] && return
+	IS_REVPORT_INIT=1
+	# -----BEGIN REVERSE CONNECTION-----
+	### Create routing tables for reverse connection and when multipath routing is used:
+	# We are using multipath routing _and_ reverse port forwarding from the VPN Provider.
+	# See Cryptostorm's http://10.31.33.7/fwd as an example:
+	# The reverse connection has the true source IP but our router's multipath route
+	# might return the SYN/ACK via a different path. Thus we mark all new incoming
+	# connections (from the VPN provider) and route the reply out the same GW it came in
+	# from. The (cheap) alternative would be to use SNAT and MASQ but then the guest's
+	# root server would not see the true source IP of the reverse connection.
+
+	# Get the MAC address of all routers.
+	unset ips
+	for n in {240..254}; do ips+=("172.20.0.${n}"); done
+	fping -c3 -A -t20 -p10 -4 -q "${ips[@]}" 2>/dev/null 
+
+	# Mark every _NEW_ connection from VPN 
+	unset ips
+	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --restore-mark
+	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark ! --mark 0 -j ACCEPT
+	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark --mark "11${n}" -j ACCEPT
+	for n in {240..254}; do
+		mac="$(ip neigh show 172.20.0."${n}")"
+		mac="${mac##*lladdr }"
+		mac="${mac%% *}"
+		[[ "${#mac}" -ne 17 ]] && continue # empty or '172.20.0.240 dev eth4 FAILED'
+
+		ips+=("${n}")
+		# Mark any _NEW_ connection by GW's mac.
+		iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p tcp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${n}"
+		iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p udp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${n}"
+	done
+	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --save-mark
+
+	# Route return traffic back to VPN-GW the packet came in from.
+	# Every return packet is marked (11nnn). If it is marked (e.g. it is a return packet)
+	# then also mark it as 12nnn. Then use customer routing rule for all packets
+	# marked 12nnn.
+	# Note: We can not route on 11nnn because this would as well incoming packets (and
+	# we only need to route return packets). 
+
+	# Load the ConnTrack MARKS:
+	iptables -A PREROUTING -t mangle -i "${DEV}" -j CONNMARK --restore-mark
+	for n in "${ips[@]}"; do
+		# On return path (-i DEV), add 12nnn mark for every packet that was initially tracked (11nnn).
+		iptables -A PREROUTING -t mangle -i "${DEV}" -m mark --mark "11${n}" -j MARK --set-mark "12${n}"
+		# Add a routing table for return packets to force them via GW (mac) they came in from.
+		ip rule add fwmark "12${n}" table "8${n}"
+		ip route add default via "172.20.0.${n}" dev ${DEV_GW} table "8${n}"
+	done
+
+	# -----END REVERSE CONNECTION-----
+}
+
 use_vpn()
 {
 	local gw
 	local gw_ip
 
 	unset IS_TOR
+
+	# Configure FW rules for reverse port forwards.
+	# Any earlier than this and the MAC of the routers are not known. Thus do it here.
+	init_revport
 
 	local _ip
 	local f
@@ -73,7 +134,7 @@ use_vpn()
 
 	[[ -z $gw ]] && return
 
-	echo -e >&2 "$(date) Switching to VPN (gw=${gw_ip[@]})" 
+	echo -e >&2 "[$(date '+%F %T' -u)] Switching to VPN (gw=${gw_ip[@]})" 
 	ip route del default
 	ip route add default "${gw[@]}"
 }
@@ -109,13 +170,9 @@ monitor_failover()
 }
 
 DEV_I22="$(devbyip 172.28.0. eth0)"
-
 DEV="$(devbyip 10.11. eth1)"
-
 DEV_SSHD="$(devbyip 172.22.0. eth2)"
-
 DEV_GW="$(devbyip 172.20.0. eth3)"
-
 DEV_DMZ="$(devbyip 172.20.1. eth4)"
 
 [[ -n $SF_DEBUG ]] && {
@@ -170,55 +227,7 @@ iptables -t nat -A POSTROUTING -s 172.28.0.1 -o ${DEV_SSHD} -j MASQUERADE && \
 iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.21 -j MARK --set-mark 22
 # -----END GSNC traffic is routed via Internet----
 
-# -----BEGIN REVERSE CONNECTION-----
-### Create routing tables for reverse connection and when multipath routing is used:
-# We are using multipath routing _and_ reverse port forwarding from the VPN Provider.
-# See Cryptostorm's http://10.31.33.7/fwd as an example:
-# The reverse connection has the true source IP but our router's multipath route
-# might return the SYN/ACK via a different path. Thus we mark all new incoming
-# connections (from the VPN provider) and route the reply out the same GW it came in
-# from. The (cheap) alternative would be to use SNAT and MASQ but then the guest's
-# root server would not see the true source IP of the reverse connection.
 
-# Get the MAC address of all routers.
-unset ips
-for n in {240..254}; do ips+=("172.20.0.${n}"); done
-fping -c3 -A -t20 -p10 -4 -q "${ips[@]}" 2>/dev/null 
-
-# Mark every _NEW_ connection from VPN 
-unset ips
-iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --restore-mark
-iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark --mark "11${n}" -j ACCEPT
-for n in {240..254}; do
-	mac="$(ip neigh show 172.20.0."${n}")"
-	mac="${mac##*lladdr }"
-	mac="${mac%% *}"
-	[[ "${#mac}" -ne 17 ]] && continue # empty or '172.20.0.240 dev eth4 FAILED'
-
-	ips+=("${n}")
-	# Mark any _NEW_ connection by GW's mac.
-	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p tcp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${n}"
-done
-iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --save-mark
-
-# Route return traffic back to VPN-GW the packet came in from.
-# Every return packet is marked (11nnn). If it is marked (e.g. it is a return packet)
-# then also mark it as 12nnn. Then use customer routing rule for all packets
-# marked 12nnn.
-# Note: We can not route on 11nnn because this would as well incoming packets (and
-# we only need to route return packets). 
-
-# Load the ConnTrack MARKS:
-iptables -A PREROUTING -t mangle -i "${DEV}" -j CONNMARK --restore-mark
-for n in "${ips[@]}"; do
-	# On return path (-i DEV), add 12nnn mark for every packet that was initially tracked (11nnn).
-	iptables -A PREROUTING -t mangle -i "${DEV}" -m mark --mark "11${n}" -j MARK --set-mark "12${n}"
-	# Add a routing table for return packets to force them via GW (mac) they came in from.
-	ip rule add fwmark "12${n}" table "8${n}"
-	ip route add default via "172.20.0.${n}" dev ${DEV_GW} table "8${n}"
-done
-
-# -----END REVERSE CONNECTION-----
 
 ifconfig "$DEV" 10.11.0.1/16 && \
 # MASQ all traffic because the VPN/TOR instances dont know the route back

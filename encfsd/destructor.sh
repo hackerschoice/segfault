@@ -13,16 +13,14 @@ stop_lg()
 	is_encfs="$2"
 	is_container="$3"
 
-	DEBUGF "ARG=$*"
-
-	echo "[${lid}] Stopping"
+	LOG "$lid" "Stopping"
 
 	redis-cli -h 172.20.2.254 RPUSH portd:cmd "remport ${lid}" >/dev/null
 
 	# Tear down container
 	[[ ! -z $is_container ]] && docker stop "lg-$lid" &>/dev/nuill
 
-	[[ ! -z $is_encfs ]] && { pkill -SIGTERM -f "^\[encfs-${lid}\]" || ERR "pkill [encfs-${lid}]"; }
+	[[ ! -z $is_encfs ]] && { pkill -SIGTERM -f "^\[encfs-${lid}\]" || ERR "[${lid}] pkill"; }
 }
 
 is_recent()
@@ -30,6 +28,8 @@ is_recent()
 	local pid
 	local ts
 	pid="$1"
+
+	[[ -z "${pid}" ]] && { WARN "PID='${pid}' is empty"; return 0; }
 
 	ts=$(stat -c %Y "/proc/${pid}")
 	[[ -z $ts ]] && return 0
@@ -53,8 +53,8 @@ check_container()
 	[[ ${#lid} -ne 10 ]] && return
 
 	# Check if EncFS still exists.
-	pid=$(pgrep -f "^\[encfs-${lid}\]" -a >/dev/null) || {
-		ERR "[${lid}] EncFS died..."
+	pid=$(pgrep -f "^\[encfs-${lid}\]" -a 2>/dev/null) || {
+		ERR "[${CDM}${lid}${CN}] EncFS died..."
 		stop_lg "$lid" "" "lg"
 		return
 	}
@@ -64,7 +64,7 @@ check_container()
 
 	# Check how many PIDS are running inside container:
 	pids=($(docker top "$c" -eo pid)) || { DEBUGF "docker top '$c' failed"; return; }
-	# DEBUGF "[${lid}] pids(${#pids[@]}) '${pids[*]}'"
+	# DEBUGF "[${CDM}${lid}${CN}] pids(${#pids[@]}) '${pids[*]}'"
 	# 1. PS-Header (UID PID PPID C STIME TTY TIME)
 	# 2. docker-init
 	# 3. sleep infinity
@@ -101,7 +101,7 @@ check_stale_mounts()
 		lid="${lid#*\[encfs-}"
 		[[ ${#lid} -ne 10 ]] && continue
 		docker container inspect "lg-${lid}" -f '{{.State.Status}}' &>/dev/null && continue
-		ERR "[${lid}] Unmounting stale EncFS (lg-${lid} died)."
+		ERR "[${CDM}${lid}${CN}] Unmounting stale EncFS (lg-${lid} died)."
 	
 		stop_lg "${lid}" "encfs" ""
 	done
@@ -111,7 +111,7 @@ check_stale_mounts()
 export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 
 while :; do
-	sleep 10
+	sleep 5 # Check every 10 seconds. wait 5 here and 5 below.
 	NOW=$(date +%s)
 	# Every 30 seconds check all running lg-containers if they need killing.
 	# docker ps -f "name=^lg" --format "{{.ID}} {{.Names}}"
@@ -123,6 +123,10 @@ while :; do
 		check_container "${containers[$i]}"
 		((i++))
 	done
+	# We must give EncFS time to die by SIGTERM or otherwise check_stale_mounts
+	# still sees the encfs and tries to kill it again (which would yield an ugly
+	# warning).
+	sleep 5
 
 	check_stale_mounts
 done

@@ -1,4 +1,4 @@
-VER := 0.2.8a
+VER := 0.3.3
 
 all:
 	make -C guest
@@ -18,7 +18,6 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/shellrc"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/zsh_profile"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/zsh_command_not_found"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-motd.sh"
-FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-destructor.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"
@@ -28,6 +27,7 @@ FILES_HOST += "segfault-$(VER)/host/Makefile"
 FILES_HOST += "segfault-$(VER)/host/docker-exec-sigproxy.c"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
+FILES_HOST += "segfault-$(VER)/host/fs-root/bin/mmdbinspect"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/ssh/sshd_config"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/english.txt"
 
@@ -53,7 +53,6 @@ FILES_ROUTER += "segfault-$(VER)/router/Dockerfile"
 FILES_ROUTER += "segfault-$(VER)/router/fix-network.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init.sh"
 FILES_ROUTER += "segfault-$(VER)/router/tc.sh"
-FILES_ROUTER += "segfault-$(VER)/router/rportfw.sh"
 
 FILES_GSNC += "segfault-$(VER)/gsnc/Makefile"
 FILES_GSNC += "segfault-$(VER)/gsnc/Dockerfile"
@@ -61,12 +60,14 @@ FILES_GSNC += "segfault-$(VER)/gsnc/sf-gsnc.sh"
 
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
+FILES_CONFIG += "segfault-$(VER)/config/etc/redis/redis.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/vpn_wg2status.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/rportfw.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 

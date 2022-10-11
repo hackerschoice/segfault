@@ -49,7 +49,7 @@ loc="${loc:0:15}"
 [[ -n $YOUR_GEOIP ]] && loc+=" ${CF}($YOUR_GEOIP)"
 
 [[ -f /config/self/reverse_ip ]] && {
-	IPPORT="${CDG}$(</config/self/reverse_ip):$(</config/self/reverse_port)"
+	IPPORT="${CDY}$(</config/self/reverse_ip):$(</config/self/reverse_port)"
 	[[ -f /config/self/reverse_geoip ]] && IPPORT+=" ${CF}($(<config/self/reverse_geoip))"
 }
 [[ -z $IPPORT ]] && IPPORT="${CDR}N/A${CN}"
@@ -57,8 +57,8 @@ loc="${loc:0:15}"
 echo -e "\
 Your workstation  : ${CDY}${loc}${CN}
 ${VPN_DST}\
-Reverse Port      : ${IPPORT}${CN}
 TOR Proxy         : ${CDG}${SF_TOR:-UNKNOWN}:9050${CN}
+Reverse Port      : ${IPPORT}${CN}
 Shared storage    : ${CDM}/everyone ${CF}(encrypted)${CN}
 Your storage      : ${CDM}/sec      ${CF}(encrypted)${CN}"
 [[ -e /config/guest/onion_hostname-80 ]] && {

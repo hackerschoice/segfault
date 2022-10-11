@@ -1,5 +1,13 @@
 #! /bin/bash
 
+[[ -z $SF_REDIS_AUTH ]] && {
+	# SF_REDIS_AUTH=$(dd bs=1024 count=1 if=/dev/urandom status=none | sha512sum | base64 -w0)
+	SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0)
+	SF_REDIS_AUTH="${SF_REDIS_AUTH//[^[:alnum:]]}"
+	SF_REDIS_AUTH="${SF_REDIS_AUTH:0:32}"
+	export SF_REDIS_AUTH
+}
+
 [[ "$1" != up ]] && exec docker-compose "$@"
 
 # HERE: "up"
@@ -19,15 +27,6 @@ source "${BINDIR}/funcs.sh" || exit 254
 		echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/data/share/\" 'GeoLite2-City.mmdb'\`."
 	}
 )
-
-
-[[ -z $SF_REDIS_AUTH ]] && {
-	# SF_REDIS_AUTH=$(dd bs=1024 count=1 if=/dev/urandom status=none | sha512sum | base64 -w0)
-	SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0)
-	SF_REDIS_AUTH="${SF_REDIS_AUTH//[^[:alnum:]]}"
-	SF_REDIS_AUTH="${SF_REDIS_AUTH:0:32}"
-	export SF_REDIS_AUTH
-}
 
 exec docker-compose "$@"
 

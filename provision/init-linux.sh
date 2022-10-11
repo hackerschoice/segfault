@@ -290,14 +290,14 @@ fi
 }
 
 (cd "${SFI_SRCDIR}" && \
-  docker-compose build -q && \
+  sfbin/sf build -q && \
   docker network prune -f) || ERREXIT
 
 if docker ps | grep -E "sf-host|sf-router" >/dev/null; then
   WARNMSG="A SEGFAULT is already running."
   IS_DOCKER_NEED_MANUAL_START=1
 else
-  docker container rm sf-host &>/dev/null
+  docker container rm sf-host sf-nordvpn sf-mullvad sf-cryptostorm &>/dev/null
   (cd "${SFI_SRCDIR}" && SF_SEED="${SF_SEED}" sfbin/sf up --force-recreate -d) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
 fi
 

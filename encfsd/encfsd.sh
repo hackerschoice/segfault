@@ -64,7 +64,7 @@ encfs_mount()
 	[[ ! -e "${markfile}" ]] && { echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >"${markfile}" || { BAD 0 "Could not create Markfile"; return 255; } }
 
 	# local cpid
-	echo -e "[encfs-${name}] Mounting ${secdir} to ${rawdir}."
+	LOG "${name}" "Mounting ${secdir} to ${rawdir}."
 	echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs    --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o "${opts}"" &>/dev/null
 	ret=$?
 	[[ $ret -eq 0 ]] && return 0

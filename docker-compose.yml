@@ -7,12 +7,12 @@ services:
     hostname: sf-redis
     restart: ${SF_RESTART:-on-failure}
     environment:
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
     networks:
       redis-net:
         ipv4_address: 172.20.2.254
     # Should use "sfbin/sf up" to generate SF_REDIS_AUTH
-    command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH:?}" ]
+    command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH}" ]
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/redis/redis.conf:/redis.conf:ro"
 
@@ -27,8 +27,8 @@ services:
     security_opt:
       - apparmor:unconfined
     environment:
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
-      - SF_SEED=${SF_SEED:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_SEED=${SF_SEED}
       - SF_DEBUG
     command: ["/encfsd.sh"]
     networks:
@@ -51,7 +51,7 @@ services:
     security_opt:
       - apparmor:unconfined
     environment:
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_DEBUG
     pid: "service:sf-encfsd"
     command: ["/destructor.sh"]
@@ -72,7 +72,7 @@ services:
     depends_on:
       - sf-redis
     environment:
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_DEBUG
     command: ["/portd.sh"]
     networks:
@@ -123,7 +123,7 @@ services:
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_DEBUG
     networks:
       vpn-net:
@@ -156,7 +156,7 @@ services:
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_DEBUG
     networks:
       vpn-net:
@@ -187,7 +187,7 @@ services:
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_DEBUG
     networks:
       vpn-net:
@@ -284,7 +284,7 @@ services:
       - SF_SSH_PORT=${SF_SSH_PORT:-22}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_DEBUG
-      - SF_SEED=${SF_SEED:?}
+      - SF_SEED=${SF_SEED}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
     entrypoint: ["/sf-gsnc.sh", "172.22.0.22"]
@@ -318,8 +318,8 @@ services:
       - SF_USER=${SF_USER:-root}
       - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
-      - SF_SEED=${SF_SEED:?}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_SEED=${SF_SEED}
       - SF_DEBUG
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"

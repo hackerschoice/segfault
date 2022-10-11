@@ -302,8 +302,6 @@ print_goodbye()
 	[[ -z $SF_IS_PAYING ]] && {
 		echo -e "\
 \r${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@          ${CY}={{{ This Session was provided for ${CG}FREE${CY} }}}=${CDY}         @@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
 @@@          ${CB}${CUL}https://www.thc.org/segfault/buy-an-upgrade${CN}${CDY}          @@@
 @@@           ${CDR}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}${CDY}           @@@
@@ -337,7 +335,7 @@ spawn_shell_exit()
 
 	# Update current IP:
 	tofile "${YOUR_IP}" "/config/self-for-guest/lg-${LID}/ip"
-	tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
+	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
 
 	# Request a reverse Port Forward
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
@@ -522,16 +520,16 @@ mk_geoip()
 	[[ -z ${ip} ]] && return
 
 	local city
-	local cc
+	local country
 	res=$(mmdbinspect --db /sf/share/GeoLite2-City.mmdb "${ip}")
 	city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
-	cc=$(echo "$res" | jq -r '.[0].Records[0].Record.country.iso_code | select(. != null)')
+	country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
 
 	unset YOUR_GEOIP
-	if [[ -n $city && -n $cc ]]; then
-		YOUR_GEOIP+="${city}/${cc}"
-	elif [[ -n $city || -n $cc ]]; then
-		YOUR_GEOIP+="${city}${cc}"
+	if [[ -n $city && -n $country ]]; then
+		YOUR_GEOIP+="${city}/${country}"
+	elif [[ -n $city || -n $country ]]; then
+		YOUR_GEOIP+="${city}${country}" # Either one but not both
 	fi
 }
 
@@ -592,7 +590,7 @@ check_limit_server_by_ip
 
 mk_hostname
 
-mk_geoip "${YOUE_IP}"
+mk_geoip "${YOUR_IP}"
 
 HNLID_DIR="${SF_CONFIG_DIR}/db/hn"
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
@@ -642,6 +640,7 @@ encfspass="${encfspass//[^[:alpha:]]}"
 encfspass="${encfspass:0:24}"
 [[ -z $encfspass ]] && ERREXIT 241 "Failed to create session password"
 
+# Start & Wait for EncFS
 res=$(echo -e "RPUSH encfs \"${LID} ${encfspass} $$\"\n\
 BLPOP \"encfs-${LID}-$$\" 10" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h sf-redis) || ERREXIT 230 "Can't reach EncFSD"
 [[ -z $res || "${res##*$'\n'}" != "OK" ]] && ERREXIT 229 "Bad answer from EncFSD"

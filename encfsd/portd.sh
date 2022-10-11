@@ -240,8 +240,6 @@ cmd_remport()
 	local m_ipports
 	local provider
 
-	DEBUGF "CMD_REMPORT lid=$lid"
-
 	# Remove routing
 	# -> Dont need to. There is no harm leaving it.
 

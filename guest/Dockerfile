@@ -85,35 +85,40 @@ RUN	apt-get update -y \
 		webshells \
 		weevely \
 	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		altdns \
+		apache2-utils \
+		bat \
+		cmseek \
+		commix \
+		dirb \
+		dirsearch \
+		dnsrecon \
+		dstat \
+		duf \
+		emailharvester \
+		enum4linux \
+		exiftool \
+		gnupg \
+		hashcat \
+		htop \
+		ldap-utils \
+		john \
+		jq \
+		lsof \
+		lynx \
+		mc \
+		mtr \
+		most \
+		nikto \
 		ngrep \
 		openssh-client \
-		virtualenv \
-		mtr \
-		wipe \
-		htop \
-		most \
-		dstat \
-		proxychains \
-		gnupg \
+		peass \
 		pip \
+		proxychains \
 		python-is-python3 \
-		jq \
-		mc \
-		tree \
-		apache2-utils \
-		lsof \
-		dirb \
-		bat \
-		duf \
-		unzip \
+		recon-ng \
 		rclone \
 		rlwrap \
-		lynx \
-		whatweb \
-		commix \
-		nikto \
-		exiftool \
-		wpscan \
 		smbclient \
 		smbmap \
 		snmp \
@@ -121,17 +126,13 @@ RUN	apt-get update -y \
 		sshpass \
 		ssh-audit \
 		theharvester \
-		emailharvester \
-		cmseek \
-		enum4linux \
-		ldap-utils \
-		peass \
-		hashcat \
-		john \
-		altdns \
-		dnsrecon \
-		dirsearch \
-		recon-ng \
+		tree \
+		unzip \
+		virtualenv \
+		w3m \
+		whatweb \
+		wipe \
+		wpscan \
 	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		default-jdk \
 		exploitdb \

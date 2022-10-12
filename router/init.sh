@@ -55,7 +55,6 @@ init_revport()
 {
 	[[ -n $IS_REVPORT_INIT ]] && return
 	IS_REVPORT_INIT=1
-	# -----BEGIN REVERSE CONNECTION-----
 	### Create routing tables for reverse connection and when multipath routing is used:
 	# We are using multipath routing _and_ reverse port forwarding from the VPN Provider.
 	# See Cryptostorm's http://10.31.33.7/fwd as an example:
@@ -88,6 +87,8 @@ init_revport()
 	done
 	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --save-mark
 
+	echo -e >&2 "[$(date '+%F %T' -u)] RevPort set up for 172.20.0.[${ips[@]}]"
+
 	# Route return traffic back to VPN-GW the packet came in from.
 	# Every return packet is marked (11nnn). If it is marked (e.g. it is a return packet)
 	# then also mark it as 12nnn. Then use customer routing rule for all packets
@@ -104,8 +105,6 @@ init_revport()
 		ip rule add fwmark "12${n}" table "8${n}"
 		ip route add default via "172.20.0.${n}" dev ${DEV_GW} table "8${n}"
 	done
-
-	# -----END REVERSE CONNECTION-----
 }
 
 use_vpn()
@@ -150,10 +149,9 @@ use_tor()
 
 monitor_failover()
 {
-	# ts=$(date +%s)
 	local status_sha
 
-
+	# FIXME: use redis here instead of polling
 	while :; do
 		bash -c "exec -a '[sleep router failover]' sleep 1"
 		sha="$(sha256sum /config/guest/vpn_status 2>/dev/null)"
@@ -168,6 +166,10 @@ monitor_failover()
 		use_vpn
 	done
 }
+
+
+# Delete old vpn_status
+[[ -f /config/guest/vpn_status ]] && rm -f /config/guest/vpn_status
 
 DEV_I22="$(devbyip 172.28.0. eth0)"
 DEV="$(devbyip 10.11. eth1)"
@@ -226,8 +228,6 @@ iptables -t nat -A POSTROUTING -s 172.28.0.1 -o ${DEV_SSHD} -j MASQUERADE && \
 # GSNC TCP traffic to 443 and 7350 goes to (direct) Internet
 iptables -A PREROUTING -i ${DEV_SSHD} -t mangle -p tcp -s 172.22.0.21 -j MARK --set-mark 22
 # -----END GSNC traffic is routed via Internet----
-
-
 
 ifconfig "$DEV" 10.11.0.1/16 && \
 # MASQ all traffic because the VPN/TOR instances dont know the route back

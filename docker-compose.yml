@@ -114,6 +114,7 @@ services:
     depends_on:
       - dnsmasq
       - sf-redis
+      - router
     dns: 172.20.0.53
     cap_add:
       - NET_ADMIN #required
@@ -146,6 +147,7 @@ services:
     depends_on:
       - dnsmasq
       - sf-redis
+      - router
     dns: 172.20.0.53
     cap_add:
       - NET_ADMIN #required
@@ -178,6 +180,7 @@ services:
     depends_on:
       - dnsmasq
       - sf-redis
+      - router
     dns: 172.20.0.53
     cap_add:
       - NET_ADMIN #required
@@ -226,6 +229,7 @@ services:
       - net.ipv4.conf.all.rp_filter=2
     ports:
       - "${SF_SSH_PORT:-22}:22"
+      - "${SF_SSH_PORT2:-443}:22"
     environment:
       - SF_DEBUG
       - SF_MAXOUT

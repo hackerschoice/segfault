@@ -30,7 +30,11 @@ chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh && \
 chmod 755 /usr /etc /etc/profile.d && \
 chmod 644 /etc/profile.d/segfault.sh && \
 chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile && \
+find /usr/share/www -type f -exec chmod 644 {} \; && \
+find /usr/share/www -type d -exec chmod 755 {} \; && \
 ln -s batcat /usr/bin/bat && \
+ln -s /sf/bin/sf-motd.sh /usr/bin/motd && \
+ln -s /sf/bin/sf-motd.sh /usr/bin/help && \
 echo DONE && exit 0
 
 exit 254

@@ -287,12 +287,12 @@ print_goodbye()
 	n="$(bash -c "docker exec \"lg-${LID}\" pgrep . 2>/dev/null|wc -l")"
 	DEBUGF "Processes running: $n"
 	if [[ "$n" -gt 2 ]]; then
-		echo -e "Number of processes running: ${CDY}$((n-2))${CN}"
+		# echo -e "Number of processes running: ${CDY}$((n-2))${CN}"
 		# Display the running processes
 		str="process is"
 		[[ "$n" -gt 3 ]] && str="processes are"
 		echo -e "${CY}WARNING: ${CR}$((n-2))${CY} ${str} still running:${CN}"
-		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+2 | while read x; do p="${x%% *}      "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
+		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
@@ -334,6 +334,7 @@ spawn_shell_exit()
 	DEBUGF "ARG(${#})=$*"
 
 	# Update current IP:
+	touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 	tofile "${YOUR_IP}" "/config/self-for-guest/lg-${LID}/ip"
 	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
 
@@ -687,7 +688,9 @@ echo_pty -n "...."
 # FIXME: Could write my own tiny-init that spawns itself, sleeps forever and
 # waits for child. Would save memory.
 ### Start the care taker...
-xmkdir "/config/self-for-guest/lg-${LID}"
+selfdir="/config/self-for-guest/lg-${LID}"
+xmkdir "${selfdir}"
+# rm -f "${selfdir}/reverse_ip" "${selfdir}/reverse_port" # NOTE: Deleted by portd.sh
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \

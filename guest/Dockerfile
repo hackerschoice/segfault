@@ -3,7 +3,7 @@ FROM kalilinux/kali-rolling
 WORKDIR /root/
 
 # Valid options are:
-#   MINI BASE DEVEL NET HACK LARGE HUGE ALL
+#   MINI BASE DEVEL NET WEB HACK LARGE HUGE ALL
 #   SF_PACKAGES=ALL make
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
@@ -29,8 +29,10 @@ RUN	apt-get update -y \
 		bc \
 		bsdmainutils \
 		dos2unix \
+		file \
 		less \
 		openssh-sftp-server \
+		python3-pip \
 		screen \
 		sharutils \
 		tmux \
@@ -146,7 +148,9 @@ RUN	apt-get update -y \
 		ruby \
 		x11-apps \
 	&& /pkg-install.sh HUGE go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest \
-	&& /pkg-install.sh LARGE pip install --pre scapy[basic] \
+	&& /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
+	&& /pkg-install.sh WEB pip install \
+		'pelican[Markdown]' \
 	&& /pkg-install.sh LARGE pip install \
 		git-dumper \
 		ipython \

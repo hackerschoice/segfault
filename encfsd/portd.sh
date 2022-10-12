@@ -234,12 +234,16 @@ remport_provider()
 cmd_remport()
 {
 	local lid
-	lid="$1"
 	local c_ipports
 	local n_ipports
 	local m_ipports
 	local provider
+	local selfdir
+	lid="$1"
+	selfdir="/config/self-for-guest/lg-${lid}"
 
+	# Remove files from instance
+	rm -f "${selfdir}/reverse_ip" "${selfdir}/reverse_port" 2>/dev/null
 	# Remove routing
 	# -> Dont need to. There is no harm leaving it.
 

@@ -26,7 +26,12 @@ xmkdir()
 	[[ -d "$1" ]] && return
 	# Odd occasion when no EncFS is running but kernel still has a stale mountpoint
 	# mountpoint: everyone-root: Transport endpoint is not connected
-	fusermount -zu "$1" 2>/dev/null
+	# If EncFS died then a stale mount point might exist.
+	# -d/-e/-f all fail (Transport endpoint is not connected)
+	# Force an unmount if it's not a directory.
+	# After unmounting check again if it's a directory (it should be!)
+	fusermount -zu "${1}" 2>/dev/null && [[ -d "$1" ]] && return 
+
 	mkdir "$1"
 }
 
@@ -57,6 +62,7 @@ encfs_mount()
 		ERR "[encfs-${name}] Mounted but markfile exist showing not encrypted."
 		return 255
 	}
+
 
 	xmkdir "${secdir}" || return 255
 	xmkdir "${rawdir}" || return 255

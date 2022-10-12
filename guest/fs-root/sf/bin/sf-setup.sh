@@ -103,6 +103,12 @@ setup()
 	xmkdir /sec/usr/sbin
 	xmkdir /sec/usr/share
 
+	# Copy Pelican www
+	[[ ! -d /sec/www ]] && {
+		cp -a /usr/share/www /sec
+		sed "s/^SITEURL.*/SITEURL = '\/${SF_HOSTNAME,,}'/" -i /sec/www/pelicanconf.py
+	}
+
 	# Setup rc.local (if not exist) and execute rc.local
 	[[ ! -f /sec/usr/etc/rc.local ]] && setup_rclocal
 	/bin/bash /sec/usr/etc/rc.local

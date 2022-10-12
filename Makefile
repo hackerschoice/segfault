@@ -1,4 +1,4 @@
-VER := 0.3.3
+VER := 0.3.3c
 
 all:
 	make -C guest
@@ -21,6 +21,14 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-motd.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/pelicanconf.py"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/tasks.py"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/Makefile"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/Articles/hello.md"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/Articles/world.md"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/mydw.md"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/about.md"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/images"
 
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"

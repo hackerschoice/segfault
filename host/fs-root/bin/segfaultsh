@@ -263,7 +263,7 @@ ${CN}${CF}$(cat "/config/guest/id_ed25519")
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
-	User root
+    User root
     HostName ${SF_FQDN}
     IdentityFile ~/.ssh/id_sf-${SF_HOSTNAME,,}
     SetEnv SECRET=${SF_SEC}

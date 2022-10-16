@@ -201,7 +201,7 @@ iptables --new-chain SYN-LIMIT
 iptables -I FORWARD 1 -i "${DEV}" -o "${DEV_GW}" -p tcp --syn -j SYN-LIMIT
 # Refill bucket at a speed of 20/sec and take out max of 64k at one time.
 # 64k are taken and thereafter limit to 20syn/second (as fast as the bucket refills)
-iptables -A SYN-LIMIT -m limit --limit "20/sec" --limit-burst 65536 -j RETURN
+iptables -A SYN-LIMIT -m limit --limit "20/sec" --limit-burst 10000 -j RETURN
 iptables -A SYN-LIMIT -j DROP
 # -----END TCP SYN RATE LIMIT-----
 

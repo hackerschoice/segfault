@@ -64,6 +64,7 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
 		ftp \
+		iftop \
 		iputils-tracepath \
 		gsocket \
 		nano \
@@ -72,10 +73,13 @@ RUN	apt-get update -y \
 		manpages-dev \
 		rsync \
 		sudo \
+		tcpdump \
 		traceroute \
+		wireguard-tools \
 		wget \
 		whois \
-	&& /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+	&& DEBIAN_FRONTEND=noninteractive /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		dnsmap \
 		hydra \
 		irssi \
 		nbtscan \
@@ -85,6 +89,7 @@ RUN	apt-get update -y \
 		snmpcheck \
 		socat \
 		thc-ipv6 \
+		tshark \
 		webshells \
 		weevely \
 	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
@@ -99,6 +104,7 @@ RUN	apt-get update -y \
 		dotnet-runtime-6.0 \
 		dstat \
 		duf \
+		emacs \
 		emailharvester \
 		enum4linux \
 		exiftool \
@@ -114,6 +120,7 @@ RUN	apt-get update -y \
 		mc \
 		mtr \
 		most \
+		neofetch \
 		nikto \
 		ngrep \
 		openssh-client \
@@ -136,6 +143,7 @@ RUN	apt-get update -y \
 		unzip \
 		virtualenv \
 		w3m \
+		weechat weechat-plugins weechat-matrix \
 		whatweb \
 		wipe \
 		wpscan \
@@ -152,6 +160,7 @@ RUN	apt-get update -y \
 		ruby \
 		x11-apps \
 	&& /pkg-install.sh HUGE go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest \
+	&& /pkg-install.sh HUGE go install -v github.com/sagernet/sing-box/cmd/sing-box@latest \
 	&& /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \

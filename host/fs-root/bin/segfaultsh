@@ -159,7 +159,7 @@ init_emu()
 	SF_CONFIG_DIR="${SF_BASEDIR}/emu/config"
 	SF_ETCSF_DIR="${SF_BASEDIR}/config/etc/sf"
 	SF_HOST_FS_ROOT="${SF_BASEDIR}/host/fs-root"
-	SF_WWW_ROOT_DIR="${SF_EMU_DIR}/encfs-sec/www-root"
+	# SF_WWW_ROOT_DIR="${SF_EMU_DIR}/encfs-sec/www-root"
 
 
 	[[ ! -d $SF_EMU_DIR ]] && mkdir "${SF_EMU_DIR}"
@@ -495,7 +495,7 @@ check_limit_server_by_ip()
 			### Check if anyone of the shells is still alive
 			exec_devnull docker container inspect "lg-${lid}" -f '{{.State.Status}}' || continue
 			((n++))
-			arr_new+=($lid)
+			arr_new+=("$lid")
 		done
 
 		## Eyy, good idea to check if they are idle?
@@ -659,7 +659,7 @@ echo_pty -n "...."
 	DEBUGF "Attaching to existing instance lg-${LID}..."
 	exec_devnull docker container inspect "lg-${LID}" -f '{{.State.Status}}' && { 
 		echo_pty -e "..........[${CG}Ok${CN}]"
-		spawn_shell_exit
+		spawn_shell_exit "$@"
 		# NOT REACHED
 	}
 	echo_pty -n ".."
@@ -770,6 +770,6 @@ echo_pty -e "......[${CG}OK${CN}]"
 
 DEBUGF "Status: $(docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
 # Spawn shell
-spawn_shell_exit
+spawn_shell_exit "$@"
 # NOT REACHED
 

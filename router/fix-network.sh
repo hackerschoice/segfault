@@ -25,9 +25,9 @@ ERREXIT()
 	ip route show >&2
 }
 
-ip addr show | grep 'inet 10\.255\.255\.254' >/dev/null && ERREXIT 0 "Host's bridge already fixed and set to 10.255.255.254."
+ip addr show | grep -F 'inet 10.255.255.254' >/dev/null && ERREXIT 0 "Host's bridge already fixed and set to 10.255.255.254."
 
-l=$(ip addr show | grep 'inet 10\.11\.' | head)
+l=$(ip addr show | grep -F 'inet 10.11.' | head -n1)
 [[ -z $l ]] && ERREXIT 255 "Failed to find network"
 
 DEV="$(echo "$l" | awk '{ print $7; }')"

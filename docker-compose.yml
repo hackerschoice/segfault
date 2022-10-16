@@ -46,6 +46,7 @@ services:
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - sf-redis
+      - sf-encfsd
     cap_add:
       - SYS_ADMIN
     security_opt:
@@ -209,6 +210,7 @@ services:
     build: router
     image: sf-router
     hostname: sf-router
+    container_name: sf-router
     depends_on:
       - router-fix-network
     networks:

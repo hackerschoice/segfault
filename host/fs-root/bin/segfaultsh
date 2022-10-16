@@ -255,19 +255,21 @@ ${CR}######################################################################
 
 print_ssh_access()
 {
+	local key_suffix
+	key_suffix="sf-${SF_FQDN//./-}"
 	echo 1>&2 -e "\
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
-${CDC}cat >~/.ssh/id_sf-${SF_HOSTNAME,,} ${CDR}<<__EOF__
+${CDC}cat >~/.ssh/id_${key_suffix} ${CDR}<<__EOF__
 ${CN}${CF}$(cat "/config/guest/id_ed25519")
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
     HostName ${SF_FQDN}
-    IdentityFile ~/.ssh/id_sf-${SF_HOSTNAME,,}
+    IdentityFile ~/.ssh/id_${key_suffix}
     SetEnv SECRET=${SF_SEC}
 ${CDR}__EOF__
-${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_sf-${SF_HOSTNAME,,}${CN}
+${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_${key_suffix}${CN}
 ######################################################################
 Thereafter use these commands:
 --> ${CDC}ssh  root@${SF_HOSTNAME,,}${CN}
@@ -367,8 +369,8 @@ mk_hostname()
 
 setup_fs_limit()
 {
-	# Return if no limit is set
-	[[ -z $SF_USER_ROOT_FS_LIMIT ]] && return 0 # True
+	# Return if 0 or not set
+	[[ ! "${SF_USER_ROOT_FS_LIMIT//[^[:digit:]]/}" -gt 0 ]] && return 0 # True
 
 	# Backing FS must be of type XFS
 	[[ "$(docker info --format '{{json .DriverStatus}}' | jq -r '.[0][1]')" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_LIMIT is set"
@@ -381,7 +383,7 @@ load_limits()
 {
 	# Set the default values.
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
-	# then there is NO LIMIT.
+	# then root is mounted read-only
 	#SF_USER_ROOT_FS_LIMIT=2GB
 	SF_USER_MEMORY_LIMIT=256MB
 	SF_USER_PIDS_LIMIT=32
@@ -409,6 +411,10 @@ load_limits()
 	DOCKER_ARGS+=("--pids-limit=${SF_USER_PIDS_LIMIT}")
 	DOCKER_ARGS+=("--cpu-shares=${SF_USER_CPU_SHARE}")
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
+
+	[[ -z $SF_USER_ROOT_FS_LIMIT ]] && DOCKER_ARGS+=("--read-only")
+	# Default SHM_SIZE is 64M (if not set). Hard limit is --memory=
+	[[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
 	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
 }
@@ -681,6 +687,7 @@ echo_pty -n "...."
 # Solution: Spawn a container in the background and always use 'docker exec' to
 # create a shell for the user.
 
+# On the router-context set some iptable rules for this instance.
 # SIGTERM is not delivered to PID==1.
 # Use --init so that 'docker stop lg-' works immediatly: Deliver SIGTERM to
 # process group. tiny-init notices the sigchld of died process and terminates
@@ -696,6 +703,7 @@ exec_devnull docker run \
 	"${DOCKER_ARGS[@]}" \
 	--rm \
 	--init \
+	--workdir=/sec/root \
 	--ulimit nofile="${SF_ULIMIT_NOFILE}" \
 	--name "lg-${LID}" \
 	--cap-drop=MKNOD \
@@ -713,6 +721,7 @@ exec_devnull docker run \
 	--env SF_IS_LOGINSHELL=1 \
 	--env SF_IS_GOLD_PROMPT="${SF_IS_GOLD_PROMPT}" \
 	--log-driver "${SF_DOCKER_LOG}" \
+	--mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro" \
 	-v "${SF_ENCFS_SEC_DIR}/user-${LID}:/sec:slave" \
@@ -739,6 +748,16 @@ while :; do
 	[[ $n -gt 2 ]] && ERREXIT 253 "Could not create instance..."
 done
 echo_pty -n ".."
+
+# Set FW rules for this instance
+c_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "lg-${LID}")
+[[ -z $c_ip ]] && ERREXIT 249 "Could not get container's IP address."
+exec_devnull docker exec sf-router bash -c "source /dev/shm/net-devs.txt || exit
+iptables --new-chain 'SYN-LIMIT-${c_ip}' 2>/dev/null || exit 0
+# HERE: Chain did not exist yet.
+iptables -I FORWARD 1 -i \"\${DEV}\" -o \"\${DEV_GW}\" -s '${c_ip}' -p tcp --syn -j 'SYN-LIMIT-${c_ip}' &&
+iptables -A 'SYN-LIMIT-${c_ip}' -m limit --limit \"1/sec\" --limit-burst 8196 -j RETURN &&
+iptables -A 'SYN-LIMIT-${c_ip}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
 
 # Setup instance
 docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."

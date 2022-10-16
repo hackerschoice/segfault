@@ -24,14 +24,6 @@ do_exit_err()
 xmkdir()
 {
 	[[ -d "$1" ]] && return
-	# Odd occasion when no EncFS is running but kernel still has a stale mountpoint
-	# mountpoint: everyone-root: Transport endpoint is not connected
-	# If EncFS died then a stale mount point might exist.
-	# -d/-e/-f all fail (Transport endpoint is not connected)
-	# Force an unmount if it's not a directory.
-	# After unmounting check again if it's a directory (it should be!)
-	fusermount -zu "${1}" 2>/dev/null && [[ -d "$1" ]] && return 
-
 	mkdir "$1"
 }
 
@@ -63,6 +55,11 @@ encfs_mount()
 		return 255
 	}
 
+	# If EncFS died then a stale mount point might still exist.
+	# -d/-e/-f all fail (Transport endpoint is not connected)
+	# Force an unmount if it's not a directory (it's 'stale').
+	fusermount -zu "${1}" 2>/dev/null && [[ -d "$1" ]] && return
+	[[ ! -d "${secdir}" ]] && fusermount -zu "${secdir}" 2>/dev/null
 
 	xmkdir "${secdir}" || return 255
 	xmkdir "${rawdir}" || return 255
@@ -71,7 +68,9 @@ encfs_mount()
 
 	# local cpid
 	LOG "${name}" "Mounting ${secdir} to ${rawdir}."
-	echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs    --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o "${opts}"" &>/dev/null
+	# echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o fsname=/dev/sec-\"${name}\" -o \"${opts}\"" >/dev/null
+	# --nocache -> Blindly hoping that encfs consumes less memory?!
+	echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"" >/dev/null
 	ret=$?
 	[[ $ret -eq 0 ]] && return 0
 
@@ -93,6 +92,7 @@ encfs_mount_server()
 	# the waiting container access to redis.
 	[[ -f "${secdir}/.IS-ENCRYPTED" ]] && rm -f "${secdir}/.IS-ENCRYPTED"	
 	encfs_mount "${name}" "${secret}" "${secdir}" "/encfs/raw/${name}-root" "noexec,noatime" || ERREXIT 254 "EncFS ${name}-root failed."
+	touch "${secdir}/.IS-ENCRYPTED"
 
 	# redis-cli -h sf-redis SET "encfs-ts-${name}" "$(date +%s)"
 }

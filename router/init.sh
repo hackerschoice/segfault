@@ -177,6 +177,15 @@ DEV_SSHD="$(devbyip 172.22.0. eth2)"
 DEV_GW="$(devbyip 172.20.0. eth3)"
 DEV_DMZ="$(devbyip 172.20.1. eth4)"
 
+echo -e "\
+DEV_I22="${DEV_I22}"\n\
+DEV="${DEV}"\n\
+DEV_SSHD="${DEV_SSHD}"\n\
+DEV_GW="${DEV_GW}"\n\
+DEV_DMZ="${DEV_DMZ}"\n\
+" >/dev/shm/net-devs.txt
+
+
 [[ -n $SF_DEBUG ]] && {
 	ip link show >&2
 	ip addr show >&2
@@ -186,6 +195,15 @@ DEV_DMZ="$(devbyip 172.20.1. eth4)"
 }
 
 blacklist_routes
+
+# -----BEGIN TCP SYN RATE LIMT-----
+iptables --new-chain SYN-LIMIT
+iptables -I FORWARD 1 -i "${DEV}" -o "${DEV_GW}" -p tcp --syn -j SYN-LIMIT
+# Refill bucket at a speed of 20/sec and take out max of 64k at one time.
+# 64k are taken and thereafter limit to 20syn/second (as fast as the bucket refills)
+iptables -A SYN-LIMIT -m limit --limit "20/sec" --limit-burst 65536 -j RETURN
+iptables -A SYN-LIMIT -j DROP
+# -----END TCP SYN RATE LIMIT-----
 
 ip route del default && \
 # -----BEGIN SSH traffic is routed via Internet-----

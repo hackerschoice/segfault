@@ -59,6 +59,7 @@ RUN	apt-get update -y \
 		make \
 		patch \
 		strace \
+		whiptail \
 		xterm \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
@@ -95,6 +96,7 @@ RUN	apt-get update -y \
 		dirb \
 		dirsearch \
 		dnsrecon \
+		dotnet-runtime-6.0 \
 		dstat \
 		duf \
 		emailharvester \
@@ -104,6 +106,7 @@ RUN	apt-get update -y \
 		hashcat \
 		htop \
 		ldap-utils \
+		joe \
 		john \
 		jq \
 		lsof \
@@ -124,6 +127,7 @@ RUN	apt-get update -y \
 		smbclient \
 		smbmap \
 		snmp \
+		speedtest-cli \
 		sslscan \
 		sshpass \
 		ssh-audit \

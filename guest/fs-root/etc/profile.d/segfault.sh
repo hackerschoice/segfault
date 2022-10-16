@@ -1,8 +1,9 @@
 # source'd during interactive shell login to SF-GUEST.
 
 # Trampoline to this script:
-[[ -e /sf/bin/sf-motd.sh ]] && [[ -n "$SF_IS_LOGINSHELL" ]] && {
+[[ -f /sf/bin/sf-motd.sh ]] && [[ -n "$SF_IS_LOGINSHELL" ]] && {
 	/sf/bin/sf-motd.sh
+	[[ -f /config/guest/sys-motd.sh ]] && source /config/guest/sys-motd.sh
 	unset SF_IS_LOGINSHELL # Only display motd on ssh login but not zsh -il or su - user
 }
 

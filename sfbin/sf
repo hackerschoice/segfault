@@ -24,7 +24,7 @@ source "${BINDIR}/funcs.sh" || exit 254
 	[[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 	[[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
 		WARN "Not found: data/share/GeoLite2-City.mmdb"
-		echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/data/share/\" 'GeoLite2-City.mmdb'\`."
+		echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/share/\" 'GeoLite2-City.mmdb'\`."
 	}
 )
 

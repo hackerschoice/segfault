@@ -143,6 +143,7 @@ init_config_run()
   # Create ./data or symlink correctly.
   [[ ! -d "${SF_DATADIR}" ]] && mkdir -p "${SF_DATADIR}"
   [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
+  [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
   [[ ! "${SF_BASEDIR}/data" -ef "${SF_DATADIR}" ]] && ln -s "${SF_DATADIR}" "${SF_BASEDIR}/data"
 
   [[ ! -d "${SF_CONFDIR}" ]] && mkdir -p "${SF_CONFDIR}"

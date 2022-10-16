@@ -42,10 +42,13 @@ mkhome()
 	dir="/sec/${dirname}"
 
 	# e.g. /sec/root and /sec/home/user
-	[[ -d "$dir" ]] && return # already exists
+	# /sec/root must already exist because docker-run needs --workdir=/sec/root
+	# and docker internally creates this directory. Instead check of .zshrc
+	# [[ -d "$dir" ]] && return # already exists
 
+	[[ -f "${dir}/.zshrc" ]] && return
 	DEBUGF "Creating /sec/${dirname}..."
-	cp -a /etc/skel "${dir}"
+	rsync -a /etc/skel/ "${dir}"
 	chown -R "${usergroup}" "${dir}"
 	chmod 700 "${dir}"	
 }
@@ -98,6 +101,7 @@ setup()
 	rmsymdir /root /sec/root
 
 	# Create useful directory
+	xmkdir /dev/shm/tmp && chmod 1777 /dev/shm/tmp
 	xmkdir /sec/usr/lib
 	xmkdir /sec/usr/bin
 	xmkdir /sec/usr/sbin

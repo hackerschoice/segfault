@@ -26,7 +26,7 @@ CUL="\e[4m"
 source "/config/guest/vpn_status" 2>/dev/null
 
 if [[ -z $IS_VPN_CONNECTED ]]; then
-	VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"
+	VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
 else
 	i=0
 	while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do
@@ -83,4 +83,6 @@ SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UN
 SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
                        ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
+
+
 

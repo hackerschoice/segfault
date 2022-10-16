@@ -14,13 +14,14 @@ useradd  -s /bin/zsh user && \
 ln -s openssh /usr/lib/ssh && \
 sed -i 's/\/root/\/sec\/root/g' /etc/passwd && \
 sed -i 's/\/home\//\/sec\/home\//g' /etc/passwd && \
-mkdir -p /sec && \
+mkdir -p /sec/root && \
 echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt && \
 # Docker depends on /root to exist or otherwise throws a:
 # [process_linux.go:545: container init caused: mkdir /root: file exists: unknown]
-rm -rf /root && \
+rm -rf /root /home && \
+ln -s /sec/root /root && \
+ln -s /sec/home /home && \
 cp -a /etc/skel /sec/root && \
-mkdir /root && \
 #
 # Need to set correct permission which may have gotten skewed when building
 # docker inside vmbox from shared host drive. On VMBOX share all

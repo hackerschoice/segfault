@@ -20,7 +20,7 @@ make
 
 To start execute:
 ```
-SF_BASEDIR=$(pwd) SF_SSH_PORT=2222 sfbin/sf up
+SF_BASEDIR="$(pwd)" SF_SSH_PORT=2222 sfbin/sf up
 ```
 
 Take a look at `provision/env.example` for a sample `.env` file. Configure the test of the variables in `config/etc/sf/sf.conf`.

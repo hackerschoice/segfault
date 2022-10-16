@@ -263,6 +263,7 @@ ${CN}${CF}$(cat "/config/guest/id_ed25519")
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
+    User root
     HostName ${SF_FQDN}
     IdentityFile ~/.ssh/id_sf-${SF_HOSTNAME,,}
     SetEnv SECRET=${SF_SEC}
@@ -270,10 +271,10 @@ ${CDR}__EOF__
 ${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_sf-${SF_HOSTNAME,,}${CN}
 ######################################################################
 Thereafter use these commands:
---> ${CDC}ssh  root@${SF_HOSTNAME,,}${CN}
---> ${CDC}sftp root@${SF_HOSTNAME,,}${CN}
---> ${CDC}scp  root@${SF_HOSTNAME,,}:stuff.tar.gz ~/${CN}
---> ${CDC}sshfs -o reconnect root@${SF_HOSTNAME,,}:/sec ~/sec ${CN}
+--> ${CDC}ssh  ${SF_HOSTNAME,,}${CN}
+--> ${CDC}sftp ${SF_HOSTNAME,,}${CN}
+--> ${CDC}scp  ${SF_HOSTNAME,,}:stuff.tar.gz ~/${CN}
+--> ${CDC}sshfs -o reconnect ${SF_HOSTNAME,,}:/sec ~/sec ${CN}
 ----------------------------------------------------------------------"
 }
 

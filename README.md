@@ -15,7 +15,6 @@ git clone --depth 1 https://github.com/hackerschoice/segfault.git && \
 cd segfault && \
 export SF_SEED="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32)" && \
 echo "SF_SEED=${SF_SEED}" && \
-cp provision/env.example .env && \
 make
 ```
 

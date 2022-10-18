@@ -195,6 +195,6 @@ RUN	apt-get update -y \
 # Do fs-root last (on vmbox it messes with chmod and setup.sh fixes it)
 COPY /fs-root/ /
 RUN		/setup.sh \
-	&& rm -f /setup.sh /pkt-install.sh
+	&& rm -f /setup.sh /pkg-install.sh
 
 CMD ["zsh", "-il"]

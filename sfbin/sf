@@ -17,7 +17,7 @@ source "${BINDIR}/funcs.sh" || exit 254
 
 [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set"
 
-# [DIR] [project name] [id] [INODE-LIMIT]
+# [DIR] [project name] [id] [INODE-LIMIT] [BYTES_MAX]
 xfs_init_quota()
 {
 	local dir
@@ -25,19 +25,21 @@ xfs_init_quota()
 	local id
 	local ihard
 	local err
+	local bhard
 	dir=$(readlink -f "$1")
 	prj=$2
 	id=$3
 	ihard=$4
+	bhard=$5
 
 	command -v xfs_quota &>/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
 
 	grep "^${prj}" /etc/projid >/dev/null || echo "${prj}:${id}" >>/etc/projid
 	# This survives a reboot but maybe our parameters have changed. Set to latest:
-	xfs_quota -x -c "limit -p ihard=${ihard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+	xfs_quota -x -c "limit -p ihard=${ihard} bhard=${bhard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
 	xfs_quota -x -c "project -s -p${dir} ${prj}" >/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
 
-	echo "[${dir##*/}] Quota set to ihard=${ihard}."
+	echo "[${dir##*/}] Quota set to inode-max=${ihard}, bytes-max=${bhard}."
 }
 
 # Load variables from ENV but only those not already set in
@@ -72,10 +74,16 @@ load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
 	WARN "Not found: data/share/GeoLite2-City.mmdb"
-	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/share/\" 'GeoLite2-City.mmdb'\`."
+	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
 }
 
-xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 1024
+[[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && {
+	WARN "Not found: data/share/tor-exit-nodes.txt"
+	echo -e "Try \`curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'\`"
+}
+
+
+xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 16384 16G
 
 # If there was a warning then wait...
 WARN_ENTER

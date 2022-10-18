@@ -126,6 +126,7 @@ load_limits()
 redis_loop_forever()
 {
 	local secdir
+	local is_xfs_limit
 
 	while :; do
 		res=$(redis-cli -h sf-redis BLPOP encfs 0) || ERREXIT 250 "Failed with $?"
@@ -154,16 +155,16 @@ redis_loop_forever()
 		rawdir="/encfs/raw/user/user-${name}"
 		encfs_mkdir "${name}" "${secdir}" "${rawdir}" || return
 
-		# Set up XFS limits
-		# xfs_quota -x -c 'limit -p ihard=80 Alice' "${SF_DATADEV}"
+		# Set XFS limits
 		load_limits "${name}"
-		[[ -n $SF_USER_FS_INODE_MAX ]] && [[ -n $SF_USER_FS_BYTES_MAX ]] && {
+		[[ -n $SF_USER_FS_INODE_MAX ]] || [[ -n $SF_USER_FS_BYTES_MAX ]] && {
 			SF_NUM=$(<"/config/db/db-${name}/num") || continue
 			SF_HOSTNAME=$(<"/config/db/db-${name}/hostname") || continue
 			prjid=$((SF_NUM + 10000000))
 			# DEBUGF "SF_NUM=${SF_NUM}, prjid=${prjid}, SF_HOSTNAME=${SF_HOSTNAME}, INODE_MAX=${SF_USER_FS_INODE_MAX}, BYTES_MAX=${SF_USER_FS_BYTES_MAX}"
-			err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE_MAX} bhard=${SF_USER_FS_BYTES_MAX} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; continue; }
+			err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE_MAX:-16384} bhard=${SF_USER_FS_BYTES_MAX:-128m} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; continue; }
 			err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; continue; }
+			is_xfs_limit=1
 		}
 
 		# Mount if not already mounted. Continue on error (let client hang)
@@ -174,7 +175,7 @@ redis_loop_forever()
 		# - xfs_quota can only work on the underlaying encfs structure.
 		#   That however is enrypted and we do not know the directory name
 		# - Use last created directory.
-		[[ ! -d "/encfs/sec/www-root/www/${SF_HOSTNAME,,}" ]] && {
+		[[ -n $is_xfs_limit ]] && [[ ! -d "/encfs/sec/www-root/www/${SF_HOSTNAME,,}" ]] && {
 			xmkdir "/encfs/sec/www-root/www/${SF_HOSTNAME,,}"
 			USER_RAWDIR=$(find "${BASE_RAWDIR}" -type d -maxdepth 1 -print | tail -n1)
 			[[ ! -d "${USER_RAWDIR:?}" ]] && continue

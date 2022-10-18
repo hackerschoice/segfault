@@ -26,16 +26,22 @@ services:
       - SYS_ADMIN
     security_opt:
       - apparmor:unconfined
+    # xfs_quota needs this :/ FIXME
+    privileged: true
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_SEED=${SF_SEED}
+      - SF_DATADEV
       - SF_DEBUG
     command: ["/encfsd.sh"]
     networks:
       redis-net:
     devices:
       - "/dev/fuse:/dev/fuse"
+      # - "${SF_DATADEV:-?}:/dev/loop1" -> not needed in priv mode?
     volumes:
+      - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
+      - "${SF_BASEDIR:-.}/config/etc/sf:/config/etc/sf:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"

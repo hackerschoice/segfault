@@ -8,6 +8,7 @@
 	export SF_REDIS_AUTH
 }
 
+
 [[ "$1" != up ]] && exec docker-compose "$@"
 
 # HERE: "up"
@@ -16,17 +17,73 @@ source "${BINDIR}/funcs.sh" || exit 254
 
 [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set"
 
-# Sub-Shell because we source .env but need clean environment afterwards.
-(
-	[[ -z $SF_BASEDIR ]] && [[ -f .env ]] && eval $(grep ^SF_BASEDIR .env)
-	[[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEDIR= not set or ./.env not found."
+# [DIR] [project name] [id] [INODE-LIMIT]
+xfs_init_quota()
+{
+	local dir
+	local prj
+	local id
+	local ihard
+	local err
+	dir=$(readlink -f "$1")
+	prj=$2
+	id=$3
+	ihard=$4
 
-	[[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
-	[[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
-		WARN "Not found: data/share/GeoLite2-City.mmdb"
-		echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/share/\" 'GeoLite2-City.mmdb'\`."
-	}
-)
+	command -v xfs_quota &>/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+
+	grep "^${prj}" /etc/projid >/dev/null || echo "${prj}:${id}" >>/etc/projid
+	# This survives a reboot but maybe our parameters have changed. Set to latest:
+	xfs_quota -x -c "limit -p ihard=${ihard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+	xfs_quota -x -c "project -s -p${dir} ${prj}" >/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+
+	echo "[${dir##*/}] Quota set to ihard=${ihard}."
+}
+
+# Load variables from ENV but only those not already set in
+# user's environemtn.
+load_env()
+{
+	local n
+	local v
+	local arr
+	local a
+	envfile="./.env"
+
+	[[ -n $SF_BASEDIR ]] && envfile="${SF_BASEDIR}/.env"
+	if [[ ! -f "${envfile}" ]]; then
+		WARN "Not found: \${SF_BASEDIR}/.env (${envfile})"
+	else
+		IFS=$'\n'
+		arr=( $(grep -v ^# "${envfile}") )
+		for a in "${arr[@]}"; do
+
+			n="${a%%=*}"
+			# Prefer user's environemtn over .env settings.
+			[[ -z "$(eval echo \$$n)" ]] && eval "${a}"
+		done
+	fi
+
+	[[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEDIR= not set in ${envfile}."
+}
+
+load_env
+
+[[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
+[[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
+	WARN "Not found: data/share/GeoLite2-City.mmdb"
+	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C \"${SF_DATADIR}/share/\" 'GeoLite2-City.mmdb'\`."
+}
+
+xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 1024
+
+# If there was a warning then wait...
+WARN_ENTER
+
+[[ -z $SF_DATADEV ]] && {
+	d=$(mount | grep -F "${SF_DATADIR}" | head -n1)
+	export SF_DATADEV="${d%% *}"
+}
 
 exec docker-compose "$@"
 

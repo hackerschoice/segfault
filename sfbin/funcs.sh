@@ -28,8 +28,10 @@ ERR()
 
 WARN()
 {
-	echo -e >&2 "[$(date '+%F %T' -u)] [${CDY}WARN${CN}] $*"
+	((IS_WARN++))
+	echo -e >&2 "[$(date '+%F %T' -u)] [${CDY}#${IS_WARN} WARN${CN}] $*"
 }
+
 
 LOG()
 {
@@ -57,3 +59,11 @@ else
 	DEBUGF(){ echo -e 1>&2 "${CY}DEBUG:${CN} $*";}
 fi
 
+WARN_ENTER()
+{
+	[[ -z $IS_WARN ]] && return
+	unset IS_WARN
+
+	echo "Press Enter to continue. Aborting in 10 seconds otherwise..."
+	read -t 10 || ERREXIT 255 "Aborting. User did not press Enter."
+}

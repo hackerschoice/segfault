@@ -214,6 +214,7 @@ init_vars()
 
 	NOW="$(date +%s)"
 	YOUR_IP="${SSH_CONNECTION%%[[:space:]]*}"
+	YOUR_IP="${YOUR_IP//[^0-9.:]/}"
 	[[ -z $YOUR_IP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
 	# Do not store IP addresses. Hash it with a secret (SEED) instead.
 	local str
@@ -338,7 +339,7 @@ spawn_shell_exit()
 
 	# Update current IP:
 	touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
-	tofile "${YOUR_IP}" "/config/self-for-guest/lg-${LID}/ip"
+	tofile "${YOUR_IP:?}" "/config/self-for-guest/lg-${LID}/ip"
 	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
 
 	# Request a reverse Port Forward
@@ -356,14 +357,21 @@ spawn_shell_exit()
 # Generate a mnemonic hostname from LID (e.g. ButterflyCat)
 mk_hostname()
 {
-	NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
+	NUM=$(echo "$LID" | md5sum)
+	NUM=${NUM%% *}
+	NUM=$((16#${NUM:0:15}))
+	# Oops. bash max integer is (2^63)-1, so limit to 15 hex.
+	# NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
 	readarray -t english <"${SF_HOST_FS_ROOT}/etc/english.txt"
 	SF_HOSTNAME="UnknownUnknown"
-	if [[ "${#english[@]}" -eq 2048 ]]; then
-		SF_HOSTNAME="${english[$((NUM % 2048))]}"
-		SF_HOSTNAME+="${english[$(( (NUM / 2048) % 2048 ))]}"
-	fi
-	DEBUGF "SF_HOSTNAME=$SF_HOSTNAME"
+	[[ "${#english[@]}" -lt 2048 ]] && ERREXIT 2 "english.txt bad"
+	m=$((NUM % 2048))
+	n=$(( (NUM / 2048) % 2048))
+	SF_NUM="$((m * 2048 + n))"
+
+	SF_HOSTNAME="${english[$m]}"
+	SF_HOSTNAME+="${english[$n]}"
+	DEBUGF "SF_HOSTNAME=$SF_HOSTNAME, SF_NUM=${SF_NUM}, NUM=$NUM"
 	unset NUM
 	unset english
 }
@@ -392,7 +400,8 @@ load_limits()
 	SF_USER_OOM_SCORE=500
 	SF_USER_NICE_SCORE=10
 	SF_LIMIT_SERVER_BY_IP=8
-	SF_ULIMIT_NOFILE="256:1024"
+	SF_ULIMIT_NOFILE="256:256"
+	SF_MAX_LOAD="20" # No new shells until load goes below
 
 	# HACK: Use eval-trick to 'source' in a restricted bash shell
 	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(grep ^SF_ "${SF_ETCSF_DIR}/sf.conf")"
@@ -448,7 +457,7 @@ wait_for_conn_limit()
 			[[ ${ARR[0]} -lt $ts_good ]] && break
 
 			[[ $c -gt 60 ]] && echo -e >&2 "giving up. Try again later." && exit 255
-			[[ $c -eq 0 ]] && echo -en >&2 "[${CY}SF${CN}] Waiting for resources..."
+			[[ $c -eq 0 ]] && echo -e >&2 "[${CY}SF${CN}] Waiting for resources..."
 			echo -n "."
 			sleep 2
 			((c++))
@@ -459,12 +468,30 @@ wait_for_conn_limit()
 	tofile "ARR=(${ARR[*]:1:4} $NOW)" "${fn}"
 }
 
+wait_for_load()
+{
+	local load
+	local max="$1"
+
+	# FIXME: Stop after waiting for too long.
+	# FIXME: Implement garbage collector...
+	while :; do
+		load=($(</proc/loadavg))
+		load=${load[0]%%.*}
+		[[ $load -lt "$max" ]] && break
+		echo -e >&2 "[${CY}SF${CN}] Waiting for load to go down..."
+		sleep 5
+	done
+}
+
 wait_for_resources()
 {
 	# 5 Connections within 60 seconds from the same IP.
 	wait_for_conn_limit "${YOUR_IP_HASH}" "60" 
 	# 5 Connections within 15 seconds all in all
-	wait_for_conn_limit "all" "15"
+	wait_for_conn_limit "all" "30"
+
+	wait_for_load "${SF_MAX_LOAD}"
 }
 
 # Check if max servers per IP are in use.
@@ -635,6 +662,9 @@ else
 
 	mkdir -p "${DB_DIR}/db-${LID}" || ERREXIT
 	touch "${DB_DIR}/db-${LID}/created.txt" || ERREXIT
+	tofile "$SF_NUM" "${DB_DIR}/db-${LID}/num"
+	tofile "$SF_HOSTNAME" "${DB_DIR}/db-${LID}/hostname"
+	# tofile "$SSH_CONNECTION" "${DB_DIR}/ssh_connection"
 	# exec_errnull date +%s >"${DB_DIR}/db-${LID}/created.txt" || ERREXIT
 	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}" || ERREXIT 231 "tofile: Failed to create hnlid_file"
@@ -668,18 +698,7 @@ echo_pty -n "...."
 	# HERE: Instance does not exists.
 }
 
-### Create ONION directory:
-# This script runs under UID=1000 (root) and does not have write permission to
-# /onion. Thus jump via docker.
-## NOTE: Not need because docker-run will create the mount point (-v forces creation)
-# [[ ! -d "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}" ]] && { 
-# 	DEBUGF "Creating /onion/${SF_HOSTNAME,,}"
-# 	if [[ -z $SF_EMU ]]; then
-# 		exec_devnull docker exec "sf-host${SF_HOST_CONTAINER_NAME_SUFFIX}" mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}"
-# 	else
-# 		mkdir "${SF_WWW_ROOT_DIR}/${SF_HOSTNAME,,}" || ERREXIT
-# 	fi
-# }
+### Create ONION directory => From within encfsd (to set XFS quota)
 
 # Starting GUEST shell
 # Challenge: Keep user processes running that got spawned in the background

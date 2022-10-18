@@ -171,6 +171,7 @@ init_config_run()
   mergedir "sfbin"
 }
 
+
 docker_fixdir()
 {
   [[ ! -d /sf/docker ]] && return
@@ -189,6 +190,33 @@ docker_fixdir()
   mv /var/lib/docker/* /sf/docker/ || return
   rmdir /var/lib/docker || return
   ln -s /sf/docker /var/lib/docker || return
+}
+
+# Install $1 from provision/system to ${2}/${1}
+xinstall()
+{
+  local fn
+  local dir
+  fn="$1"
+  dir="$2"
+
+  [[ -f "${dir}/${fn}" ]] && { CONFLICT+=("${dir}/${fn}"); return 1; }
+
+  cp -a "${SFI_SRCDIR}/provision/system/${fn}" "${dir}" || ERREXIT 233
+}
+
+docker_config()
+{
+  local ncpu
+
+  xinstall daemon.json /etc/docker/
+  xinstall docker_limit.slice /etc/systemd/system/ && {
+    ncpu=$(nproc)
+    [[ -n $ncpu ]] && ncpu=1
+    sed  "s/CPUQuota=.*/CPUQuota=${ncpu}00%/" -i /etc/systemd/system/docker_limit.slice
+    sed 's/^Restart=always.*$/Restart=on-failure\nSlice=docker_limit.slice/' -i /lib/systemd/system/docker.service
+    sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
+  }
 }
 
 docker_start()
@@ -216,6 +244,7 @@ init_basedir
 # Install Docker and docker-cli
 install_docker
 docker_fixdir
+docker_config
 docker_start
 
 # SSHD's login user (normally 'root' with uid 1000) needs to start docker instances
@@ -329,7 +358,7 @@ INFO "SSH                 : ${CDC}ssh ${PORTSTR}${SF_USER:-root}@${SF_FQDN:-UNKN
 INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@${SF_FQDN%.*}.gsocket${CN}"
 
 [[ -n $CONFLICT ]] && {
-  WARN 7 "Not updating these directories in ${SF_BASEDIR}:"
+  WARN 7 "Not updating these:"
   for x in "${CONFLICT[@]}"; do
     INFO "${x}"
   done

@@ -21,6 +21,7 @@ RUN	apt-get update -y \
 		net-tools \
 		procps \
 		psmisc \
+		rsync \
 		vim \
 		zsh \
 		zsh-autosuggestions \
@@ -71,7 +72,6 @@ RUN	apt-get update -y \
 		netcat-traditional \
 		man-db \
 		manpages-dev \
-		rsync \
 		sudo \
 		tcpdump \
 		traceroute \
@@ -79,8 +79,11 @@ RUN	apt-get update -y \
 		wget \
 		whois \
 	&& DEBIAN_FRONTEND=noninteractive /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		assetfinder \
 		dnsmap \
+		fuff \
 		hydra \
+		gobuster \
 		irssi \
 		nbtscan \
 		netdiscover \
@@ -118,6 +121,7 @@ RUN	apt-get update -y \
 		lsof \
 		lynx \
 		mc \
+		mg \
 		mtr \
 		most \
 		neofetch \
@@ -147,6 +151,7 @@ RUN	apt-get update -y \
 		whatweb \
 		wipe \
 		wpscan \
+		wrk \
 	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		default-jdk \
 		exploitdb \
@@ -161,6 +166,7 @@ RUN	apt-get update -y \
 		x11-apps \
 	&& /pkg-install.sh HUGE go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest \
 	&& /pkg-install.sh HUGE go install -v github.com/sagernet/sing-box/cmd/sing-box@latest \
+	&& /pkg-install.sh HUGE go install -v github.com/tomnomnom/waybackurls@latest \
 	&& /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \

@@ -23,6 +23,9 @@ stop_lg()
 	[[ ! -z $is_encfs ]] && { pkill -SIGTERM -f "^\[encfs-${lid}\]" || ERR "[${lid}] pkill"; }
 }
 
+# Return 0 if we shall not check this container further
+# - It's recent
+# - It no longer exists.
 is_recent()
 {
 	local pid
@@ -31,7 +34,8 @@ is_recent()
 
 	[[ -z "${pid}" ]] && { WARN "PID='${pid}' is empty"; return 0; }
 
-	ts=$(stat -c %Y "/proc/${pid}")
+	ts=$(stat -c %Y "/proc/${pid}" 2>/dev/null) || return 0
+	# Can happen that container quit just now. Ignore if failed.
 	[[ -z $ts ]] && return 0
 	# PID is younger than 20 seconds...
 	[[ $((NOW - ts)) -lt 20 ]] && return 0
@@ -63,7 +67,7 @@ check_container()
 	is_recent "${pid%% *}" && return
 
 	# Check how many PIDS are running inside container:
-	pids=($(docker top "$c" -eo pid)) || { DEBUGF "docker top '$c' failed"; return; }
+	pids=($(docker top "$c" -eo pid 2>/dev/null)) || { DEBUGF "docker top '$c' failed"; return; }
 	# DEBUGF "[${CDM}${lid}${CN}] pids(${#pids[@]}) '${pids[*]}'"
 	# 1. PS-Header (UID PID PPID C STIME TTY TIME)
 	# 2. docker-init

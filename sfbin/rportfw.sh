@@ -71,14 +71,27 @@ cmd_delipports()
 {
 	local ipport
 	local r_port
+	local res
+	local err
 
 	[[ "${PROVIDER,,}" != "cryptostorm" ]] && return
 
 	DEBUGF "cmd_delipports ${PROVIDER} '${*}'"
 
+	err=1
 	for ipport in "$@"; do
 		r_port="${ipport##*:}"
-		curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd "-ddelfwd=${r_port}"
+		res=$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd "-ddelfwd=${r_port}" 2>/dev/null) && {
+			[[ $res == *"has been removed"* ]] && unset err
+		}
+
+		[[ -n $err ]] && {
+			ERR "${PROVIDER} Failed to remove Port Forward (${ipport})"
+			echo "------------------------"
+			echo "${res:0:1024}"
+			echo "------------------------"
+		}
+
 		fw_del "${r_port}"
 	done
 }

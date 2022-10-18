@@ -467,6 +467,37 @@ wait_for_resources()
 	wait_for_conn_limit "all" "15"
 }
 
+print_tor_notice()
+{
+
+        echo >&2 -e "\
+[${CR}ERROR${CN}]
+--> ${CDY}You ($YOUR_IP) are trying to connect from a Tor exit node${CN}
+--> Tor exit node access is only available to ${CG}PREMIUM${CN} users
+--> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
+--> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
+        sleep 10
+}
+
+# Check if Tor is disabled due to abuse
+# TODO: Make this work with the IP hashes
+check_tor_status()
+{
+
+        [[ -n $SF_ALLOW_SRC_TOR ]] && return
+        [[ -n $SF_IS_PAYING ]] && return
+        DEBUGF "Tor check: ${YOUR_IP}"
+
+        if [[ -f "/config/host/tor-exit-nodes" ]]; then
+                DEBUGF "Tor nodes file exists!"
+        else
+                DEBUGF "Tor nodes file doesn't exist!"
+        fi
+
+        exec_devnull grep -q -Fx "${YOUR_IP}" /config/host/tor-exit-nodes && { print_tor_notice; ERREXIT 255; }
+
+}
+
 # Check if max servers per IP are in use.
 check_limit_server_by_ip()
 {
@@ -589,6 +620,9 @@ init_vars
 load_limits
 # Keep guest waiting until there are sufficient resources
 wait_for_resources
+
+# Check if the user is using a tor exit node
+check_tor_status
 
 ### Check if the limit has been reached for this user
 check_limit_server_by_ip

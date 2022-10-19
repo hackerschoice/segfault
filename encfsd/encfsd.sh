@@ -25,21 +25,25 @@ do_exit_err()
 
 xmkdir()
 {
+	[[ -z $1 ]] && return 255
 	[[ -d "$1" ]] && return
 	mkdir "$1"
 }
 
 # [name] [secdir] [rawdir]
+# Return 1 when already mounted.
 encfs_mkdir()
 {
 	local name
 	local secdir
+	local rawdir
 	name="$1"
 	secdir="$2"
+	rawdir="$3"
 
 	[[ -d "${secdir}" ]] && mountpoint "${secdir}" >/dev/null && {
 		echo "[encfs-${name}] Already mounted."
-		[[ ! -e "${secdir}/${MARK_FN}" ]] && return 0
+		[[ ! -e "${secdir}/${MARK_FN}" ]] && return 1
 		ERR "[encfs-${name}] Mounted but markfile exist showing not encrypted."
 		return 255
 	}
@@ -71,8 +75,6 @@ encfs_mount()
 	rawdir="$4"
 	opts="$5"
 	info="$6"
-
-	# is_tracked "${l}" && return 0 # Already mounted. Success.
 
 	[[ ! -e "${secdir}/${MARK_FN}" ]] && { echo "THIS-IS-NOT-ENCRYPTED *** DO NOT USE *** " >"${secdir}/${MARK_FN}" || { BAD 0 "Could not create Markfile"; return 255; } }
 
@@ -123,6 +125,12 @@ load_limits()
 	[[ -f "/config/db/db-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/db-${lid}/limits.conf")"
 }
 
+# [name] [reqid]
+mount_done()
+{
+	redis-cli -h sf-redis RPUSH "encfs-${1}-${2}" "OK" >/dev/null
+}
+
 redis_loop_forever()
 {
 	local secdir
@@ -153,8 +161,11 @@ redis_loop_forever()
 
 		secdir="/encfs/sec/user-${name}"
 		rawdir="/encfs/raw/user/user-${name}"
-		encfs_mkdir "${name}" "${secdir}" "${rawdir}" || return
+		encfs_mkdir "${name}" "${secdir}" "${rawdir}"
+		[[ $? -eq 1 ]] && mount_done "${name}" "${reqid}"
+		[[ $? -ne 0 ]] && continue
 
+		# HERE: Not yet mounted.
 		# Set XFS limits
 		load_limits "${name}"
 		[[ -n $SF_USER_FS_INODE_MAX ]] || [[ -n $SF_USER_FS_BYTES_MAX ]] && {
@@ -183,8 +194,7 @@ redis_loop_forever()
 		}
 
 		# Success. Tell the guest that EncFS is ready (newly mounted or was mounted)
-		# prints "1" to stdout.
-		redis-cli -h sf-redis RPUSH "encfs-${name}-${reqid}" "OK" >/dev/null
+		mount_done "${name}" "${reqid}"
 	done
 }
 

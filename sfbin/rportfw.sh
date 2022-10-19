@@ -170,7 +170,7 @@ cmd_moreports()
 		[[ $members_num -ge $req_num ]] && break
 	done
 
-	# Could be a temporary failure of curl (200) or fatal (255)
+	# Could be a temporary failure of curl (200) or fatal (255, out of ports)
 	[[ $members_num -le 0 ]] && return "$err"
 
 	echo "${members[*]}"

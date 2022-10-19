@@ -201,6 +201,7 @@ remport_provider()
 	lid="$1"
 	provider="$2"
 
+	[[ "${provider,,}" != "cryptostorm" ]] && return
 	shift 2
 	[[ ${#@} -lt 1 ]] && return
 
@@ -213,6 +214,10 @@ remport_provider()
 	# with user's IP.
 	# DELIPPORTS+=($@)
 	docker exec "sf-${provider,,}" /sf/bin/rportfw.sh delipports "$@"
+
+	# Might have encountered an error in cmd_fillstock() and remove the provider.
+	# Add provider back. This will trigger a re-fill eventuallly.
+	redr SADD portd:providers "${provider}" >/dev/null
 
 	# Delete from assgned-$provider list the specifuc IPPORT
 	local ipport

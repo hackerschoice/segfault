@@ -288,10 +288,14 @@ print_goodbye()
 	[[ -z $IS_PTY ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
-	n="$(bash -c "docker exec \"lg-${LID}\" pgrep . 2>/dev/null|wc -l")"
+	# n="$(bash -c "docker exec \"lg-${LID}\" pgrep . 2>/dev/null|wc -l")"
+
+	n=$(IFS=$'\n' n=($(docker top "lg-${LID}" -o pid )); echo "${#n[@]}")
+	[[ ! $n -gt 1 ]] && n=1
+	((n--))
+
 	DEBUGF "Processes running: $n"
 	if [[ "$n" -gt 2 ]]; then
-		# echo -e "Number of processes running: ${CDY}$((n-2))${CN}"
 		# Display the running processes
 		str="process is"
 		[[ "$n" -gt 3 ]] && str="processes are"
@@ -371,7 +375,6 @@ mk_hostname()
 
 	SF_HOSTNAME="${english[$m]}"
 	SF_HOSTNAME+="${english[$n]}"
-	DEBUGF "SF_HOSTNAME=$SF_HOSTNAME, SF_NUM=${SF_NUM}, NUM=$NUM"
 	unset NUM
 	unset english
 }

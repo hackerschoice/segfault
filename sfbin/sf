@@ -34,7 +34,7 @@ xfs_init_quota()
 
 	command -v xfs_quota &>/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
 
-	grep "^${prj}" /etc/projid >/dev/null || echo "${prj}:${id}" >>/etc/projid
+	grep "^${prj}" /etc/projid &>/dev/null || echo "${prj}:${id}" >>/etc/projid
 	# This survives a reboot but maybe our parameters have changed. Set to latest:
 	xfs_quota -x -c "limit -p ihard=${ihard} bhard=${bhard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
 	xfs_quota -x -c "project -s -p${dir} ${prj}" >/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }

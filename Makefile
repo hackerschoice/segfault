@@ -1,4 +1,4 @@
-VER := 0.3.3d
+VER := 0.3.4
 
 all:
 	make -C guest
@@ -48,6 +48,8 @@ FILES_PROVISION += "segfault-$(VER)/provision/funcs_al2.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/funcs_ubuntu.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/init-linux.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/system/funcs"
+FILES_PROVISION += "segfault-$(VER)/provision/system/docker_limit.slice"
+FILES_PROVISION += "segfault-$(VER)/provision/system/daemon.json"
 FILES_PROVISION += "segfault-$(VER)/provision/env.example"
 
 FILES_ENCFSD += "segfault-$(VER)/encfsd/Makefile"

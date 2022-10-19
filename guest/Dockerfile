@@ -81,7 +81,7 @@ RUN	apt-get update -y \
 	&& DEBIAN_FRONTEND=noninteractive /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		assetfinder \
 		dnsmap \
-		fuff \
+		ffuf \
 		hydra \
 		gobuster \
 		irssi \

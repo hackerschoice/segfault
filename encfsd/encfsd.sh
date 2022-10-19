@@ -26,7 +26,7 @@ do_exit_err()
 xmkdir()
 {
 	[[ -z $1 ]] && return 255
-	[[ -d "$1" ]] && return
+	[[ -d "$1" ]] && return 0
 	mkdir "$1"
 }
 
@@ -37,6 +37,7 @@ encfs_mkdir()
 	local name
 	local secdir
 	local rawdir
+
 	name="$1"
 	secdir="$2"
 	rawdir="$3"
@@ -162,13 +163,15 @@ redis_loop_forever()
 		secdir="/encfs/sec/user-${name}"
 		rawdir="/encfs/raw/user/user-${name}"
 		encfs_mkdir "${name}" "${secdir}" "${rawdir}"
-		[[ $? -eq 1 ]] && mount_done "${name}" "${reqid}"
-		[[ $? -ne 0 ]] && continue
+		ret=$?
+		[[ $ret -eq 1 ]] && mount_done "${name}" "${reqid}"
+		[[ $ret -ne 0 ]] && continue
 
 		# HERE: Not yet mounted.
 		# Set XFS limits
 		load_limits "${name}"
 		[[ -n $SF_USER_FS_INODE_MAX ]] || [[ -n $SF_USER_FS_BYTES_MAX ]] && {
+
 			SF_NUM=$(<"/config/db/db-${name}/num") || continue
 			SF_HOSTNAME=$(<"/config/db/db-${name}/hostname") || continue
 			prjid=$((SF_NUM + 10000000))
@@ -177,6 +180,7 @@ redis_loop_forever()
 			err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; continue; }
 			is_xfs_limit=1
 		}
+
 
 		# Mount if not already mounted. Continue on error (let client hang)
 		encfs_mount "${name}" "${secret}" "${secdir}" "${rawdir}" "noatime" "/sec (INODE_MAX=${SF_USER_FS_INODE_MAX}, BYTES_MAX=${SF_USER_FS_BYTES_MAX})" || continue

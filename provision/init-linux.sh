@@ -212,8 +212,10 @@ docker_config()
   xinstall daemon.json /etc/docker/
   xinstall docker_limit.slice /etc/systemd/system/ && {
     ncpu=$(nproc)
-    [[ -n $ncpu ]] && ncpu=1
-    sed  "s/CPUQuota=.*/CPUQuota=${ncpu}00%/" -i /etc/systemd/system/docker_limit.slice
+    [[ -z $ncpu ]] && ncpu=1
+    # Always reserver 5% for host
+    maxp=$((ncpu * 100 - 5))
+    sed  "s/CPUQuota=.*/CPUQuota=${maxp}%/" -i /etc/systemd/system/docker_limit.slice
     sed 's/^Restart=always.*$/Restart=on-failure\nSlice=docker_limit.slice/' -i /lib/systemd/system/docker.service
     sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
   }

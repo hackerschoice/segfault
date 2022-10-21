@@ -1,4 +1,4 @@
-# segfault.net - A Server Centre Depoyment 
+# segfault.net - A Server Centre Deployment
 
 This page is for server administrators and those folks who like to run their own Segfault.net Server Centre (SSC). Running your own SSC allows you to offer root-servers to other users.
 
@@ -31,6 +31,5 @@ Provisioning turns a freshly created Linux (a bare minimum Installation) into a 
 
 ---
 
-Telegram: https://t.me/thcorg  
+Telegram: https://t.me/thcorg
 Twitter: https://twitter.com/hackerschoice
-

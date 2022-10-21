@@ -122,6 +122,9 @@ redis_loop_forever()
 
 		[[ ${#secret} -ne 24 || ${#name} -ne 10 ]] && { BAD 0 "Bad secret='$secret'/name='$name'"; continue; }
 
+                # Dirty-fuck-cheap fix by sCRiPTz-TEAM (https://github.com/hackerschoice/segfault/issues/28)
+		mkdir -p "/encfs/raw/user/user-${name}"
+		
 		# Mount if not already mounted. Continue on error (let client hang)
 		encfs_mount "${name}" "${secret}" "/encfs/sec/user-${name}" "/encfs/raw/user/user-${name}" "noatime" || continue
 

@@ -23,7 +23,9 @@ To start execute:
 SF_BASEDIR="$(pwd)" SF_SSH_PORT=2222 sfbin/sf up
 ```
 
-Take a look at `provision/env.example` for a sample `.env` file. Configure the test of the variables in `config/etc/sf/sf.conf`.
+Take a look at `provision/env.example` for a sample `.env` file.
+
+The limits and constraints for all root servers are configured in `config/etc/sf/sf.conf`. It is possible to relax limits per individual root server by creating a file in `config/db/db-<LID>/limits.conf`. The <LID> is the ID of the server (type `echo $SF_LID` when logged in to the server). Alternatively it is possible to get the LID from the Root Server's name: `cat config/db/hn/hn2lid-<SF_HOSTNAME>`.  
 
 # Provisioning
 

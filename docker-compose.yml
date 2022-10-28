@@ -68,8 +68,8 @@ services:
 
   sf-containerguard:
     build: cleaner/cg
-    image: sf-cg
-    container_name: sf-cg
+    image: sf-containerguard
+    container_name: sf-containerguard
     restart: ${SF_RESTART:-on-failure}
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"

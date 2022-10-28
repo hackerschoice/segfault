@@ -4,6 +4,7 @@
 
 sed -i 's/#\(.*\)prompt_symbol=/\1prompt_symbol=/g' /etc/skel/.zshrc && \
 sed -i 's/\(\s*PROMPT=.*\)n└─\(.*\)/\1n%{%G└%}%{%G─%}\2/g' /etc/skel/.zshrc && \
+sed -i '/\^P toggle_oneline_prompt/d' /etc/skel/.zshrc && \
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.zshrc && \
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.bashrc && \
 sed -i 's/\(\s*\)set mouse=/"\1set mouse=/g' /usr/share/vim/vim90/defaults.vim && \
@@ -39,4 +40,3 @@ ln -s /sf/bin/sf-motd.sh /usr/bin/help && \
 echo DONE && exit 0
 
 exit 254
-

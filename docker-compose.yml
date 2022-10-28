@@ -66,6 +66,15 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
+  sf-containerguard:
+    build: cleaner/cg
+    image: sf-cg
+    container_name: sf-cg
+    restart: ${SF_RESTART:-on-failure}
+    volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock"
+    - ${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config
+
   sf-portd:
     build: encfsd
     image: sf-encfsd
@@ -262,7 +271,7 @@ services:
       vpn-net:
         ipv4_address: 172.20.0.111
     cap_add:
-      - NET_ADMIN    
+      - NET_ADMIN
     restart: ${SF_RESTART:-on-failure}
     dns: 172.20.0.53
     depends_on:
@@ -407,4 +416,3 @@ networks:
       config:
         - subnet: 10.11.0.0/16
         # default gw is always 10.11.0.1 and is the host side of the bridge (?)
-

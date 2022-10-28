@@ -143,7 +143,6 @@ func stopContainersBasedOnUsage(cli *client.Client) {
 }
 
 // containerUsage calculates the CPU usage of a container.
-// helper function for checkContainersUsage().
 func containerUsage(cli *client.Client, cID string) float64 {
 	ctx := context.Background()
 	stats, err := cli.ContainerStats(ctx, cID, false)
@@ -161,9 +160,8 @@ func containerUsage(cli *client.Client, cID string) float64 {
 		log.Error(b)
 	}
 
-	// calculations
 	// https://github.com/docker/cli/blob/53f8ed4bec07084db4208f55987a2ea94b7f01d6/cli/command/container/stats_helpers.go#L166
-	// calculate the change for the cpu usage of the container in between readings
+	// calculations
 	cpu_delta := float64(result.CPUStats.CPUUsage.TotalUsage) - float64(result.PrecpuStats.CPUUsage.TotalUsage)
 	system_cpu_delta := result.CPUStats.SystemCPUUsage - result.PrecpuStats.SystemCPUUsage
 	number_cpus := result.CPUStats.OnlineCpus
@@ -180,7 +178,7 @@ type LogData struct {
 	action    string
 }
 
-// avoid running mkdir every time we call save
+// run mkdir only once
 var mkdirOnce = sync.Once{}
 
 func (a LogData) save(path string) error {

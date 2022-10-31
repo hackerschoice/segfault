@@ -339,7 +339,7 @@ services:
       - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
-      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
+      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   nginx:

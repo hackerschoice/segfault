@@ -16,8 +16,6 @@ SFI_SRCDIR="$(cd "$(dirname "${0}")/.." || exit; pwd)"
 source "${SFI_SRCDIR}/provision/system/funcs" || exit 255
 NEED_ROOT
 
-DEBUGF "SFI_SRCDIR=${SFI_SRCDIR}"
-
 SUDO_SF()
 {
   DEBUGF "${SF_HOST_USER} $*"
@@ -34,7 +32,7 @@ init_vars()
     ERREXIT 255 "Unknown Linux flavor: No apt-get and no yum."
   fi
 
-  [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set."
+  [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set. Try \`export SF_SEED=\"\$(head -c 1024 /dev/urandom |base64| tr -dc '[:alpha:]' | head -c 32)\"\`"
 }
 
 
@@ -143,7 +141,6 @@ init_config_run()
   # Create ./data or symlink correctly.
   [[ ! -d "${SF_DATADIR}" ]] && mkdir -p "${SF_DATADIR}"
   [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
-  [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
   [[ ! "${SF_BASEDIR}/data" -ef "${SF_DATADIR}" ]] && ln -s "${SF_DATADIR}" "${SF_BASEDIR}/data"
 
   [[ ! -d "${SF_CONFDIR}" ]] && mkdir -p "${SF_CONFDIR}"
@@ -155,9 +152,10 @@ init_config_run()
   mergedir "config/etc/sf" && IS_ETCSF_UPDATE=1
   mergedir "config/etc/nginx"
   mergedir "config/etc/redis"
+  mergedir "config/etc/hosts"
 
-  curl -fsSL 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' \
-    | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
+  [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
+  [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
 
   # Setup /dev/shm/sf-u1001/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then
@@ -170,7 +168,6 @@ init_config_run()
   [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
 }
-
 
 docker_fixdir()
 {
@@ -209,8 +206,8 @@ docker_config()
 {
   local ncpu
 
-  xinstall daemon.json /etc/docker/
-  xinstall docker_limit.slice /etc/systemd/system/ && {
+  xinstall daemon.json /etc/docker
+  xinstall docker_limit.slice /etc/systemd/system && {
     ncpu=$(nproc)
     [[ -z $ncpu ]] && ncpu=1
     # Always reserver 5% for host
@@ -219,6 +216,7 @@ docker_config()
     sed 's/^Restart=always.*$/Restart=on-failure\nSlice=docker_limit.slice/' -i /lib/systemd/system/docker.service
     sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
   }
+  systemctl daemon-reload
 }
 
 docker_start()
@@ -294,22 +292,23 @@ init_config_run
   unset HOST
 }
 
-
 DEBUGF "SF_FQDN=${SF_FQDN}"
 # Create '.env' file for docker-compose
 # .env needs to be where the images are build (in the source directory)
-ENV="${SFI_SRCDIR}/.env"
+ENV="${SF_CONFDIR}/.env"
+[[ ! -e "${SFI_SRCDIR}/.env" ]] && ln -sf "${ENV}" "${SFI_SRCDIR}/.env"
 if [[ -e "${ENV}" ]]; then
   IS_USING_EXISTING_ENV_FILE=1
+  CONFLICT+=("${ENV}");
 else
-  SUDO_SF "cp \"${SFI_SRCDIR}/provision/env.example\" \"${ENV}\" && \
-  sed -i 's/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR//\//\\/}/' \"${ENV}\" && \
-  sed -i 's/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR//\//\\/}/' \"${ENV}\" && \
-  sed -i 's/.*SF_FQDN.*/SF_FQDN=${SF_FQDN//\//\\/}/' \"${ENV}\"" || ERREXIT 120 failed
-  [[ -n $SF_SSH_PORT ]] && { SUDO_SF "sed -i 's/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/' \"${ENV}\"" || ERREXIT 121 failed; }
-  [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { SUDO_SF "sed -i 's/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
-  [[ -n $SF_MULLVAD_CONFIG ]] && { SUDO_SF "sed -i 's/.*SF_MULLVAD_CONFIG.*/SF_MULLVAD_CONFIG=${SF_MULLVAD_CONFIG//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
-  [[ -n $SF_CRYPTOSTORM_CONFIG ]] && { SUDO_SF "sed -i 's/.*SF_CRYPTOSTORM_CONFIG.*/SF_CRYPTOSTORM_CONFIG=${SF_CRYPTOSTORM_CONFIG//\//\\/}/' \"${ENV}\"" || ERREXIT 121 failed; }
+  cp "${SFI_SRCDIR}/provision/env.example" "${ENV}" &&
+  sed "s/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR//\//\\/}/" -i "${ENV}" &&
+  sed "s/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR//\//\\/}/" -i "${ENV}" &&
+  sed "s/.*SF_FQDN.*/SF_FQDN=${SF_FQDN//\//\\/}/" -i "${ENV}" || ERREXIT 120 failed
+  [[ -n $SF_SSH_PORT ]] && { sed "s/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/" -i "${ENV}" || ERREXIT 121 failed; }
+  [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { sed "s/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY//\//\\/}/" -i "${ENV}" || ERREXIT 121 failed; }
+  [[ -n $SF_MULLVAD_CONFIG ]] && { sed "s/.*SF_MULLVAD_CONFIG.*/SF_MULLVAD_CONFIG=${SF_MULLVAD_CONFIG//\//\\/}/" -i "${ENV}" || ERREXIT 121 failed; }
+  [[ -n $SF_CRYPTOSTORM_CONFIG ]] && { sed "s/.*SF_CRYPTOSTORM_CONFIG.*/SF_CRYPTOSTORM_CONFIG=${SF_CRYPTOSTORM_CONFIG//\//\\/}/" -i "${ENV}" || ERREXIT 121 failed; }
 fi
 
 # Copy all relevant env variables into config/etc/sf.conf
@@ -325,35 +324,29 @@ fi
   sfbin/sf build -q && \
   docker network prune -f) || ERREXIT
 
-if docker ps | grep -E "sf-host|sf-router" >/dev/null; then
-  WARNMSG="A SEGFAULT is already running."
-  IS_DOCKER_NEED_MANUAL_START=1
-else
-  docker container rm sf-host sf-nordvpn sf-mullvad sf-cryptostorm &>/dev/null
-  (cd "${SFI_SRCDIR}" && SF_SEED="${SF_SEED}" sfbin/sf up --force-recreate -d) || { WARNMSG="Could not start docker-compose."; IS_DOCKER_NEED_MANUAL_START=1; }
-fi
-
 GS_SECRET=$(echo -n "GS-${SF_SEED}${SF_FQDN}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 12)
 
 echo -e "***${CG}SUCCESS${CN}***"
 [[ -z $IS_USING_EXISTING_ENV_FILE ]] || WARN 4 "Using existing .env file (${ENV})"
-[[ -z $IS_DOCKER_NEED_MANUAL_START ]] || {
-  WARN 5 "${WARNMSG} Please run:"
-  INFO "(cd \"${SFI_SRCDIR}\" && "'\\\n'"\
-    docker-compose down; docker stop \$(docker ps -q --filter name='^(lg-|encfs-)'); "'\\\n'"\
-    docker network prune -f; docker container rm sf-host 2>/dev/null; "'\\\n'"\
-    SF_SEED=\"${SF_SEED}\" sfbin/sf up --force-recreate -d)"
-}
+# INFO "To Start       :(cd \"${SFI_SRCDIR}\" && "'\\\n'"\
+#   docker-compose down; docker stop \$(docker ps -q --filter name='^(lg-|encfs-)'); "'\\\n'"\
+#   docker network prune -f; docker container rm sf-host 2>/dev/null; "'\\\n'"\
+#   SF_SEED=\"${SF_SEED}\" sfbin/sf up --force-recreate -d)"
+
 [[ -z $SF_NORDVPN_PRIVATE_KEY ]] && {
   WARN 6 "NordVPN ${CR}DISABLED${CN}. Set SF_NORDVPN_PRIVATE_KEY= to enable."
   INFO "To retrieve the PRIVATE_KEY try: \n\
     ${CDC}docker run --rm --cap-add=NET_ADMIN -e USER=XXX -e PASS=YYY bubuntux/nordvpn:get_private_key${CN}"
 }
+[[ -z $SF_MULLVAD_CONFIG ]] && WARN 6 "MullVad ${CR}DISABLED${CN}. Set SF_MULLVAD_CONFIG= to enable."
+[[ -z $SF_CRYPTOSTORM_CONFIG ]] && WARN 6 "CrytoStorm ${CR}DISABLED${CN}. Set SF_CRYPTOSTORM_CONFIG= to enable"
+
 [[ -n $IS_SSH_GOT_MOVED ]] && INFO "${CY}System's SSHD was in the way and got moved to ${SF_SSH_PORT_MASTER}${CN}"
 
 INFO "Basedir             : ${CC}${SF_BASEDIR}${CN}"
 INFO "SF_SEED             : ${CDY}${SF_SEED}${CN}"
 INFO "Password            : ${CDY}${SF_USER_PASSWORD:-segfault}${CN}"
+INFO "To Start            : ${CDY}SF_SEED='$SF_SEED' sfbin/sf up --force-recreate${CN}"
 
 [[ -n $SF_SSH_PORT ]] && PORTSTR="-p${SF_SSH_PORT} "
 INFO "SSH                 : ${CDC}ssh ${PORTSTR}${SF_USER:-root}@${SF_FQDN:-UNKNOWN}${CN}"

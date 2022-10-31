@@ -18,10 +18,19 @@ ERREXIT()
 	exit "$code"
 }
 
-# add [src-dir] [dst-dir] [filename]
+# add [PORT]
 xadd()
 {
 	cp "/var/lib/tor/hidden/service-${1}/hostname" "/config/guest/onion_hostname-${1}"
+	chmod 644 "/config/guest/onion_hostname-${1}"
+}
+
+sleep_copy()
+{
+	sleep 5
+	xadd 22
+	xadd 80
+	exit 0
 }
 
 # Route all traffic that comes to this instance through TOR.
@@ -30,20 +39,21 @@ iptables -t nat -A PREROUTING -p tcp ! -d sf-tor --syn -j REDIRECT --to-ports 90
 ip route add 172.22.0.22/32 via 172.20.0.2
 ip route add 172.20.1.80/32 via 172.20.0.2
 
-[[ -d /var/lib/tor/hidden ]] || ERREXIT 254 "Not found: /var/lib/tor/hidden. Forgot -v option?"
-
+chmod 700 /var/lib/tor
 chown -R tor /var/lib/tor/hidden || ERREXIT
 chmod -R 700 /var/lib/tor/hidden || ERREXIT
-chmod 644 /var/lib/tor/hidden/service-22/hostname
-chmod 644 /var/lib/tor/hidden/service-80/hostname
 
-xadd 22
-xadd 80
-# echo -e "ONION: ${CG}http://$(cat /var/lib/tor/hidden_service/hostname 2>/dev/null)${CN}"
+# TOR does not have an option to generate keys. Instead wait in the
+# background until keys are generated and then copy hostname to
+# guest's config dir.
+[[ ! -f /var/lib/tor/hidden/service-22/hostname ]] && sleep_copy &
+
+# chmod 644 /var/lib/tor/hidden/service-22/hostname
+# chmod 644 /var/lib/tor/hidden/service-80/hostname
 
 if [[ -f /config/host/etc/tor/torrc ]]; then
-	exec su -s /bin/ash - tor -c "tor -f /config/host/etc/tor/torrc"
+	exec su -s /bin/ash - tor -c "tor --hush -f /config/host/etc/tor/torrc"
 else
-	exec su -s /bin/ash - tor -c "tor"
+	exec su -s /bin/ash - tor -c "tor --hush"
 fi
 # NOT REACHED

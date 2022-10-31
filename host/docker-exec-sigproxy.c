@@ -17,8 +17,8 @@
 //
 // This problem kicked our butts at thc.org/segfault. We spawn user shells using
 // 'docker exec'. When sshd detects a network error it sends a SIGHUP to 'docker exec'.
-// It does not forward the signal to the started instance (to 'ash'). 
-// Thus we ended up with hundrets of stale 'ash -il' shells that were not
+// Docker does not forward the signal to the started instance (to 'ash'). 
+// Thus we ended up with hundreds of stale 'ash -il' shells that were not
 // connected to any sshd.
 //
 // This hack solves the problem by intercepting the traffic between the docker sockets,
@@ -32,6 +32,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/un.h>
 #include <sys/epoll.h>
@@ -49,7 +50,7 @@
 // Comment this line if 'docker-exec-sigproxy exec ...' is run from the HOST 
 #define SIGPROXY_INSIDE_CONTAINER   (1)
 
-//#define DEBUG (1)
+// #define DEBUG (1)
 FILE *dout;
 #ifdef DEBUG
 # define DEBUGF(a...) do{fprintf(dout, "\033[0;33mDEBUG\033[0m %s:%d ", __func__, __LINE__); fprintf(dout, a); fflush(dout);}while(0)
@@ -58,14 +59,16 @@ FILE *dout;
 #endif
 
 static pid_t pid;
+static pid_t mypid;
 static int lsox;
 static int efd;
 static struct sockaddr_un addr;
 static char *container_id;
 static char *exec_id;
 static char sock_path[1024];
+static void sig_forward(int sig);
 
-void
+static void
 docker_exec(int argc, char *argv[])
 {
 	pid = fork();
@@ -74,20 +77,23 @@ docker_exec(int argc, char *argv[])
 	{
 		// HERE: Parent.
 		// Need STDIN open to fix stty after docker exits...
-		// close(0);
-		// close(1);
-		// if (dout != stderr)
-		// 	close(2);
+		close(0);
+		close(1);
+		close(2);
+		// Neither child nor parent needs to become session leader (setsid).
+		// This way SIGHUP/SIGPIP will be send to both and I dont need to
+		// kill the original 'docker exec' (our child).
 		return;
 	}
 
 	// HERE: Child.
-	// Become session leader so that any signal does not reach real docker.
-	// This gives us time to retrieve the PID before it dies..
-	// Once we proxied all pids then we shall forward the signal to this child.
-	setsid();
+	// This real 'docker exec' (my child) is on PROXY_SOCK.
+	// The 'real' receives STDIN/STDOUT (from SSHD) and pipes them into
+	// PROXY_SOCK where we pick it up and forward STDIN/STDOUT to real DOCKER_SOCK.
+	// All command from here will be intercepted by parent (proxy) for
+	// forwarded (by parent/proxy) to real DOCKER_SOCK.
 	char buf[1024];
-	snprintf(buf, sizeof buf, "DOCKER_HOST=unix://%.900s", sock_path);
+	snprintf(buf, sizeof buf, "DOCKER_HOST=unix://%.900s", sock_path /* PROXY_SOCK */);
 	putenv(buf);
 	argv[0] = "docker";
 	execvp(argv[0], argv);
@@ -102,7 +108,7 @@ struct _peer
 };
 
 // Add an event to wake if there is something to read on fd.
-void
+static void
 ev_peer_add(struct _peer *p, int fd, int flags)
 {
 	p->fd = fd;
@@ -115,14 +121,16 @@ ev_peer_add(struct _peer *p, int fd, int flags)
 	epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ev);
 }
 
+static struct _peer *p_docker_exec;
 // Relay between these two peers.
 static void
-buddy_up(int in, int out)
+buddy_up(int in /* lsox accept */, int out)
 {
 	struct _peer *p = malloc(sizeof *p);
 	struct _peer *buddy;
 
-	ev_peer_add(p, in, 1);
+	ev_peer_add(p, in, 1); // Real 'docker exec'
+	p_docker_exec = p;
 
 	p->buddy = malloc(sizeof *p);
 	buddy = p->buddy;
@@ -134,16 +142,17 @@ buddy_up(int in, int out)
 // New incoming connection.
 // 1. Connect to real socket
 // 2. Relay traffic between the two sockets.
-void
+static void
 ev_accept(void)
 {
 	int in;
 	int out;
 
-	DEBUGF("Accept\n");
 	in = accept(lsox, NULL, NULL);
 	if (in < 0)
 		exit(255);
+
+	signal(SIGCHLD, SIG_IGN);
 
 	// Connect to original socket.
 	out = socket(AF_UNIX, SOCK_STREAM| SOCK_CLOEXEC, 0);
@@ -176,7 +185,7 @@ parse(char *buf, ssize_t sz)
 		exec_id = strdup(ptr);
 }
 
-int
+static int
 dispatch(struct epoll_event *evs, int count)
 {
 	struct epoll_event *e;
@@ -200,7 +209,13 @@ dispatch(struct epoll_event *evs, int count)
 			struct _peer *buddy = p->buddy;
 			sz = read(p->fd, buf, sizeof buf - 1);
 			if (sz <= 0)
-				return -1;
+			{
+				snprintf(buf, sizeof buf, "/dev/null-flag-is-%d-fd-%d", p->flags, p->fd);
+				struct stat sb; stat(buf, &sb);
+				if (p->flags == 0)
+					return -1; // dockerd closed?
+				return 200; // real 'docker exec' closed.
+			}
 			buf[sz] = '\0';
 			// DEBUGF("read(%d)=%zd '%s'\n", p->fd, sz, buf);
 			if (write(buddy->fd, buf, sz) != sz)
@@ -215,45 +230,40 @@ dispatch(struct epoll_event *evs, int count)
 	return 0;
 }
 
+
 static void
 cb_signal(int sig)
 {
-	DEBUGF("SIGNAL %d\n", sig);
+	DEBUGF("[%d] SIGNAL %d\n", mypid, sig);
 	if (sig == SIGCHLD)
 	{
-		int wstatus = 0;
-		// The child died. Exit the same way.
-		if (waitpid(pid, &wstatus, 0) == pid)
-		{
-			if (WIFEXITED(wstatus))
-				exit(WEXITSTATUS(wstatus));
-
-			// Disable signal handler for this signal.
-			signal(WTERMSIG(wstatus), SIG_DFL);
-			// Kill myself with the same signal.
-			kill(getpid(), WTERMSIG(wstatus));
-			return; // On return the above signal will be delivered.
-		}
-		exit(252); // SHOULD NOT HAPPEN
+		// This will only happen if the real 'docker exec'
+		// dies before connecting to PROXY SOCK. Normally we will detect
+		// when the child dies by reading on the PROXY_SOCK (EOF).
+		exit(255);
 	}
 
-	// Forward signal to exec'ed pid.
+	// Forward signal to container/pid
+	sig_forward(sig);
+}
+
+static void
+sig_forward(int sig)
+{
 	char cmd[4096];
 
 #ifdef SIGPROXY_INSIDE_CONTAINER
 	// NOTE: This docker-cli is inside a docker already. Thus we need to break out:
-	snprintf(cmd, sizeof cmd, "docker run --rm --pid=host -v "DFL_CONTAINER_DIR"/%s/%s.pid:/pid alpine sh -c 'kill -%d $(cat /pid)'", container_id, exec_id, sig);
+	snprintf(cmd, sizeof cmd, "docker run --rm --pid=host -v "DFL_CONTAINER_DIR"/%s/%s.pid:/pid alpine sh -c '[ -f /pid ] && kill -%d $(cat /pid)'", container_id, exec_id, sig);
 #else
 	snprintf(cmd, sizeof cmd, "kill -%d $(cat "DFL_CONTAINER_DIR"/%s/%s.pid)", sig, container_id, exec_id);
 #endif
-	DEBUGF("cmd=%s\n", cmd);
-	signal(SIGCHLD, SIG_IGN);
-	system(cmd);
-	signal(SIGCHLD, cb_signal);
+	int ret;
+	ret = system(cmd);
+	char buf[1024];
+	snprintf(buf, sizeof buf, "/dev/null-cmd-%d-%s", ret, cmd);
+	struct stat sb; stat(buf, &sb);
 
-	// Forward signal to child.
-	if (pid > 0)
-		kill(pid, sig);
 }
 
 static struct termios tios;
@@ -270,6 +280,7 @@ do_exit()
 int
 main(int argc, char *argv[])
 {
+	mypid = getpid();
 #ifdef DEBUG
 	char *ptr = getenv("SF_LOG");
 	if (ptr != NULL)
@@ -288,6 +299,7 @@ main(int argc, char *argv[])
 	signal(SIGPIPE, cb_signal);
 	signal(SIGTERM, cb_signal);
 	signal(SIGURG, cb_signal);
+	signal(SIGWINCH, cb_signal);
 
 	atexit(do_exit);
 	// Create listening socket
@@ -302,6 +314,7 @@ main(int argc, char *argv[])
 	snprintf(addr.sun_path, sizeof addr.sun_path, DFL_DOCKER_SOCK);
 
 	// Start the original docker client
+	signal(SIGCHLD, cb_signal);
 	docker_exec(argc, argv);
 
 	efd = epoll_create1(EPOLL_CLOEXEC);
@@ -313,6 +326,7 @@ main(int argc, char *argv[])
 	epoll_ctl(efd, EPOLL_CTL_ADD, lsox, &ev);
 
 	int nfds;
+	int ret = 0;
 	struct epoll_event events[4];
 	for (;;)
 	{
@@ -323,9 +337,33 @@ main(int argc, char *argv[])
 				continue;
 			break;
 		}
-		if (dispatch(events, nfds) != 0)
+		ret = dispatch(events, nfds);
+		if (ret != 0)
 			break;
 	}
 
-	return 0;
+	char buf[1024];
+	snprintf(buf, sizeof buf, "/dev/null-ret-is-%d", ret);
+	struct stat sb; stat(buf, &sb);
+
+	if (ret > 0)
+	{
+		// HERE: Real 'docker exec' closed connection.
+		// -? Received SIGHUP from SSHD?
+		sig_forward(SIGHUP);
+		exit(209);
+	}
+	if (ret < 0)
+	{
+		// HERE: dockerd closed connection (kernel side).
+		// Did container/pid terminate?
+		// FIXME: find out exit status and exit with same value.
+		// How does 'docker exec' get the exit status of the
+		// container's process?
+		exit(0 /* FIXME */);
+	}
+
+	// HERE: error in epoll_wait()
+	sig_forward(SIGHUP);
+	exit(255);
 }

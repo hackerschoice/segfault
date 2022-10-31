@@ -61,8 +61,9 @@ load_env()
 		for a in "${arr[@]}"; do
 
 			n="${a%%=*}"
+			v="${a#*=}"
 			# Prefer user's environemtn over .env settings.
-			[[ -z "$(eval echo \$$n)" ]] && eval "${a}"
+			[[ -z "$(eval echo \$$n)" ]] && eval "${n}=\"${v}\""
 		done
 	fi
 
@@ -70,8 +71,12 @@ load_env()
 }
 
 load_env
-
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
+
+[[ ! -d "${SF_DATADIR}/everyone-root" ]] && mkdir -p "${SF_DATADIR}/everyone-root"
+[[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
+[[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
+
 [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
 	WARN "Not found: data/share/GeoLite2-City.mmdb"
 	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
@@ -81,7 +86,6 @@ load_env
 	WARN "Not found: data/share/tor-exit-nodes.txt"
 	echo -e "Try \`curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'\`"
 }
-
 
 xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 16384 16G
 

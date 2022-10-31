@@ -142,7 +142,7 @@ init_emu_tor()
 xmkdir()
 {
 	[[ -d "$1" ]] && return
-	mkdir -p "$1"
+	mkdir -p "$1" 2>/dev/null
 }
 
 # segfaultsh started directly from the command shell (for testing & development)
@@ -262,7 +262,7 @@ print_ssh_access()
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
 ${CDC}cat >~/.ssh/id_${key_suffix} ${CDR}<<__EOF__
-${CN}${CF}$(cat "/config/guest/id_ed25519")
+${CN}${CF}$(<"/config/guest/id_ed25519")
 ${CDR}__EOF__
 ${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
 ${CN}${CF}host ${SF_HOSTNAME,,}
@@ -344,12 +344,15 @@ spawn_shell_exit()
 	# Update current IP:
 	touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 	tofile "${YOUR_IP:?}" "/config/self-for-guest/lg-${LID}/ip"
+	## DEBUG BEGIN
+	# tofile "${YOUR_IP:?}" "/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log-ip"
+	# tofile "$(ls -al "/config/self-for-guest/lg-${LID}/")" "/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log-ls"
+	## DEBUG END
 	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
-
 	# Request a reverse Port Forward
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
-	# docker exec
+	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
 	docker-exec-sigproxy exec "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
@@ -389,6 +392,7 @@ setup_fs_limit()
 
 	DOCKER_ARGS+=("--storage-opt")
 	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_LIMIT:?}")
+	DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/hosts:/etc/hosts:ro")
 }
 
 load_limits()
@@ -403,8 +407,8 @@ load_limits()
 	SF_USER_OOM_SCORE=500
 	SF_USER_NICE_SCORE=10
 	SF_LIMIT_SERVER_BY_IP=8
-	SF_ULIMIT_NOFILE="256:256"
-	SF_MAX_LOAD="20" # No new shells until load goes below
+	SF_ULIMIT_NOFILE="1024:4096"
+	SF_MAX_STRAIN="10" # No new shells until load goes below
 
 	# HACK: Use eval-trick to 'source' in a restricted bash shell
 	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(grep ^SF_ "${SF_ETCSF_DIR}/sf.conf")"
@@ -412,6 +416,7 @@ load_limits()
 	# Then souce user specific limits
 	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(grep ^SF_ "${SF_USER_DB_DIR}/limits.conf")"
 
+	SF_MAX_LOAD="$(( ${NPROC:-1} * SF_MAX_STRAIN ))"
 	# DEBUGF "SF_USER_MEMORY_LIMIT=${SF_USER_MEMORY_LIMIT}"
 	# DEBUGF "SF_USER_PIDS_LIMIT=${SF_USER_PIDS_LIMIT}"
 	# DEBUGF "SF_USER_CPU_SHARE=${SF_USER_CPU_SHARE}"
@@ -514,9 +519,9 @@ print_tor_notice()
 check_tor_status()
 {
         [[ -n $SF_ALLOW_SRC_TOR ]] && return
-        [[ ! -f "/config/host/tor-exit-nodes.txt" ]] && return
+        [[ ! -f "/sf/share/tor-exit-nodes.txt" ]] && return
 
-        exec_devnull grep -q -Fx "${YOUR_IP}" /config/host/tor-exit-nodes.txt && { print_tor_notice; ERREXIT 255; }
+        exec_devnull grep -q -Fx "${YOUR_IP}" "/sf/share/tor-exit-nodes.txt" && { print_tor_notice; ERREXIT 255; }
 }
 
 # Check if max servers per IP are in use.
@@ -771,7 +776,7 @@ exec_devnull docker run \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
-	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro" \
+	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/user-${LID}:/sec:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
@@ -808,14 +813,14 @@ iptables -A 'SYN-LIMIT-${c_ip}' -m limit --limit \"1/sec\" --limit-burst 8196 -j
 iptables -A 'SYN-LIMIT-${c_ip}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
 
 # Setup instance
-docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
+exec_devnull docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
 
 echo_pty -e "......[${CG}OK${CN}]"
 
 # Output help of how to connect elegantly
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access
 
-DEBUGF "Status: $(docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
+# DEBUGF "Status: $(docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
 # Spawn shell
 spawn_shell_exit "$@"
 # NOT REACHED

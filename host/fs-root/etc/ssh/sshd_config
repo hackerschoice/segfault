@@ -88,7 +88,7 @@ AuthorizedKeysFile	.ssh/authorized_keys
 #AllowAgentForwarding yes
 # Feel free to re-enable these if your use case requires them.
 AllowTcpForwarding yes
-GatewayPorts no
+GatewayPorts yes
 #X11Forwarding no
 #X11DisplayOffset 10
 #X11UseLocalhost yes

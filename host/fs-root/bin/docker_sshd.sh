@@ -21,16 +21,6 @@ SLEEPEXIT()
 	exit "$code"
 }
 
-create_load_seed()
-{
-	[[ -n $SF_SEED ]] && return
-	[[ ! -f "${SF_CFG_HOST_DIR}/etc/seed/seed.txt" ]] && {
-		head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 32 >"${SF_CFG_HOST_DIR}/etc/seed/seed.txt" || { echo >&2 "Can't create \${SF_BASEDIR}/config/etc/seed/seed.txt"; exit 255; }
-	}
-	SF_SEED="$(cat "${SF_CFG_HOST_DIR}/etc/seed/seed.txt")"
-	[[ -z $SF_SEED ]] && SLEEPEXIT 254 5 "Failed to generated SF_SEED="
-}
-
 setup_sshd()
 {
 	# Default is for user to use 'ssh root@segfault.net' but this can be changed
@@ -72,8 +62,6 @@ SF_CFG_GUEST_DIR="/config/guest"
 # or wont get mounted to user.
 /sf/bin/wait_semaphore.sh /sec/www-root/.IS-ENCRYPTED bash -c exit || exit 123
 
-create_load_seed
-
 setup_sshd
 
 ip route del default
@@ -111,7 +99,8 @@ chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
 # variables to the user's docker instance (sf-guest)
-echo "SF_DNS=\"${SF_DNS}\"
+echo "NPROC=\"$(nproc)\"
+SF_DNS=\"${SF_DNS}\"
 SF_TOR=\"${SF_TOR}\"
 SF_SEED=\"${SF_SEED}\"
 SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"

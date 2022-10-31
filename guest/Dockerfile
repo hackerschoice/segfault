@@ -89,6 +89,8 @@ RUN	apt-get update -y \
 		netdiscover \
 		nmap \
 		pagekite \
+		shadowsocks-libev \
+		shadowsocks-v2ray-plugin \
 		snmpcheck \
 		socat \
 		thc-ipv6 \
@@ -128,10 +130,13 @@ RUN	apt-get update -y \
 		nikto \
 		ngrep \
 		openssh-client \
+		p7zip-full \
 		peass \
 		pip \
 		proxychains \
 		python-is-python3 \
+		python3-venv \
+		python3-virtualenv \
 		recon-ng \
 		rclone \
 		rlwrap \
@@ -144,8 +149,6 @@ RUN	apt-get update -y \
 		ssh-audit \
 		theharvester \
 		tree \
-		unzip \
-		virtualenv \
 		w3m \
 		weechat weechat-plugins weechat-matrix \
 		whatweb \
@@ -186,6 +189,7 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \
+		PyCryptodome \
 	&& /pkg-install.sh LARGE curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.deb \
 	&& /pkg-install.sh LARGE dpkg -i /tmp/lsd.deb \
 	&& /pkg-install.sh LARGE curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \

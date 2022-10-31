@@ -19,6 +19,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var Version string
+var Buildtime string
+
 func init() {
 	if *debugFlag {
 		log.SetLevel(log.DebugLevel)
@@ -40,6 +43,7 @@ func main() {
 	flag.Parse()
 
 	log.Infof("ContainerGuard (CG) started protecting your Segfault.Net instance...")
+	log.Infof("ContainerGuard compiled on %v from commit %v", Buildtime, Version)
 
 	// docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -55,6 +59,7 @@ func main() {
 	var MAX_LOAD = *strainFlag * float64(numCPU)
 	// last recorded loadavg after a trigger event
 	var LAST_LOAD float64 // default value 0.0
+	// we loop every X seconds to check system load
 	var loop_time_s = 5
 
 	var count int

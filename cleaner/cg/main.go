@@ -55,11 +55,23 @@ func main() {
 	var MAX_LOAD = *strainFlag * float64(numCPU)
 	// last recorded loadavg after a trigger event
 	var LAST_LOAD float64 // default value 0.0
+	var loop_time_s = 5
 
-	for range time.Tick(time.Second * 5) {
+	var count int
+	for range time.Tick(time.Second * time.Duration(loop_time_s)) {
+
+		// protect legitimate users
 		if LAST_LOAD != 0.0 { // we got a trigger event
-			if sysLoad1mAvg() < LAST_LOAD {
+			// after 60s stop protecting
+			if count > 60/loop_time_s {
+				LAST_LOAD = 0.0
+				count = 0
+				continue
+			}
+
+			if sysLoad1mAvg() <= LAST_LOAD {
 				LAST_LOAD = sysLoad1mAvg()
+				count++
 				continue
 			}
 

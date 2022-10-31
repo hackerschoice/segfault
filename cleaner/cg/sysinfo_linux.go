@@ -6,7 +6,7 @@ package main
 
 import "golang.org/x/sys/unix"
 
-func sysLoadAvg() float64 {
+func sysLoad1mAvg() float64 {
 	var info unix.Sysinfo_t
 	unix.Sysinfo(&info)
 

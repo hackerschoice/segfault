@@ -1,0 +1,8 @@
+0.3.4 - 2022-11-01
+    * config/etc/hosts
+
+0.3.3d - 2022-10-18
+    * docker_limit.slice 
+    * bash (2^63)-1 fix.
+    * SF_USER_FS_BYTES_MAX and xfs quota
+    * Forbid connections from TOR

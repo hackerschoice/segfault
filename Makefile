@@ -7,6 +7,7 @@ all:
 	make -C encfsd
 	make -C router
 	make -C gsnc
+	make -C cleaner/cg
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/pkg-install.sh"
@@ -73,7 +74,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/redis/redis.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
-FILES_CONFIG += "segfault-$(VER)/config/etc/hosts.txt"
+FILES_CONFIG += "segfault-$(VER)/config/etc/hosts"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
@@ -83,7 +84,14 @@ FILES_ROOT += "segfault-$(VER)/sfbin/rportfw.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 
-FILES += $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Dockerfile"
+FILES_CLEANER += "segfault-$(VER)/cleaner/cg/go.mod"
+FILES_CLEANER += "segfault-$(VER)/cleaner/cg/go.sum"
+FILES_CLEANER += "segfault-$(VER)/cleaner/cg/main.go"
+FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Makefile"
+FILES_CLEANER += "segfault-$(VER)/cleaner/cg/sysinfo_linux.go"
+
+FILES += $(FILES_CLEANER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

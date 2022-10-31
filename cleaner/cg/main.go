@@ -39,31 +39,50 @@ var (
 func main() {
 	flag.Parse()
 
-	var numCPU = runtime.NumCPU()
-	var MAX_LOAD = *strainFlag * float64(numCPU)
 	log.Infof("ContainerGuard (CG) started protecting your Segfault.Net instance...")
 
+	// docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
 	log.Debugf("connected to docker client v%v", cli.ClientVersion())
 
-	for range time.Tick(time.Second) {
-		if sysLoadAvg() <= MAX_LOAD {
+	// number of virtual cores
+	var numCPU = runtime.NumCPU()
+	// MAX_LOAD defines the maximum amount of `strain` each CPU can have
+	// before triggering our cleanup tasks.
+	var MAX_LOAD = *strainFlag * float64(numCPU)
+	// last recorded loadavg after a trigger event
+	var LAST_LOAD float64 // default value 0.0
+
+	for range time.Tick(time.Second * 5) {
+		if LAST_LOAD != 0.0 { // we got a trigger event
+			if sysLoad1mAvg() < LAST_LOAD {
+				LAST_LOAD = sysLoad1mAvg()
+				continue
+			}
+
+			// if load doesn't go down every 5s
+			LAST_LOAD = 0.0 // reset
+		}
+
+		if sysLoad1mAvg() <= MAX_LOAD {
 			continue
 		}
 
-		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", sysLoadAvg(), numCPU, MAX_LOAD)
-		stopContainersBasedOnUsage(cli)
-
-		time.Sleep(time.Second * 10)
+		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", sysLoad1mAvg(), numCPU, MAX_LOAD)
+		LAST_LOAD = sysLoad1mAvg()
+		err = stopContainersBasedOnUsage(cli)
+		if err != nil {
+			log.Error(err)
+		}
 	}
 }
 
 // stopContainersBasedOnUsage iterates through all the containers on the system
 // to find abusive ones and stops them, but only if their name starts w/ lg-*
-func stopContainersBasedOnUsage(cli *client.Client) {
+func stopContainersBasedOnUsage(cli *client.Client) error {
 	const filterPrefix = "/lg-*"
 	opts := types.ContainerListOptions{}
 	opts.All = false // list only running containers
@@ -73,7 +92,7 @@ func stopContainersBasedOnUsage(cli *client.Client) {
 	ctx := context.Background()
 	list, err := cli.ContainerList(ctx, opts)
 	if err != nil {
-		log.Error(err)
+		return err
 	}
 
 	// mu protects `_largestUsage`
@@ -113,7 +132,7 @@ func stopContainersBasedOnUsage(cli *client.Client) {
 			var killThreshold = highestUsage * 0.8
 			const action = "STOP in 2s or KILL"
 
-			// stop all containers where usage > `largestUsage` * 0.8
+			// stop all containers where usage > `highestUsage` * 0.8
 			if usage > killThreshold {
 				log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
 
@@ -130,7 +149,7 @@ func stopContainersBasedOnUsage(cli *client.Client) {
 				name:      c.Names[0],
 				usage:     usage,
 				threshold: killThreshold,
-				load:      sysLoadAvg(),
+				load:      sysLoad1mAvg(),
 				action:    action,
 			}
 			if err := logData.save(*pathFlag); err != nil {
@@ -140,6 +159,8 @@ func stopContainersBasedOnUsage(cli *client.Client) {
 		}(c)
 	}
 	wg.Wait()
+
+	return nil
 }
 
 // containerUsage calculates the CPU usage of a container.

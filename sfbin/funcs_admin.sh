@@ -1,7 +1,7 @@
 #! /bin/bash
 
 [[ $(basename -- "$0") == "funcs_admin.sh" ]] && { echo "ERROR. Use \`source $0\` instead."; exit 1; }
-BASEDIR="$(cd "$(dirname "${PWD}/${BASH_SOURCE[0]}")" || exit; pwd)"
+BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)"
 source "${BASEDIR}/funcs.sh"
 
 # Show overlay2 usage by container REGEX match.

@@ -142,7 +142,7 @@ init_emu_tor()
 xmkdir()
 {
 	[[ -d "$1" ]] && return
-	mkdir -p "$1" 2>/dev/null
+	mkdir -p "$1"
 }
 
 # segfaultsh started directly from the command shell (for testing & development)
@@ -238,7 +238,7 @@ RPUSH portd:blcmd \"getport ${LID}\"\n\
 BLPOP portd:response-${LID} 5" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h sf-redis) || return
 	# DEBUGF "ipport='$ipport'"
 	ipport="${ipport##*$'\n'}"
-	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to set up Reverse Port Forward (ipport='$ipport')"; return; }
+	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to get Reverse Port Forward (ipport='$ipport')"; return; }
 
 	# The PortD add's a /sf/run/self/reverse_forward.
 	DEBUGF "Reverse Port Forward: $ipport"
@@ -392,7 +392,6 @@ setup_fs_limit()
 
 	DOCKER_ARGS+=("--storage-opt")
 	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_LIMIT:?}")
-	DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/hosts:/etc/hosts:ro")
 }
 
 load_limits()
@@ -430,7 +429,8 @@ load_limits()
 	DOCKER_ARGS+=("--cpu-shares=${SF_USER_CPU_SHARE}")
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
 
-	[[ -z $SF_USER_ROOT_FS_LIMIT ]] && DOCKER_ARGS+=("--read-only")
+	[[ -z $SF_USER_ROOT_FS_LIMIT ]] && DOCKER_ARGS+=("--read-only") || DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/hosts:/etc/hosts:ro")
+
 	# Default SHM_SIZE is 64M (if not set). Hard limit is --memory=
 	[[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
@@ -778,7 +778,8 @@ exec_devnull docker run \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/user-${LID}:/sec:slave" \
-	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:slave" \
+	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:ro,slave" \
+	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone/${SF_HOSTNAME}:/everyone/${SF_HOSTNAME}:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
 	-v "${SF_BASEDIR}/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt:/everyone/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt:ro" \
 	-d \

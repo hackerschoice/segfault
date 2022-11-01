@@ -28,6 +28,8 @@ services:
       - apparmor:unconfined
     # xfs_quota needs this :/ FIXME
     privileged: true
+    blkio_config:
+      weight: 500
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_SEED=${SF_SEED}
@@ -77,8 +79,10 @@ services:
     image: sf-containerguard
     container_name: sf-containerguard
     restart: ${SF_RESTART:-on-failure}
+    pid: "host"
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"
+    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task:ro"
     - "${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config"
 
   sf-portd:

@@ -27,13 +27,14 @@ lgwall()
 	local cid
 	[[ -z $2 ]] && { echo >&2 "lgwall LID [message]"; return; }
 	cid=$(docker inspect --format='{{.Id}}' "$1") || return
-	docker inspect --format='{{json .ExecIDs}}' "$1" | jq -r .[] | while read eid; do
-		pid=$(cat "/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/${eid}.pid") || continue
+	for fn in "/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/"*.pid; do
+		pid=$(cat "$fn") || continue
 		[[ $(readlink "/proc/${pid}/fd/2") != "/dev/pts/"* ]] && continue
 		echo -e "$2" >"/proc/${pid}/fd/2"
 	done
 }
 echo -e "${CDC}lgwall <LID> <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
+
 
 # 
 # Show all LID where REGEX matches a process+arguments and optionally stop

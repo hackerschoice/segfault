@@ -28,6 +28,7 @@ lgwall()
 	[[ -z $2 ]] && { echo >&2 "lgwall LID [message]"; return; }
 	cid=$(docker inspect --format='{{.Id}}' "$1") || return
 	for fn in "/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/"*.pid; do
+		[[ $fn == *"init.pid" ]] && continue
 		pid=$(cat "$fn") || continue
 		[[ $(readlink "/proc/${pid}/fd/2") != "/dev/pts/"* ]] && continue
 		echo -e "$2" >"/proc/${pid}/fd/2"

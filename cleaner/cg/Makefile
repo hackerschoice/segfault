@@ -6,12 +6,11 @@ GOLDFLAGS += -X main.Version=$(VERSION)
 GOLDFLAGS += -X main.Buildtime=$(BUILDTIME)
 GOFLAGS = -ldflags "$(GOLDFLAGS)"
 
+all:
+	docker build -t sf-containerguard .
+
 build: pre
 	GOOS=linux GOARCH=amd64 go build $(GOFLAGS)
-
-upload:
-	scp -P64222 cg root@bh.segfault.net:/usr/bin/cg.new
-	ssh -p64222 root@bh.segfault.net mv /usr/bin/cg.new /usr/bin/cg
 
 build-arm: pre
 	GOOS=linux GOARCH=arm go build -o cg-arm
@@ -19,9 +18,8 @@ build-arm: pre
 pre:
 	go mod tidy
 
-docker:
-	docker built -t cg .
-	docker run -it --rm cg
+docker: all
+	docker run -it --rm sf-containerguard
 
 release: build
 	sha256sum cg | tee cg.sum

@@ -32,7 +32,7 @@ xfs_init_quota()
 	ihard=$4
 	bhard=$5
 
-	command -v xfs_quota &>/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+	command -v xfs_quota &>/dev/null || { WARN "[${prj}] Not found: xfs_quota"; return 255; }
 
 	grep "^${prj}" /etc/projid &>/dev/null || echo "${prj}:${id}" >>/etc/projid
 	# This survives a reboot but maybe our parameters have changed. Set to latest:

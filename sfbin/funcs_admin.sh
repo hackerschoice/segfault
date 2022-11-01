@@ -18,20 +18,22 @@ container_df()
 }
 echo -e "${CDC}container_df <regex>${CN}        # eg \`container_df ^lg\`"
 
-# Send a message to all PTS of user.
+# Send a message to all PTS of a specific container
 # Example: lgwall lg-NGVlMTNmMj "Get \nlost\n"
-# NOTE: This will fail if container's PID limit or resource limit
-# has been reached (and thus cant be used by sf-containerguard!)
 # [LID] [message]
 lgwall()
 {
 	local pid
+	local cid
 	[[ -z $2 ]] && { echo >&2 "lgwall LID [message]"; return; }
-	pid=$(docker inspect --format='{{.State.Pid}}' "$1") || return
-	nsenter --target="$pid" -a /sf/bin/wall.sh "$2"
+	cid=$(docker inspect --format='{{.Id}}' "$1") || return
+	docker inspect --format='{{json .ExecIDs}}' "$1" | jq -r .[] | while read eid; do
+		pid=$(cat "/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/${eid}.pid") || continue
+		[[ $(readlink "/proc/${pid}/fd/2") != "/dev/pts/"* ]] && continue
+		echo -e "$2" >"/proc/${pid}/fd/2"
+	done
 }
 echo -e "${CDC}lgwall <LID> <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
-
 
 # 
 # Show all LID where REGEX matches a process+arguments and optionally stop

@@ -42,7 +42,9 @@ var (
 func main() {
 	flag.Parse()
 
-	log.Infof("ContainerGuard (CG) started protecting your Segfault.Net instance...")
+	hostname, _ := os.Hostname()
+
+	log.Infof("ContainerGuard (CG) started protecting [%v]", hostname)
 	log.Infof("ContainerGuard compiled on %v from commit %v", Buildtime, Version)
 
 	// docker client
@@ -153,6 +155,9 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 			if usage > killThreshold {
 				log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
 
+				// message user that he's being abusive
+				go sendMessage(cli, c.ID)
+
 				ctx := context.Background()
 				err := cli.ContainerStop(ctx, c.ID, &killTimeout)
 				if err != nil {
@@ -206,6 +211,10 @@ func containerUsage(cli *client.Client, cID string) float64 {
 	usage := (float64(cpu_delta) / float64(system_cpu_delta)) * float64(number_cpus) * 100.0
 
 	return usage
+}
+
+func sendMessage(cli *client.Client, cID string) {
+
 }
 
 type LogData struct {

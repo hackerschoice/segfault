@@ -239,6 +239,10 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 	}
 
 	for _, fname := range result {
+		if fname == "ptmx" {
+			continue
+		}
+
 		file, err := os.OpenFile(fname, os.O_WRONLY, 0600)
 		if err != nil {
 			log.Error(err)

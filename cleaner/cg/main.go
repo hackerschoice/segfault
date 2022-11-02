@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -239,7 +240,7 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 	}
 
 	for _, fname := range result {
-		if fname == "ptmx" {
+		if strings.HasSuffix(fname, "ptmx") {
 			continue
 		}
 

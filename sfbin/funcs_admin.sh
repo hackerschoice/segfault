@@ -23,19 +23,21 @@ echo -e "${CDC}container_df <regex>${CN}        # eg \`container_df ^lg\`"
 # [LID] [message]
 lgwall()
 {
+	# This 
 	local pid
 	local cid
 	[[ -z $2 ]] && { echo >&2 "lgwall LID [message]"; return; }
 	cid=$(docker inspect --format='{{.Id}}' "$1") || return
-	for fn in "/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/"*.pid; do
-		[[ $fn == *"init.pid" ]] && continue
-		pid=$(cat "$fn") || continue
-		[[ $(readlink "/proc/${pid}/fd/2") != "/dev/pts/"* ]] && continue
-		echo -e "$2" >"/proc/${pid}/fd/2"
+	pid=$(<"/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/init.pid") || return
+	for fn in "/proc/${pid}/root/dev/pts"/*; do
+		[[ "${fn##*/}" =~ [^0-9] ]] && continue
+		[[ ! -c "$fn" ]] && continue
+		hex=$(stat -c %t "$fn")
+		maj="$((16#$hex))"
+		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && echo -e "$2" >>"${fn}"
 	done
 }
 echo -e "${CDC}lgwall <LID> <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
-
 
 # 
 # Show all LID where REGEX matches a process+arguments and optionally stop
@@ -93,7 +95,7 @@ lg_cleaner()
 	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))
 	for x in "${all[@]}"; do
 		[[ ! $x =~ ^lg- ]] && continue
-		[[ "${real[*]}" =~ "$x" ]] && continue
+		[[ "${real[*]}" =~ $x ]] && continue
 		# check how many processes are running:
 		arr=($(docker top "${x}" -o pid ))
 		n=${#arr[@]}

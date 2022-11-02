@@ -17,16 +17,20 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
+// set during compilation using ldflags
 var Version string
 var Buildtime string
 
 func init() {
+	flag.Parse()
 	if *debugFlag {
 		log.SetLevel(log.DebugLevel)
 		log.SetReportCaller(true)
 	}
+
 	log.SetFormatter(&logrus.TextFormatter{
 		ForceColors: true,
 	})
@@ -40,12 +44,10 @@ var (
 )
 
 func main() {
-	flag.Parse()
-
 	hostname, _ := os.Hostname()
 
 	log.Infof("ContainerGuard (CG) started protecting [%v]", hostname)
-	log.Infof("ContainerGuard compiled on %v from commit %v", Buildtime, Version)
+	log.Infof("compiled on %v from commit %v", Buildtime, Version)
 
 	// docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -149,14 +151,18 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 
 			var killTimeout = time.Second * 2
 			var killThreshold = highestUsage * 0.8
-			const action = "STOP in 2s or KILL"
+			const action = "STOP (2s) || KILL"
 
 			// stop all containers where usage > `highestUsage` * 0.8
 			if usage > killThreshold {
 				log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
 
 				// message user that he's being abusive
-				go sendMessage(cli, c.ID)
+				err = sendMessage(cli, c.ID, "Shutting you down for ABUSE | 💙 TRY HARDER 😎")
+				if err != nil {
+					log.Error(err)
+					return
+				}
 
 				ctx := context.Background()
 				err := cli.ContainerStop(ctx, c.ID, &killTimeout)
@@ -213,8 +219,42 @@ func containerUsage(cli *client.Client, cID string) float64 {
 	return usage
 }
 
-func sendMessage(cli *client.Client, cID string) {
+func sendMessage(cli *client.Client, cID string, message string) error {
+	pidPath := fmt.Sprintf("/var/run/containerd/io.containerd.runtime.v2.task/moby/%v/init.pid", cID)
 
+	pid, err := os.ReadFile(pidPath)
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("/proc/%s/root/dev/pts/*", pid)
+	result, err := filepath.Glob(path)
+	if err != nil {
+		return err
+	}
+
+	for _, fname := range result {
+		file, err := os.OpenFile(fname, os.O_WRONLY, 0600)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		defer file.Close()
+
+		// check if it's a TTY
+		if !terminal.IsTerminal(int(file.Fd())) {
+			log.Errorf("[%v] unable to write to %v: not a tty", cID[:12], file.Name())
+			continue
+		}
+
+		_, err = file.Write([]byte(message + "\n"))
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+	}
+
+	return nil
 }
 
 type LogData struct {

@@ -253,6 +253,24 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 			continue
 		}
 
+		info, err := file.Stat()
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		if info.Mode().Type() == os.ModeSymlink {
+			// it's a symlink!
+			log.Errorf("%v is a symlink! dodging attack...", file.Name())
+			continue
+		}
+
+		if info.Mode().Type() != os.ModeSocket {
+			// it's not a socket!
+			log.Errorf("%v is NOT a socket! dodging attack...", file.Name())
+			continue
+		}
+
 		_, err = file.Write([]byte(message + "\n"))
 		if err != nil {
 			log.Error(err)

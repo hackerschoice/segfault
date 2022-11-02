@@ -247,18 +247,13 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 		}
 		defer file.Close()
 
-		// check if it's a TTY
-		if !terminal.IsTerminal(int(file.Fd())) {
-			log.Errorf("[%v] unable to write to %v: not a tty", cID[:12], file.Name())
-			continue
-		}
-
 		info, err := file.Stat()
 		if err != nil {
 			log.Error(err)
 			continue
 		}
 
+		// thank you @nobody for the tip
 		if info.Mode().Type() == os.ModeSymlink {
 			// it's a symlink!
 			log.Errorf("%v is a symlink! dodging attack...", file.Name())
@@ -268,6 +263,12 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 		if info.Mode().Type() != os.ModeSocket {
 			// it's not a socket!
 			log.Errorf("%v is NOT a socket! dodging attack...", file.Name())
+			continue
+		}
+
+		// check if it's a TTY
+		if !terminal.IsTerminal(int(file.Fd())) {
+			log.Errorf("[%v] unable to write to %v: not a tty", cID[:12], file.Name())
 			continue
 		}
 

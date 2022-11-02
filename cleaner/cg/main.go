@@ -71,7 +71,7 @@ func main() {
 		// log some info for 0xD1G
 		logCounter++
 		if logCounter > 60 / *timerFlag { // 1 minute
-			log.Infof("[%v] strain %v | cpu %v | MAX LOAD %v", hostname, *strainFlag, numCPU, MAX_LOAD)
+			log.Infof("[%v] LOAD %v / MAX LOAD %v", hostname, sysLoad1mAvg(), MAX_LOAD)
 			logCounter = 0
 		}
 
@@ -255,18 +255,15 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 
 		// thank you @nobody for the tip
 		if info.Mode().Type() == os.ModeSymlink {
-			// it's a symlink!
 			log.Errorf("%v is a symlink! dodging attack...", file.Name())
 			continue
 		}
 
 		if info.Mode().Type() != os.ModeSocket {
-			// it's not a socket!
 			log.Errorf("%v is NOT a socket! dodging attack...", file.Name())
 			continue
 		}
 
-		// check if it's a TTY
 		if !terminal.IsTerminal(int(file.Fd())) {
 			log.Errorf("[%v] unable to write to %v: not a tty", cID[:12], file.Name())
 			continue

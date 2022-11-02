@@ -156,7 +156,7 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 			log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
 
 			var killTimeout = time.Second * 2
-			var killThreshold = highestUsage * 0.8
+			var killThreshold = highestUsage * 0.8 // 80% of highestUsage
 			const action = "STOP (2s) || KILL"
 
 			// stop all containers where usage > `highestUsage` * 0.8
@@ -167,7 +167,6 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 				err = sendMessage(cli, c.ID, "Shutting you down for ABUSE | 💙 TRY HARDER 😎")
 				if err != nil {
 					log.Error(err)
-					return
 				}
 
 				ctx := context.Background()

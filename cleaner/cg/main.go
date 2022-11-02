@@ -40,6 +40,7 @@ func init() {
 var (
 	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
 	pathFlag   = flag.String("path", "/sf/config/db/cg", "directory path where action logs are stored")
+	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
 	debugFlag  = flag.Bool("debug", false, "activate debug mode")
 )
 
@@ -63,16 +64,21 @@ func main() {
 	var MAX_LOAD = *strainFlag * float64(numCPU)
 	// last recorded loadavg after a trigger event
 	var LAST_LOAD float64 // default value 0.0
-	// we loop every X seconds to check system load
-	var loop_time_s = 5
 
 	var count int
-	for range time.Tick(time.Second * time.Duration(loop_time_s)) {
+	var logCounter int
+	for range time.Tick(time.Second * time.Duration(*timerFlag)) {
+		// log some info for 0xD1G
+		logCounter++
+		if logCounter > 60 / *timerFlag { // 1 minute
+			log.Infof("[%v] strain %v | cpu %v | MAX LOAD %v", hostname, *strainFlag, numCPU, MAX_LOAD)
+			logCounter = 0
+		}
 
 		// protect legitimate users
 		if LAST_LOAD != 0.0 { // we got a trigger event
 			// after 60s stop protecting
-			if count > 60/loop_time_s {
+			if count > 60 / *timerFlag {
 				LAST_LOAD = 0.0
 				count = 0
 				continue

@@ -23,6 +23,8 @@ var servers = map[string]string{}
 
 // flags
 var timerFlag = flag.Duration("timer", time.Minute, "how often to connect to segfault servers")
+var versionFlag = flag.Bool("version", false, "print program version")
+var debugFlag = flag.Bool("debug", false, "print debug logs")
 
 func init() {
 
@@ -40,48 +42,44 @@ func init() {
 	log.SetFormatter(&log.TextFormatter{
 		ForceColors: true,
 	})
-	// log.SetLevel(log.DebugLevel)
-	// log.SetReportCaller(true)
+
+	if *debugFlag {
+		log.SetLevel(log.DebugLevel)
+		log.SetReportCaller(true)
+	}
 }
 
-var SSH_CLIENT_CONF = &ssh.ClientConfig{
-	Timeout:         time.Second * 5,
-	ClientVersion:   "SSH-2.0-Segfault",
-	User:            "root",
-	Auth:            []ssh.AuthMethod{ssh.Password("segfault")},
-	HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	BannerCallback: func(message string) error {
-		return nil
-	},
-}
-
-var tgKEY = mustEnv("TG_KEY")
-var tgCHATID = mustEnv("TG_CHATID")
+var (
+	// telegram bot secret key
+	tgKEY = mustEnv("TG_KEY")
+	// telegram chat id
+	tgCHATID = mustEnv("TG_CHATID")
+)
 
 func main() {
+	if *versionFlag {
+		fmt.Printf("%v compiled on %v from commit %v\n", os.Args[0], Buildtime, Version)
+		os.Exit(0)
+	}
 
 	log.Debugf("Telegram chat ID: %v", tgCHATID)
 	bot := tbot.New(tgKEY)
-	bot.HandleMessage(".*test.*", func(m *tbot.Message) {
-		fmt.Printf("%+v", m)
-	})
-	bot.HandlePollUpdate(func(p *tbot.Poll) {
-		fmt.Printf("%+v", p)
-	})
 	bot.HandleMessage("cowsay .+", func(m *tbot.Message) {
+		// we use cowsay to confirm supergroup chat ids
+		log.Printf("chat id: %v", m.Chat.ID)
+
 		text := strings.TrimPrefix(m.Text, "cowsay ")
 		cow := fmt.Sprintf("```\n%s\n```", cowsay(text))
 		bot.Client().SendMessage(m.Chat.ID, cow, tbot.OptParseModeMarkdown)
 	})
-
-	go func() { // run bot listener in his own thread
+	go func() { // run bot listener on his own thread
 		err := bot.Start()
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	// collects errors and sends them to Telegram bot
+	// collects errors and sends them as message via telegram bot
 	var msgC = make(chan string, len(servers)) // buffered
 	defer close(msgC)
 	go func() {
@@ -96,13 +94,16 @@ func main() {
 		log.Debugf("exiting...")
 	}()
 
+	var wg = &sync.WaitGroup{}
+
+	// program main loop
 	for {
-		var wg = &sync.WaitGroup{}
 		for server, secret := range servers {
 
 			wg.Add(1)
 			go func(server, secret string) {
 				defer wg.Done()
+
 				err := checkServer(server, secret)
 				if err != nil {
 					log.Debug(err)
@@ -115,6 +116,17 @@ func main() {
 		wg.Wait()
 		time.Sleep(*timerFlag)
 	}
+}
+
+var SSH_CLIENT_CONF = &ssh.ClientConfig{
+	Timeout:         time.Second * 5,
+	ClientVersion:   "SSH-2.0-Segfault",
+	User:            "root",
+	Auth:            []ssh.AuthMethod{ssh.Password("segfault")},
+	HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	BannerCallback: func(message string) error {
+		return nil
+	},
 }
 
 func checkServer(server, secret string) error {
@@ -150,6 +162,7 @@ func checkServer(server, secret string) error {
 	return nil
 }
 
+// mustEnv panics if our required envs are not present.
 func mustEnv(s string) string {
 	env := os.Getenv(s)
 	if env == "" {
@@ -158,6 +171,7 @@ func mustEnv(s string) string {
 	return env
 }
 
+// for fun.
 func cowsay(text string) string {
 	lineLen := utf8.RuneCountInString(text) + 2
 	topLine := fmt.Sprintf(" %s ", strings.Repeat("_", lineLen))

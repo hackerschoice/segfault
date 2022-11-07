@@ -16,7 +16,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -32,7 +31,7 @@ func init() {
 		log.SetReportCaller(true)
 	}
 
-	log.SetFormatter(&logrus.TextFormatter{
+	log.SetFormatter(&log.TextFormatter{
 		ForceColors: true,
 	})
 }
@@ -241,6 +240,7 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 
 	for _, fname := range result {
 		if strings.HasSuffix(fname, "ptmx") {
+			log.Debug("skipping ptmx")
 			continue
 		}
 

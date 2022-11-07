@@ -94,7 +94,13 @@ func main() {
 		log.Debugf("exiting...")
 	}()
 
-	var wg = &sync.WaitGroup{}
+	var (
+		wg = &sync.WaitGroup{}
+
+		// protects `connTracker` from concurrent r/w
+		mu          sync.Mutex
+		connTracker int
+	)
 
 	// program main loop
 	for {
@@ -102,7 +108,12 @@ func main() {
 
 			wg.Add(1)
 			go func(server, secret string) {
-				defer wg.Done()
+				defer func() {
+					wg.Done()
+					mu.Lock()
+					connTracker++
+					mu.Unlock()
+				}()
 
 				err := checkServer(server, secret)
 				if err != nil {
@@ -114,7 +125,12 @@ func main() {
 
 		log.Debug("waiting for routines to return")
 		wg.Wait()
+
 		time.Sleep(*timerFlag)
+
+		mu.Lock()
+		log.Infof("[#%v] successful connections", connTracker)
+		mu.Unlock()
 	}
 }
 

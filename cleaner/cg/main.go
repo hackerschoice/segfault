@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -218,52 +219,70 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 		return err
 	}
 
-	path := fmt.Sprintf("/proc/%s/root/dev/pts/*", pid)
-	result, err := filepath.Glob(path)
+	var fdCount int
+	_path := fmt.Sprintf("/proc/%s/root/dev/pts/", pid)
+	err = filepath.WalkDir(_path, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		_, err = strconv.Atoi(d.Name())
+		if err != nil {
+			log.Debugf("not a number: %v", path)
+			return nil
+		}
+
+		fdCount++
+
+		err = _sendMessage(path, message)
+		if err != nil {
+			return err
+		}
+
+		if fdCount > 100 {
+			return fmt.Errorf("%v has over 100 file descriptors, probably an attack...", _path)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, fname := range result {
-		if strings.HasSuffix(fname, "ptmx") {
-			log.Debug("skipping ptmx")
-			continue
-		}
+	return nil
+}
 
-		file, err := os.OpenFile(fname, os.O_WRONLY, 0600)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		defer file.Close()
+// _sendMessage writes bytes to a file descriptor
+// after doing some security checks to make sure it's a FD.
+func _sendMessage(fd, message string) error {
 
-		info, err := file.Stat()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
+	file, err := os.OpenFile(fd, os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 
-		// thank you @nobody for the tip
-		if info.Mode().Type() == os.ModeSymlink {
-			log.Errorf("%v is a symlink! dodging attack...", file.Name())
-			continue
-		}
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
 
-		if info.Mode().Type() != os.ModeSocket {
-			log.Errorf("%v is NOT a socket! dodging attack...", file.Name())
-			continue
-		}
+	// thank you @nobody for the tips
+	if info.Mode().Type() == os.ModeSymlink {
+		return fmt.Errorf("%v is a symlink! dodging attack...", file.Name())
+	}
 
-		if !terminal.IsTerminal(int(file.Fd())) {
-			log.Errorf("[%v] unable to write to %v: not a tty", cID[:12], file.Name())
-			continue
-		}
+	if info.Mode().Type() != os.ModeSocket {
+		return fmt.Errorf("%v is NOT a socket! dodging attack...", file.Name())
+	}
 
-		_, err = file.Write([]byte(message + "\n"))
-		if err != nil {
-			log.Error(err)
-			continue
-		}
+	if !terminal.IsTerminal(int(file.Fd())) {
+		return fmt.Errorf("unable to write to %v: not a tty", file.Name())
+	}
+
+	_, err = file.Write([]byte(message + "\n"))
+	if err != nil {
+		return err
 	}
 
 	return nil

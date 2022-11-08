@@ -39,7 +39,7 @@ func init() {
 // CLI flags
 var (
 	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
-	pathFlag   = flag.String("path", "/sf/config/db/cg", "directory path where action logs are stored")
+	resultFlag = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
 	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
 	debugFlag  = flag.Bool("debug", false, "activate debug mode")
 )
@@ -66,15 +66,7 @@ func main() {
 	var LAST_LOAD float64 // default value 0.0
 
 	var count int
-	var logCounter int
 	for range time.Tick(time.Second * time.Duration(*timerFlag)) {
-		// log some info for 0xD1G
-		logCounter++
-		if logCounter > 60 / *timerFlag { // 1 minute
-			log.Infof("[%v] LOAD %v / MAX LOAD %v", hostname, sysLoad1mAvg(), MAX_LOAD)
-			logCounter = 0
-		}
-
 		// protect legitimate users
 		if LAST_LOAD != 0.0 { // we got a trigger event
 			// after 60s stop protecting
@@ -148,50 +140,44 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 	log.Infof("[HIGHEST USAGE] %.2f%%", highestUsage)
 
 	for _, c := range list {
-		wg.Add(1)
-		go func(c types.Container) {
-			defer wg.Done()
+		usage := containerUsage(cli, c.ID)
+		log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
 
-			usage := containerUsage(cli, c.ID)
-			log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
+		var killTimeout = time.Second * 2
+		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
+		const action = "STOP (2s) || KILL"
 
-			var killTimeout = time.Second * 2
-			var killThreshold = highestUsage * 0.8 // 80% of highestUsage
-			const action = "STOP (2s) || KILL"
+		// stop all containers where usage > `highestUsage` * 0.8
+		if usage > killThreshold {
+			log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
 
-			// stop all containers where usage > `highestUsage` * 0.8
-			if usage > killThreshold {
-				log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
-
-				// message user that he's being abusive
-				err = sendMessage(cli, c.ID, "Shutting you down for ABUSE | 💙 TRY HARDER 😎")
-				if err != nil {
-					log.Error(err)
-				}
-
-				ctx := context.Background()
-				err := cli.ContainerStop(ctx, c.ID, &killTimeout)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-			}
-
-			// log stopped containers to disk
-			logData := LogData{
-				name:      c.Names[0],
-				usage:     usage,
-				threshold: killThreshold,
-				load:      sysLoad1mAvg(),
-				action:    action,
-			}
-			if err := logData.save(*pathFlag); err != nil {
+			// message user that he's being abusive
+			err = sendMessage(cli, c.ID, "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙")
+			if err != nil {
 				log.Error(err)
-				return
 			}
-		}(c)
+
+			ctx := context.Background()
+			err := cli.ContainerStop(ctx, c.ID, &killTimeout)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+		}
+
+		// log stopped containers to disk
+		logData := LogData{
+			name:      c.Names[0],
+			usage:     usage,
+			threshold: killThreshold,
+			load:      sysLoad1mAvg(),
+			action:    action,
+		}
+		if err := logData.save(*resultFlag); err != nil {
+			log.Error(err)
+			continue
+		}
 	}
-	wg.Wait()
 
 	return nil
 }

@@ -68,6 +68,11 @@ func main() {
 
 	var count int
 	for range time.Tick(time.Second * time.Duration(*timerFlag)) {
+
+		if sysLoad1mAvg() <= MAX_LOAD {
+			continue
+		}
+
 		// protect legitimate users
 		if LAST_LOAD != 0.0 { // we got a trigger event
 			// after 60s stop protecting
@@ -83,12 +88,8 @@ func main() {
 				continue
 			}
 
-			// if load doesn't go down every 5s
+			// if load doesn't go down every `timerFlag``
 			LAST_LOAD = 0.0 // reset
-		}
-
-		if sysLoad1mAvg() <= MAX_LOAD {
-			continue
 		}
 
 		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", sysLoad1mAvg(), numCPU, MAX_LOAD)
@@ -147,13 +148,14 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		var killTimeout = time.Second * 2
 		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
 		const action = "STOP (2s) || KILL"
+		const abuseMessage = "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙"
 
 		// stop all containers where usage > `highestUsage` * 0.8
 		if usage > killThreshold {
 			log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
 
 			// message user that he's being abusive
-			err = sendMessage(cli, c.ID, "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙")
+			err = sendMessage(c.ID, abuseMessage)
 			if err != nil {
 				log.Error(err)
 			}
@@ -211,7 +213,8 @@ func containerUsage(cli *client.Client, cID string) float64 {
 	return usage
 }
 
-func sendMessage(cli *client.Client, cID string, message string) error {
+// sendMessage delivers a message to a user's shell.
+func sendMessage(cID string, message string) error {
 	pidPath := fmt.Sprintf("/var/run/containerd/io.containerd.runtime.v2.task/moby/%v/init.pid", cID)
 
 	pid, err := os.ReadFile(pidPath)
@@ -219,6 +222,7 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 		return err
 	}
 
+	// keeps track of how many FDs we've walked past.
 	var fdCount int
 	_path := fmt.Sprintf("/proc/%s/root/dev/pts/", pid)
 	err = filepath.WalkDir(_path, func(path string, d fs.DirEntry, err error) error {
@@ -252,8 +256,8 @@ func sendMessage(cli *client.Client, cID string, message string) error {
 	return nil
 }
 
-// _sendMessage writes bytes to a file descriptor
-// after doing some security checks to make sure it's a FD.
+// _sendMessage writes bytes to a file descriptor after doing
+// some security checks to make sure it's really a FD.
 func _sendMessage(fd, message string) error {
 
 	file, err := os.OpenFile(fd, os.O_WRONLY, 0600)

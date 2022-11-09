@@ -5,26 +5,34 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
+// set during compilation using ldflags
+var Version string
+var Buildtime string
+
 func init() {
+	flag.Parse()
 	if *debugFlag {
 		log.SetLevel(log.DebugLevel)
 		log.SetReportCaller(true)
 	}
-	log.SetFormatter(&logrus.TextFormatter{
+
+	log.SetFormatter(&log.TextFormatter{
 		ForceColors: true,
 	})
 }
@@ -32,14 +40,16 @@ func init() {
 // CLI flags
 var (
 	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
-	pathFlag   = flag.String("path", "/sf/config/db/cg", "directory path where action logs are stored")
+	resultFlag = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
+	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
 	debugFlag  = flag.Bool("debug", false, "activate debug mode")
 )
 
 func main() {
-	flag.Parse()
+	hostname, _ := os.Hostname()
 
-	log.Infof("ContainerGuard (CG) started protecting your Segfault.Net instance...")
+	log.Infof("ContainerGuard (CG) started protecting [%v]", hostname)
+	log.Infof("compiled on %v from commit %v", Buildtime, Version)
 
 	// docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -55,15 +65,18 @@ func main() {
 	var MAX_LOAD = *strainFlag * float64(numCPU)
 	// last recorded loadavg after a trigger event
 	var LAST_LOAD float64 // default value 0.0
-	var loop_time_s = 5
 
 	var count int
-	for range time.Tick(time.Second * time.Duration(loop_time_s)) {
+	for range time.Tick(time.Second * time.Duration(*timerFlag)) {
+
+		if sysLoad1mAvg() <= MAX_LOAD {
+			continue
+		}
 
 		// protect legitimate users
 		if LAST_LOAD != 0.0 { // we got a trigger event
 			// after 60s stop protecting
-			if count > 60/loop_time_s {
+			if count > 60 / *timerFlag {
 				LAST_LOAD = 0.0
 				count = 0
 				continue
@@ -75,12 +88,8 @@ func main() {
 				continue
 			}
 
-			// if load doesn't go down every 5s
+			// if load doesn't go down every `timerFlag``
 			LAST_LOAD = 0.0 // reset
-		}
-
-		if sysLoad1mAvg() <= MAX_LOAD {
-			continue
 		}
 
 		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", sysLoad1mAvg(), numCPU, MAX_LOAD)
@@ -133,44 +142,45 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 	log.Infof("[HIGHEST USAGE] %.2f%%", highestUsage)
 
 	for _, c := range list {
-		wg.Add(1)
-		go func(c types.Container) {
-			defer wg.Done()
+		usage := containerUsage(cli, c.ID)
+		log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
 
-			usage := containerUsage(cli, c.ID)
-			log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
+		var killTimeout = time.Second * 2
+		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
+		const action = "STOP (2s) || KILL"
+		const abuseMessage = "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙"
 
-			var killTimeout = time.Second * 2
-			var killThreshold = highestUsage * 0.8
-			const action = "STOP in 2s or KILL"
+		// stop all containers where usage > `highestUsage` * 0.8
+		if usage > killThreshold {
+			log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
 
-			// stop all containers where usage > `highestUsage` * 0.8
-			if usage > killThreshold {
-				log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
-
-				ctx := context.Background()
-				err := cli.ContainerStop(ctx, c.ID, &killTimeout)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-			}
-
-			// log stopped containers to disk
-			logData := LogData{
-				name:      c.Names[0],
-				usage:     usage,
-				threshold: killThreshold,
-				load:      sysLoad1mAvg(),
-				action:    action,
-			}
-			if err := logData.save(*pathFlag); err != nil {
+			// message user that he's being abusive
+			err = sendMessage(c.ID, abuseMessage)
+			if err != nil {
 				log.Error(err)
-				return
 			}
-		}(c)
+
+			ctx := context.Background()
+			err := cli.ContainerStop(ctx, c.ID, &killTimeout)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+		}
+
+		// log stopped containers to disk
+		logData := LogData{
+			name:      c.Names[0],
+			usage:     usage,
+			threshold: killThreshold,
+			load:      sysLoad1mAvg(),
+			action:    action,
+		}
+		if err := logData.save(*resultFlag); err != nil {
+			log.Error(err)
+			continue
+		}
 	}
-	wg.Wait()
 
 	return nil
 }
@@ -201,6 +211,85 @@ func containerUsage(cli *client.Client, cID string) float64 {
 	usage := (float64(cpu_delta) / float64(system_cpu_delta)) * float64(number_cpus) * 100.0
 
 	return usage
+}
+
+// sendMessage delivers a message to a user's shell.
+func sendMessage(cID string, message string) error {
+	pidPath := fmt.Sprintf("/var/run/containerd/io.containerd.runtime.v2.task/moby/%v/init.pid", cID)
+
+	pid, err := os.ReadFile(pidPath)
+	if err != nil {
+		return err
+	}
+
+	// keeps track of how many FDs we've walked past.
+	var fdCount int
+	_path := fmt.Sprintf("/proc/%s/root/dev/pts/", pid)
+	err = filepath.WalkDir(_path, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		_, err = strconv.Atoi(d.Name())
+		if err != nil {
+			log.Debugf("not a number: %v", path)
+			return nil
+		}
+
+		fdCount++
+
+		err = _sendMessage(path, message)
+		if err != nil {
+			return err
+		}
+
+		if fdCount > 100 {
+			return fmt.Errorf("%v has over 100 file descriptors, probably an attack...", _path)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// _sendMessage writes bytes to a file descriptor after doing
+// some security checks to make sure it's really a FD.
+func _sendMessage(fd, message string) error {
+
+	file, err := os.OpenFile(fd, os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	// thank you @nobody for the tips
+	if info.Mode().Type() == os.ModeSymlink {
+		return fmt.Errorf("%v is a symlink! dodging attack...", file.Name())
+	}
+
+	if info.Mode().Type() != os.ModeSocket {
+		return fmt.Errorf("%v is NOT a socket! dodging attack...", file.Name())
+	}
+
+	if !terminal.IsTerminal(int(file.Fd())) {
+		return fmt.Errorf("unable to write to %v: not a tty", file.Name())
+	}
+
+	_, err = file.Write([]byte(message + "\n"))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type LogData struct {

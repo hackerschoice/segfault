@@ -11,6 +11,7 @@ RUN	apk add --no-cache --upgrade \
 		xauth \
 		openssh-server \
 		jq \
+		xfsprogs-extra \
 	&& echo "/bin/segfaultsh" >>/etc/shells
 
 CMD ["/bin/docker_sshd.sh"]

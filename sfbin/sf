@@ -8,7 +8,13 @@
 	export SF_REDIS_AUTH
 }
 
-
+[[ "$1" == down ]] && {
+	docker container prune -f
+	c=($(docker ps -f name=^lg --all --quiet))
+	[[ -n $c ]] && docker stop "${c[@]}"
+	docker-compose down
+	exec docker network prune -f
+}
 [[ "$1" != up ]] && exec docker-compose "$@"
 
 # HERE: "up"
@@ -70,10 +76,47 @@ load_env()
 	[[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEDIR= not set in ${envfile}."
 }
 
+blockio_init()
+{
+	local is_bfq
+	local n
+
+	# Check if there is BFQ-Scheduler support in the Kernel
+	for fn in /sys/class/block/*/queue/scheduler; do
+		[[ ! -f "${fn}" ]] && break
+		grep bfq "${fn}" >/dev/null || break
+		is_bfq=1
+		break
+	done
+
+	[[ -z $is_bfq ]] && {
+		# HERE: no BFQ support. Try load module.
+		modprobe bfq || { WARN "No BFQ-Scheduler. Attacker can DoS block-IO."; return; }
+		is_bfq=1
+	}
+
+	# Return if BFQ is set
+	for fn in /sys/class/block/*/queue/scheduler; do
+		[[ ! -f "${fn}" ]] && break
+		echo bfq >"${fn}" || { WARN ""${fn%/queue*}": Failed to set BFQ scheduler."; return; }
+	done
+
+	# Odd bug. On some systems we set all correctly and docker still complains that
+	# it cant use Block IO weights. It appears to be a problem with cgroup v1?
+	# It can be fixed on v1 systems by using --cgroup-parent=/guest and creating:
+	#   mkdir -p /sys/fs/cgroup/blkio/guest
+	#   echo 1 >/sys/fs/cgroup/blkio/guest/blkio.bfq.weight
+	# => But then why cant docker fix this crap?
+	# https://github.com/moby/moby/issues/16173#issuecomment-1298432655
+	# Test if docker accepts --blkio-weight:
+	docker run --rm --blkio-weight=100 alpine  true 2>&1 | grep "does not support Block" >/dev/null && { WARN "DOCKER: Your kernel does not support Block I/O weight."; return; }
+}
+
 load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 
-[[ ! -d "${SF_DATADIR}/everyone-root" ]] && mkdir -p "${SF_DATADIR}/everyone-root"
+# [[ ! -d "${SF_DATADIR}/everyone-root" ]] && mkdir -p "${SF_DATADIR}/everyone-root"
+# [[ ! -d "${SF_DATADIR}/www-root" ]] && mkdir -p "${SF_DATADIR}/www-root"
 [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
 [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
 
@@ -87,15 +130,17 @@ load_env
 	echo -e "Try \`curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'\`"
 }
 
-xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 16384 16G
+[[ -z $SF_OVERLAYDIR ]] && [[ -d "${SF_BASEDIR}/docker/overlay2" ]] && export SF_OVERLAYDIR="${SF_BASEDIR}/docker/overlay2"
+
+# xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 16384 16G
+
+# Enable BFQ on all block devices to allow cgroup's io.weight
+# FIXME: One day but this into udev/startup scripts and only for
+# device that we are using...
+blockio_init
 
 # If there was a warning then wait...
 WARN_ENTER
-
-[[ -z $SF_DATADEV ]] && {
-	d=$(mount | grep -F "${SF_DATADIR}" | head -n1)
-	export SF_DATADEV="${d%% *}"
-}
 
 exec docker-compose "$@"
 

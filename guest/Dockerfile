@@ -74,6 +74,7 @@ RUN	apt-get update -y \
 		manpages-dev \
 		sudo \
 		tcpdump \
+		telnet \
 		traceroute \
 		wireguard-tools \
 		wget \
@@ -155,6 +156,7 @@ RUN	apt-get update -y \
 		wipe \
 		wpscan \
 		wrk \
+		zoxide \
 	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		default-jdk \
 		exploitdb \

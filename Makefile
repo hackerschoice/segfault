@@ -1,4 +1,4 @@
-VER := 0.3.4
+VER := 0.3.5a1
 
 all:
 	make -C guest
@@ -8,6 +8,11 @@ all:
 	make -C router
 	make -C gsnc
 	make -C cleaner/cg
+	docker pull redis
+	docker pull nginx
+	docker pull hackerschoice/cryptostorm
+	docker pull 4km3/dnsmasq:2.85-r2
+	docker pull crazymax/cloudflared
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/pkg-install.sh"
@@ -50,7 +55,8 @@ FILES_PROVISION += "segfault-$(VER)/provision/funcs_al2.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/funcs_ubuntu.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/init-linux.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/system/funcs"
-FILES_PROVISION += "segfault-$(VER)/provision/system/docker_limit.slice"
+FILES_PROVISION += "segfault-$(VER)/provision/system/sf.slice"
+FILES_PROVISION += "segfault-$(VER)/provision/system/sf_guest.slice"
 FILES_PROVISION += "segfault-$(VER)/provision/system/daemon.json"
 FILES_PROVISION += "segfault-$(VER)/provision/env.example"
 
@@ -75,6 +81,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/redis/redis.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
 FILES_CONFIG += "segfault-$(VER)/config/etc/hosts"
+FILES_CONFIG += "segfault-$(VER)/config/etc/resolv.conf"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
@@ -82,6 +89,7 @@ FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/vpn_wg2status.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/rportfw.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/funcs_redis.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 
 FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Dockerfile"

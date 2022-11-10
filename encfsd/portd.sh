@@ -36,41 +36,7 @@ WM_HIGH=5
 
 # BASEDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 source "/sf/bin/funcs.sh"
-
-SF_REDIS_SERVER="${SF_REDIS_SERVER:-sf-redis}"
-
-REDCMD+=("redis-cli" "--raw" "-h" "${SF_REDIS_SERVER}")
-
-redr()
-{
-	local res
-	res=$("${REDCMD[@]}" "$@") || return 255
-	[[ -z $res ]] && return 200
-	echo "$res"
-	return 0
-}
-
-red()
-{
-	local res
-
-	res=$("${REDCMD[@]}" "$@") || return 255
-	[[ -z $res ]] && return 200
-	echo "$res"
-	return 0
-}
-
-# Redis Last Line
-redll()
-{
-	local res
-
-	res=$("${REDCMD[@]}" "$@") || return 255
-	res="${res##*$'\n'}"
-	[[ -z $res ]] && return 200
-	echo "$res"
-	return 0
-}
+source "/sf/bin/funcs_redis.sh"
 
 # [LID] [PROVIDER] [IP] [PORT]
 config_port()
@@ -442,8 +408,6 @@ trap _trap SIGTERM
 trap _trap SIGINT
 
 [[ ! -S /var/run/docker.sock ]] && ERREXIT 255 "Not found: /var/run/docker.sock"
-
-export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 
 redis_loop_forever_bl &
 BL_CPID=$!

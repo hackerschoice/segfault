@@ -1,4 +1,4 @@
-version: "3.7"
+version: "2.4"
 services:
 
   sf-redis:
@@ -33,20 +33,19 @@ services:
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_SEED=${SF_SEED}
-      - SF_DATADEV
       - SF_DEBUG
     command: ["/encfsd.sh"]
     networks:
       redis-net:
     devices:
       - "/dev/fuse:/dev/fuse"
-      # - "${SF_DATADEV:-?}:/dev/loop1" -> not needed in priv mode?
     volumes:
       - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/etc/sf:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+      - "${SF_OVERLAYDIR:-/var/lib/docker/overlay2}:/var/lib/docker/overlay2:ro"
 
   sf-destructor:
     build: encfsd
@@ -150,6 +149,8 @@ services:
       vpn-net:
         ipv4_address: 172.20.0.254
       redis-net:
+    extra_hosts:
+      - "sf-redis:172.20.2.254"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -184,6 +185,8 @@ services:
       vpn-net:
         ipv4_address: 172.20.0.253
       redis-net:
+    extra_hosts:
+      - "sf-redis:172.20.2.254"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -216,6 +219,8 @@ services:
       vpn-net:
         ipv4_address: 172.20.0.252
       redis-net:
+    extra_hosts:
+      - "sf-redis:172.20.2.254"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2

@@ -119,6 +119,11 @@ load_limits()
 	local lid
 	lid="$1"
 
+	unset SF_USER_FS_SIZE
+	unset SF_USER_FS_INODE
+	unset SF_USER_ROOT_FS_SIZE
+	unset SF_USER_ROOT_FS_INODE
+	
 	# First source global	
 	[[ -f "/config/etc/sf/sf.conf" ]] && eval "$(grep ^SF_ "/config/etc/sf/sf.conf")"
 
@@ -126,16 +131,117 @@ load_limits()
 	[[ -f "/config/db/db-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/db-${lid}/limits.conf")"
 }
 
-# [name] [reqid]
-mount_done()
+
+# Set XFS quota on sub folders. This normally only needs to be done
+# when the subfolder is created.
+# Note: Set XFS-QUOTA _every time_ just in case we restored from backup
+#
+# XFS quota on subfolders inside an encfs are tricky:
+# - xfs_quota only works on the underlaying encfs raw data (encrypted)
+# - We do not know the directory name (inside /raw) because it's encrypted (!)
+# - Instead use a trick:
+#   1. Create the directory.
+#   2. Search for identical inode in RAWDIR
+xfs_quota_sub()
 {
-	redis-cli -h sf-redis RPUSH "encfs-${1}-${2}" "OK" >/dev/null
+	local prjid
+	local base_rawdir
+	local secdir
+	local rawdir
+	local err
+	prjid="$1"
+	base_rawdir="$2"
+	secdir="$3"
+
+	if [[ ! -d "${secdir}" ]]; then
+		mkdir "${secdir}"
+		# Dont leak when directory was created as this is also the user's login time.
+		touch -t 197001011200 "${secdir}"
+	fi
+
+	# Find the RAWDIR (it has the same inode; inode is passed through by EncFS)
+	inode=$(stat -c %i "${secdir}")
+	rawdir=$(find "${base_rawdir}" -maxdepth 1 -type d -inum "$inode")
+	[[ -z "${rawdir}" ]] || [[ ! -d "${rawdir}" ]] && { ERR "XFS rawdir not found"; return; }
+
+	err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS Quota /everyone: \n'$err'"; }
 }
+
+
+# [LID] [SECRET]
+cmd_user_mount()
+{
+	local lid
+	local secret
+	local rawdir
+	local secdir
+	local prjid
+	lid="$1"
+	secret="${2//[^[:alnum:]]/}"
+
+	[[ ${#secret} -ne 24 ]] && { BAD 0 "Bad secret='$secret'"; return 255; }
+
+	secdir="/encfs/sec/user-${lid}"
+	rawdir="/encfs/raw/user/user-${lid}"
+	encfs_mkdir "${lid}" "${secdir}" "${rawdir}"
+	ret=$?
+	[[ $ret -eq 1 ]] && return 0 # Already mounted
+	[[ $ret -ne 0 ]] && retrun 255
+
+	# HERE: Not yet mounted.
+	# Set XFS limits
+	load_limits "${lid}"
+	[[ -n $SF_USER_FS_INODE ]] || [[ -n $SF_USER_FS_SIZE ]] && {
+
+		SF_NUM=$(<"/config/db/db-${lid}/num") || return 255
+		SF_HOSTNAME=$(<"/config/db/db-${lid}/hostname") || return 255
+		prjid=$((SF_NUM + 10000000))
+		DEBUGF "SF_NUM=${SF_NUM}, prjid=${prjid}, SF_HOSTNAME=${SF_HOSTNAME}, INODE=${SF_USER_FS_INODE}, SIZE=${SF_USER_FS_SIZE}"
+		err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE:-16384} bhard=${SF_USER_FS_SIZE:-128m} ${prjid}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; return 255; }
+		err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; return 255; }
+	}
+
+	# Mount if not already mounted. Continue on error (let client hang)
+	encfs_mount "${lid}" "${secret}" "${secdir}" "${rawdir}" "noatime" "/sec (INODE_MAX=${SF_USER_FS_INODE}, BYTES_MAX=${SF_USER_FS_SIZE})" || return 255
+
+	# Extend same project quota to /onion and /everyone/SF_HOSTNAME
+	[[ -n $prjid ]] && {
+		xfs_quota_sub "${prjid}" "${BASE_RAWDIR_WWW}" "/encfs/sec/www-root/www/${SF_HOSTNAME,,}" 
+		xfs_quota_sub "${prjid}" "${BASE_RAWDIR_EVR}" "/encfs/sec/everyone-root/everyone/${SF_HOSTNAME}" 
+	}
+
+	return 0
+}
+
+# Set ROOT_FS xfs quota
+# [LID] [INODE LIMIT] [relative OVERLAY2 dir]
+cmd_xfs_quota()
+{
+	local lid
+	local ilimit
+	local dir
+	local prjid
+	lid="$1"
+	ilimit=${2%% *}
+	ilimit=${ilimit//[^0-9]/}
+	dir="/var/lib/docker/overlay2/${2#* }"
+
+	[[ ! -d "${dir}" ]] && { BAD 0 "Not found: ${dir}."; return 255; }
+	s=$(lsattr -p "${dir}")
+	prjid=${s%% --*}
+	prjid=${prjid##* }  # trim leading white spaces
+	[[ -z $prjid ]] || [[ $prjid -eq 0 ]] && { BAD 0 "Invalid prjid='$prjid'"; return 255; }
+
+	xfs_quota -x -c "limit -p ihard=${ilimit} $prjid" || { BAD 0 "XFS_QUOTA filed"; return 255; }
+}
+
 
 redis_loop_forever()
 {
 	local secdir
-	local is_xfs_limit
+	local cmd
+	local lid
+	local reqid
 
 	while :; do
 		res=$(redis-cli -h sf-redis BLPOP encfs 0) || ERREXIT 250 "Failed with $?"
@@ -147,58 +253,32 @@ redis_loop_forever()
 			continue
 		}
 
-		# DEBUGF "RES='$res'"
-		# Remove key (all but last line)
+		# Remove all but last line
 		res="${res##*$'\n'}"
-		# [LID] [SECRET] [REQID]
-		name="${res:0:10}"  # the LID 
-		name="${name//[^[:alnum:]]/}"
-		secret="${res:11:24}"
-		secret="${secret//[^[:alnum:]]/}"
-		reqid="${res:36}"
-		reqid="${reqid//[^[:alnum:]]/}"
 
-		[[ ${#secret} -ne 24 || ${#name} -ne 10 ]] && { BAD 0 "Bad secret='$secret'/name='$name'"; continue; }
+		# [REQID] [LID] [CMD] [ARGS]
+		reqid=${res%% *}
+		reqid=${reqid//[^0-9]/}
+		res=${res#* }
 
-		secdir="/encfs/sec/user-${name}"
-		rawdir="/encfs/raw/user/user-${name}"
-		encfs_mkdir "${name}" "${secdir}" "${rawdir}"
-		ret=$?
-		[[ $ret -eq 1 ]] && mount_done "${name}" "${reqid}"
-		[[ $ret -ne 0 ]] && continue
+		lid="${res:0:10}"  # the LID 
+		lid="${lid//[^[:alnum:]]/}"
+		[[ ${#lid} -ne 10 ]] && { BAD 0 "Bad lid='$lid'"; continue; }
+		res=${res:11}
 
-		# HERE: Not yet mounted.
-		# Set XFS limits
-		load_limits "${name}"
-		[[ -n $SF_USER_FS_INODE_MAX ]] || [[ -n $SF_USER_FS_BYTES_MAX ]] && {
+		cmd=${res:0:1}
+		res=${res:2}
 
-			SF_NUM=$(<"/config/db/db-${name}/num") || continue
-			SF_HOSTNAME=$(<"/config/db/db-${name}/hostname") || continue
-			prjid=$((SF_NUM + 10000000))
-			# DEBUGF "SF_NUM=${SF_NUM}, prjid=${prjid}, SF_HOSTNAME=${SF_HOSTNAME}, INODE_MAX=${SF_USER_FS_INODE_MAX}, BYTES_MAX=${SF_USER_FS_BYTES_MAX}"
-			err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE_MAX:-16384} bhard=${SF_USER_FS_BYTES_MAX:-128m} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; continue; }
-			err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; continue; }
-			is_xfs_limit=1
-		}
+		if [[ "$cmd" == "X" ]]; then
+			cmd_xfs_quota "${lid}" "${res}" || continue
+		elif [[ "$cmd" == "M" ]]; then
+			cmd_user_mount "${lid}" "${res}" || continue
+		else
+			continue
+		fi
 
-
-		# Mount if not already mounted. Continue on error (let client hang)
-		encfs_mount "${name}" "${secret}" "${secdir}" "${rawdir}" "noatime" "/sec (INODE_MAX=${SF_USER_FS_INODE_MAX}, BYTES_MAX=${SF_USER_FS_BYTES_MAX})" || continue
-
-		# XFS limit for /onion must be set up after mounting.
-		# Finding out the WWW path is ghetto:
-		# - xfs_quota can only work on the underlaying encfs structure.
-		#   That however is enrypted and we do not know the directory name
-		# - Use last created directory.
-		[[ -n $is_xfs_limit ]] && [[ ! -d "/encfs/sec/www-root/www/${SF_HOSTNAME,,}" ]] && {
-			xmkdir "/encfs/sec/www-root/www/${SF_HOSTNAME,,}"
-			USER_RAWDIR=$(find "${BASE_RAWDIR}" -type d -maxdepth 1 -print | tail -n1)
-			[[ ! -d "${USER_RAWDIR:?}" ]] && continue
-			err=$(xfs_quota -x -c "project -s -p ${USER_RAWDIR} ${prjid}" "${SF_DATADEV}" 2>&1) || { ERR "XFS Quota /onion: \n'$err'"; continue; }
-		}
-
-		# Success. Tell the guest that EncFS is ready (newly mounted or was mounted)
-		mount_done "${name}" "${reqid}"
+		# ALL OK
+		redis-cli -h sf-redis RPUSH "encfs-${reqid}-${lid}-${cmd}" "OK" >/dev/null
 	done
 }
 
@@ -219,11 +299,15 @@ export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 
 # Mount Segfault-wide encrypted file systems
 encfs_mount_server "everyone" "${ENCFS_SERVER_PASS}"
+# Create mountpoint for guest's /everyone/this
+[[ ! -d "/encfs/sec/everyone-root/everyone/this" ]] && mkdir "/encfs/sec/everyone-root/everyone/this"
 encfs_mount_server "www" "${ENCFS_SERVER_PASS}"
 
-BASE_RAWDIR=$(find /encfs/raw/www-root/ -type d -maxdepth 1 -print | tail -n1)
+BASE_RAWDIR_WWW=$(find /encfs/raw/www-root/      -maxdepth 1 -type d -inum "$(stat -c %i /encfs/sec/www-root/www)")
+BASE_RAWDIR_EVR=$(find /encfs/raw/everyone-root  -maxdepth 1 -type d -inum "$(stat -c %i /encfs/sec/everyone-root/everyone)")
 
-[[ ! -d "${BASE_RAWDIR:?}" ]] && ERREXIT 255 "Cant find encrypted /encfs/raw/www-root/*"
+[[ ! -d "${BASE_RAWDIR_WWW:?}" ]] && ERREXIT 255 "Cant find encrypted /encfs/raw/www-root/*"
+[[ ! -d "${BASE_RAWDIR_EVR:?}" ]] && ERREXIT 255 "Cant find encrypted /encfs/raw/everyone-root/*"
 
 # sleep infinity
 # Need to start redis-loop in the background. This way the foreground bash

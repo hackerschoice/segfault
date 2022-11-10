@@ -1,0 +1,11 @@
+[Unit]
+Description=Slice for docker containers
+Before=slices.target
+
+[Slice]
+CPUAccounting=true
+#CPUQuota=800%
+#CPUWeight=50
+
+IOAccounting=true
+#IOWeight=100

@@ -2,7 +2,7 @@ FROM alpine
 
 COPY /fs-root/ /
 
-RUN apk add --no-cache curl tor bash iptables && \
+RUN apk add --no-cache curl tor bash iptables openssl coreutils util-linux && \
 	(echo -e "\
 SocksPort 0.0.0.0:9050\n\
 HiddenServiceDir /var/lib/tor/hidden/service-80/\n\

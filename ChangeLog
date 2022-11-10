@@ -1,8 +1,12 @@
 0.3.4 - 2022-11-01
+    * Fixed race condition between RUNNING and ready to docker-exec
+    * Renamed sf.conf variables
+    * BLKIO accounting and sf/sf_guest[.slice]
+    * SF_USER_BLKIO_WEIGTH=100
     * config/etc/hosts
 
 0.3.3d - 2022-10-18
     * docker_limit.slice 
     * bash (2^63)-1 fix.
-    * SF_USER_FS_BYTES_MAX and xfs quota
+    * SF_USER_FS_SIZE and xfs quota
     * Forbid connections from TOR

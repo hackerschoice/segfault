@@ -109,6 +109,30 @@ lg_cleaner()
 }
 echo -e "${CDC}lg_cleaner [stop]${CN}"
 
+# Stop all container that have no SSH connection 
+# Example: lg_nossh
+# Example: lg_nossh stop
+lg_nossh()
+{
+	local is_stop
+	is_stoop="$1"
+	IFS=$'\n'
+	real=($(ps alxww | grep -v grep | grep -F " docker-exec-sigproxy exec -i" | awk '{print $16;}'))
+	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))
+	for x in "${all[@]}"; do
+		[[ ! $x =~ ^lg- ]] && continue
+		[[ "${real[*]}" =~ $x ]] && continue
+		# check how many processes are running:
+		arr=($(docker top "${x}" -o pid ))
+		n=${#arr[@]}
+		[[ ! $n -gt 1 ]] && n=1
+		((n--))
+		echo "=========== $x n=$n"
+		docker top "$x"
+	done
+}
+echo -e "${CDC}lg_nossh${CN}"
+
 # Delete all images
 docker_clean()
 {

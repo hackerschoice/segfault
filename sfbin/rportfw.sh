@@ -5,7 +5,8 @@
 # Executed by portd.sh inside VPN context.
 # Set the FW and routing for reverse ip port forwarding.
 
-source /sf/bin/funcs.sh
+source "/sf/bin/funcs.sh"
+source "/sf/bin/funcs_redis.sh"
 
 ipbydev()
 {
@@ -123,8 +124,55 @@ cmd_fwport()
 	done
 	[[ $? -ne 0 ]] && { echo "iptables failed with $?."; return 255; }
 
-	echo "[${lid}] Forwarding ${r_ip}:${port} -> ${c_ip}:${port}"
+	LOG "${lid}" "Forwarding ${r_ip}:${port} -> ${c_ip}:${port}"
 	return 0
+}
+
+# Delete stale ports
+# This can happen if there was a timeout to reach the VPN provider. 
+# Check through all ports and compare to assigned ports in ReDis
+# Testing: delstale_cs "$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd)"
+# [res] - the result from curl -dport=asdf output
+delstale_cs()
+{
+	local res
+	local IFS_old
+	local arr
+	local rarr
+	local r
+	local str
+	res="$1"
+	IFS_old="$IFS"
+
+	IFS=$'\n'
+
+	# Assigned to containers
+	rarr=($(redr SMEMBERS "portd:assigned-CryptoStorm"))
+	for str in "${rarr[@]}"; do
+		r+=("${str##* }")
+	done
+
+	# Assigned in pool of available ports
+	rarr=($(redr SMEMBERS "portd:ports"))
+	for str in "${rarr[@]}"; do
+		[[ "${str%% *}" != "CryptoStorm" ]] && continue
+		r+=("${str##* }")
+	done
+
+	# Check if CS's return of forwarded port are all
+	# still in our list "r" and delete from CS if they are not.
+	arr=($res)
+	for str in "${arr[@]}"; do
+		[[ "$str" != *" ->"* ]] && continue
+		ipport="${str%% *}"
+		[[ ${r[*]} == *"$ipport"* ]] && continue
+		WARN "${PROVIDER}: Removing STALE ${ipport}"
+		port=${ipport##*:}
+		[[ "$port" =~ [^0-9] ]] && continue
+		curl -fsSL --max-time 5 http://10.31.33.7/fwd -ddelfwd="${port}" >/dev/null
+	done
+
+	IFS="$IFS_old"
 }
 
 # Try to request [NUMBER] more ports from the provider.
@@ -155,6 +203,8 @@ cmd_moreports()
 	while [[ $i -lt $((req_num * 5)) ]]; do
 		port=$((30000 + RANDOM % 35534))
 		res=$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -dport="$port") || break
+		# Check and delete and stale ports
+		[[ $i -eq 0 ]] && delstale_cs "$res" >/dev/null
 		((i++))
 		# You already have 100 forwards. The max is 100. Please delete some of the existing ones first.
 		[[ "$res" == *"You already have "* ]] && { ERR "${PROVIDER} Out of ports!!!"; err=255; break; }        # Max Port Forward reached.

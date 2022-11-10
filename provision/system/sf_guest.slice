@@ -1,0 +1,27 @@
+[Unit]
+Description=Slice for segfault guest container's
+Before=slices.target
+
+# Test with
+# docker run --rm --name stress --cgroup-parent sf_guest.slice -it progrium/stress --cpu 2 --io 1 --vm 2 --vm-bytes 128M --timeout 10s
+[Slice]
+# CPU Management
+CPUAccounting=true
+#CPUQuota=800%
+# During resource contention give docker 50%. Docker gets 100% if
+# there is n contention.
+# 100 = host & docker share equally (50%)
+#  50 = docker gets 1/3 and host gets 2/3
+#CPUWeight=50
+
+IOAccounting=true
+# Cgroup cant do QUOTA for IO. Instead there is WEIGHT only.
+# This only kicks in if there is a contention for resources.
+# 100 == Host and docker get 50% each
+# 10  == Host gets 10x more than docker
+#IOWeight=100
+
+# Memory Management
+#MemoryAccounting=true
+#MemoryHigh=4G
+#MemoryMax=6G

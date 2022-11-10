@@ -170,11 +170,15 @@ init_config_run()
 
   # Configure BFQ module
   grep ^bfq /etc/modules &>/dev/null || echo "bfq" >>/etc/modules
+  modprobe bfq || {
+    "${PKG_INSTALL[@]}" linux-modules-extra-aws || ERREXIT 254
+    modprobe bfq || ERREXIT 255
 }
 
 docker_fixdir()
 {
-  [[ ! -d /sf/docker ]] && return
+  [[ ! -d /sf ]] && return
+  [[ ! -d /sf/docker ]] && mkdir /sf/docker
   [[ "/sf/docker" -ef "/var/lib/docker" ]] && return
 
   # Stop docker. Should not be running but who knows..
@@ -210,14 +214,8 @@ docker_config()
   local ncpu
 
   xinstall daemon.json /etc/docker
-  xinstall sf.slice /etc/systemd/system && {
+  xinstall sf.slice /etc/systemd/system
   xinstall sf_guest.slice /etc/systemd/system && {
-    # ncpu=$(nproc)
-    # [[ -z $ncpu ]] && ncpu=1
-    # Always reserver 5% for host
-    # maxp=$((ncpu * 100 - 5))
-    # sed  "s/CPUQuota=.*/CPUQuota=${maxp}%/" -i /etc/systemd/system/docker_limit.slice
-    sed 's/^Restart=always.*$/Restart=on-failure\nSlice=docker_limit.slice/' -i /lib/systemd/system/docker.service
     sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
   }
   systemctl daemon-reload
@@ -228,7 +226,6 @@ docker_start()
   docker ps >/dev/null && return
   systemctl start docker
 }
-
 
 DEBUGF "Initializing variables..."
 init_vars
@@ -245,8 +242,9 @@ init_host_sshd
 
 init_basedir
 
-# Install Docker and docker-cli
-install_docker
+# Install Docker & software
+install_sw
+
 docker_fixdir
 docker_config
 docker_start

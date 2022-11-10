@@ -24,29 +24,29 @@ source "${BINDIR}/funcs.sh" || exit 254
 [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set"
 
 # [DIR] [project name] [id] [INODE-LIMIT] [BYTES_MAX]
-xfs_init_quota()
-{
-	local dir
-	local prj
-	local id
-	local ihard
-	local err
-	local bhard
-	dir=$(readlink -f "$1")
-	prj=$2
-	id=$3
-	ihard=$4
-	bhard=$5
+# xfs_init_quota()
+# {
+# 	local dir
+# 	local prj
+# 	local id
+# 	local ihard
+# 	local err
+# 	local bhard
+# 	dir=$(readlink -f "$1")
+# 	prj=$2
+# 	id=$3
+# 	ihard=$4
+# 	bhard=$5
 
-	command -v xfs_quota &>/dev/null || { WARN "[${prj}] Not found: xfs_quota"; return 255; }
+# 	command -v xfs_quota &>/dev/null || { WARN "[${prj}] Not found: xfs_quota"; return 255; }
 
-	grep "^${prj}" /etc/projid &>/dev/null || echo "${prj}:${id}" >>/etc/projid
-	# This survives a reboot but maybe our parameters have changed. Set to latest:
-	xfs_quota -x -c "limit -p ihard=${ihard} bhard=${bhard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
-	xfs_quota -x -c "project -s -p${dir} ${prj}" >/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+# 	grep "^${prj}" /etc/projid &>/dev/null || echo "${prj}:${id}" >>/etc/projid
+# 	# This survives a reboot but maybe our parameters have changed. Set to latest:
+# 	xfs_quota -x -c "limit -p ihard=${ihard} bhard=${bhard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
+# 	xfs_quota -x -c "project -s -p${dir} ${prj}" >/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
 
-	echo "[${dir##*/}] Quota set to inode-max=${ihard}, bytes-max=${bhard}."
-}
+# 	echo "[${dir##*/}] Quota set to inode-max=${ihard}, bytes-max=${bhard}."
+# }
 
 # Load variables from ENV but only those not already set in
 # user's environemtn.
@@ -91,6 +91,7 @@ blockio_init()
 
 	[[ -z $is_bfq ]] && {
 		# HERE: no BFQ support. Try load module.
+		# Try: apt install linux-modules-extra-aws
 		modprobe bfq || { WARN "No BFQ-Scheduler. Attacker can DoS block-IO."; return; }
 		is_bfq=1
 	}

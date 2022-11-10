@@ -132,7 +132,9 @@ cmd_fwport()
 # This can happen if there was a timeout to reach the VPN provider. 
 # Check through all ports and compare to assigned ports in ReDis
 # Testing: delstale_cs "$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd)"
-# [res] - the result from curl -dport=asdf output
+# [res] [port] 
+#   +      +---- The last port that got added (and not yet added to portd:ports and thus must be ignored)
+#   +----------- The result from curl -dport=asdf output
 delstale_cs()
 {
 	local res
@@ -141,7 +143,9 @@ delstale_cs()
 	local rarr
 	local r
 	local str
+	local skip_port
 	res="$1"
+	skip_port="$2"
 	IFS_old="$IFS"
 
 	IFS=$'\n'
@@ -166,8 +170,9 @@ delstale_cs()
 		[[ "$str" != *" ->"* ]] && continue
 		ipport="${str%% *}"
 		[[ ${r[*]} == *"$ipport"* ]] && continue
-		WARN "${PROVIDER}: Removing STALE ${ipport}"
 		port=${ipport##*:}
+		[[ "$port" == "$skip_port" ]] && continue
+		WARN "${PROVIDER}: Removing STALE ${ipport}"
 		[[ "$port" =~ [^0-9] ]] && continue
 		curl -fsSL --max-time 5 http://10.31.33.7/fwd -ddelfwd="${port}" >/dev/null
 	done
@@ -204,7 +209,7 @@ cmd_moreports()
 		port=$((30000 + RANDOM % 35534))
 		res=$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -dport="$port") || break
 		# Check and delete and stale ports
-		[[ $i -eq 0 ]] && delstale_cs "$res" >/dev/null
+		[[ $i -eq 0 ]] && delstale_cs "$res" "$port" >/dev/null
 		((i++))
 		# You already have 100 forwards. The max is 100. Please delete some of the existing ones first.
 		[[ "$res" == *"You already have "* ]] && { ERR "${PROVIDER} Out of ports!!!"; err=255; break; }        # Max Port Forward reached.

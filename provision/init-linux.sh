@@ -216,6 +216,7 @@ docker_config()
   xinstall daemon.json /etc/docker
   xinstall sf.slice /etc/systemd/system
   xinstall sf_guest.slice /etc/systemd/system && {
+    sed 's/^Restart=always.*$/Restart=on-failure/' -i /lib/systemd/system/docker.service
     sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
   }
   systemctl daemon-reload

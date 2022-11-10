@@ -57,6 +57,7 @@ var (
 )
 
 func main() {
+
 	if *versionFlag {
 		fmt.Printf("%v compiled on %v from commit %v\n", os.Args[0], Buildtime, Version)
 		os.Exit(0)
@@ -103,6 +104,7 @@ func main() {
 	)
 
 	// program main loop
+	var badState = map[string]string{}
 	for {
 		for server, secret := range servers {
 
@@ -117,8 +119,18 @@ func main() {
 
 				err := checkServer(server, secret)
 				if err != nil {
+					if badState[server] == err.Error() {
+						log.Debugf("%v has already been reported")
+						return
+					}
 					log.Debug(err)
 					msgC <- err.Error()
+					badState[server] = err.Error()
+				} else {
+					if _, ok := badState[server]; ok {
+						delete(badState, server)
+						msgC <- fmt.Sprintf("[%v] is now healthy", server)
+					}
 				}
 			}(server, secret)
 		}

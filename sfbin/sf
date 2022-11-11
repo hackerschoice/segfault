@@ -12,7 +12,7 @@
 	docker container prune -f
 	c=($(docker ps -f name=^lg --all --quiet))
 	[[ -n $c ]] && docker stop "${c[@]}"
-	docker-compose down
+	docker-compose "$@"
 	exec docker network prune -f
 }
 [[ "$1" != up ]] && exec docker-compose "$@"

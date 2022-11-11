@@ -131,6 +131,16 @@ load_limits()
 	[[ -f "/config/db/db-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/db-${lid}/limits.conf")"
 }
 
+dir2prjid()
+{
+	local dir
+	local p
+	dir="$1"
+
+	p=$(lsattr -dp "${dir}")
+	p=${p%% --*}
+	echo "${p##* }"
+}
 
 # Set XFS quota on sub folders. This normally only needs to be done
 # when the subfolder is created.
@@ -164,7 +174,11 @@ xfs_quota_sub()
 	rawdir=$(find "${base_rawdir}" -maxdepth 1 -type d -inum "$inode")
 	[[ -z "${rawdir}" ]] || [[ ! -d "${rawdir}" ]] && { ERR "XFS rawdir not found"; return; }
 
-	err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS Quota /everyone: \n'$err'"; }
+	local prjid_old
+	prjid_old=$(dir2prjid "${rawdir}")
+	[[ "$prjid_old" != "$prjid" ]] && {
+		err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS Quota /everyone: \n'$err'"; }
+	}
 }
 
 
@@ -186,19 +200,24 @@ cmd_user_mount()
 	encfs_mkdir "${lid}" "${secdir}" "${rawdir}"
 	ret=$?
 	[[ $ret -eq 1 ]] && return 0 # Already mounted
-	[[ $ret -ne 0 ]] && retrun 255
+	[[ $ret -ne 0 ]] && return 255
 
 	# HERE: Not yet mounted.
 	# Set XFS limits
 	load_limits "${lid}"
 	[[ -n $SF_USER_FS_INODE ]] || [[ -n $SF_USER_FS_SIZE ]] && {
-
 		SF_NUM=$(<"/config/db/db-${lid}/num") || return 255
 		SF_HOSTNAME=$(<"/config/db/db-${lid}/hostname") || return 255
 		prjid=$((SF_NUM + 10000000))
 		DEBUGF "SF_NUM=${SF_NUM}, prjid=${prjid}, SF_HOSTNAME=${SF_HOSTNAME}, INODE=${SF_USER_FS_INODE}, SIZE=${SF_USER_FS_SIZE}"
 		err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE:-16384} bhard=${SF_USER_FS_SIZE:-128m} ${prjid}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; return 255; }
-		err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; return 255; }
+		# Only set it if it isnt already set (this can take very long to complete)
+		local prjid_old
+		prjid_old=$(dir2prjid "${rawdir}")
+		[[ "$prjid_old" != "$prjid" ]] && {
+			DEBUGF "Setting it $prjid, old $prjid_old"
+			err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; return 255; }
+		} 
 	}
 
 	# Mount if not already mounted. Continue on error (let client hang)
@@ -227,7 +246,7 @@ cmd_xfs_quota()
 	dir="/var/lib/docker/overlay2/${2#* }"
 
 	[[ ! -d "${dir}" ]] && { BAD 0 "Not found: ${dir}."; return 255; }
-	s=$(lsattr -p "${dir}")
+	s=$(lsattr -dp "${dir}")
 	prjid=${s%% --*}
 	prjid=${prjid##* }  # trim leading white spaces
 	[[ -z $prjid ]] || [[ $prjid -eq 0 ]] && { BAD 0 "Invalid prjid='$prjid'"; return 255; }

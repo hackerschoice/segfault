@@ -164,12 +164,14 @@ func checkServer(server, secret string) error {
 	if err != nil {
 		return fmt.Errorf("[%v] connection failed: %v", server, err)
 	}
+	defer client.Close()
 
 	session, err := client.NewSession()
 	if err != nil {
 		return fmt.Errorf("[%v] SSH session failed: %v", server, err)
 	}
 	defer session.Close()
+
 	session.Setenv("SECRET", secret)
 
 	// configure terminal mode

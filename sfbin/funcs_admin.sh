@@ -47,7 +47,7 @@ echo -e "${CDC}lgwall <LID> <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"G
 # [<REGEX>] <stop>
 plgtop()
 {
-	systemd-cgls -l | while read x; do
+	systemd-cgls -l -u docker_limit.slice | while read x; do
 		[[ $x == *" [init-"* ]] && { lid="${x#* \[init-}"; lid="${lid%%-*}"; }
 		[[ ! $x =~ ${1:?} ]] && continue
 		[[ ${#lid} -ne 10 ]] && continue

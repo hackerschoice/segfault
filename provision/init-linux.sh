@@ -153,6 +153,7 @@ init_config_run()
   mergedir "config/etc/nginx"
   mergedir "config/etc/redis"
   mergedir "config/etc/hosts"
+  mergedir "config/etc/resolv.conf"
 
   [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
   [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
@@ -173,6 +174,7 @@ init_config_run()
   modprobe bfq || {
     "${PKG_INSTALL[@]}" linux-modules-extra-aws || ERREXIT 254
     modprobe bfq || ERREXIT 255
+  }
 }
 
 docker_fixdir()
@@ -211,8 +213,6 @@ xinstall()
 
 docker_config()
 {
-  local ncpu
-
   xinstall daemon.json /etc/docker
   xinstall sf.slice /etc/systemd/system
   xinstall sf_guest.slice /etc/systemd/system
@@ -303,9 +303,9 @@ if [[ -e "${ENV}" ]]; then
   IS_USING_EXISTING_ENV_FILE=1
   CONFLICT+=("${ENV}");
 else
-  cp "${SFI_SRCDIR}/provision/env.example" "${ENV}" &&
-  sed "s/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR//\//\\/}/" -i "${ENV}" &&
-  sed "s/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR//\//\\/}/" -i "${ENV}" &&
+  cp "${SFI_SRCDIR}/provision/env.example" "${ENV}" || ERREXIT 122 failed
+  sed "s/^SF_BASEDIR.*/SF_BASEDIR=${SF_BASEDIR//\//\\/}/" -i "${ENV}" || ERREXIT 132 failed
+  sed "s/.*SF_SHMDIR.*/SF_SHMDIR=${SF_SHMDIR//\//\\/}/" -i "${ENV}" || ERREXIT 133 failed
   sed "s/.*SF_FQDN.*/SF_FQDN=${SF_FQDN//\//\\/}/" -i "${ENV}" || ERREXIT 120 failed
   [[ -n $SF_SSH_PORT ]] && { sed "s/.*SF_SSH_PORT.*/SF_SSH_PORT=${SF_SSH_PORT}/" -i "${ENV}" || ERREXIT 121 failed; }
   [[ -n $SF_NORDVPN_PRIVATE_KEY ]] && { sed "s/.*SF_NORDVPN_PRIVATE_KEY.*/SF_NORDVPN_PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY//\//\\/}/" -i "${ENV}" || ERREXIT 121 failed; }
@@ -354,7 +354,7 @@ INFO "To Start            : ${CDY}SF_SEED='$SF_SEED' sfbin/sf up --force-recreat
 INFO "SSH                 : ${CDC}ssh ${PORTSTR}${SF_USER:-root}@${SF_FQDN:-UNKNOWN}${CN}"
 INFO "SSH (gsocket)       : ${CDC}gsocket -s ${GS_SECRET} ssh ${SF_USER:-root}@${SF_FQDN%.*}.gsocket${CN}"
 
-[[ -n $CONFLICT ]] && {
+[[ ${#CONFLICT[@]} -gt 0 ]] && {
   WARN 7 "Not updating these:"
   for x in "${CONFLICT[@]}"; do
     INFO "${x}"

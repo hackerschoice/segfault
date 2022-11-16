@@ -83,7 +83,8 @@ encfs_mount()
 	LOG "${name}" "Mounting ${info}"
 	# echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o fsname=/dev/sec-\"${name}\" -o \"${opts}\"" >/dev/null
 	# --nocache -> Blindly hoping that encfs consumes less memory?!
-	echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"" >/dev/null
+	# -s single thread. Seems to give better I/O performance and uses less memory (!)
+	echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs -s --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"" >/dev/null
 	ret=$?
 	[[ $ret -eq 0 ]] && return 0
 
@@ -109,6 +110,8 @@ encfs_mount_server()
 	[[ -f "${secdir}/.IS-ENCRYPTED" ]] && rm -f "${secdir}/.IS-ENCRYPTED"	
 	encfs_mount "${name}" "${secret}" "${secdir}" "${rawdir}" "noexec,noatime" || ERREXIT 254 "EncFS ${name}-root failed."
 	touch "${secdir}/.IS-ENCRYPTED"
+
+	[[ ! -d "${secdir}/${name}" ]] && mkdir "${secdir}/${name}"
 
 	# redis-cli -h sf-redis SET "encfs-ts-${name}" "$(date +%s)"
 }

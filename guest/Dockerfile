@@ -45,6 +45,7 @@ RUN	apt-get update -y \
 		bison \
 		build-essential \
 		byacc \
+		dtach \
 		flex \
 		g++ \
 		gawk \

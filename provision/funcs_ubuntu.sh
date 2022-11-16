@@ -7,8 +7,9 @@ IS_APT=1
 
 install_sw()
 {
+  command -v docker >/dev/null && return
   # Docker
-  docker ps &>/dev/null || bash -c "$(curl -fsSL https://get.docker.com)" || ERREXIT 255
+  bash -c "$(curl -fsSL https://get.docker.com)" || ERREXIT 255
 
   # Software
   if [[ -z $SF_NO_INTERNET ]]; then

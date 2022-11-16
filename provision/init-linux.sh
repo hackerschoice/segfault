@@ -172,8 +172,9 @@ init_config_run()
   # Configure BFQ module
   grep ^bfq /etc/modules &>/dev/null || echo "bfq" >>/etc/modules
   modprobe bfq || {
-    "${PKG_INSTALL[@]}" linux-modules-extra-aws || ERREXIT 254
-    modprobe bfq || ERREXIT 255
+    "${PKG_INSTALL[@]}" linux-modules-extra-aws
+    # Does this need `GRUB_CMDLINE_LINUX="scsi_mod.use_blk_mq=1"` in /etc/default/grub on Ubunut?
+    modprobe bfq || ERREXIT 255 "Cant load BFQ module. Please install the BFQ kernel module."
   }
 }
 

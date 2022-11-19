@@ -98,12 +98,14 @@ func main() {
 	var (
 		wg = &sync.WaitGroup{}
 
-		// protects `connTracker` from concurrent r/w
+		// protects `connTracker` from concurrent r/w.
 		mu          sync.Mutex
 		connTracker int
 	)
 
-	// program main loop
+	// keeps track of a server down time.
+	var downTime = map[string]time.Time{}
+	// program main loop.
 	var badState = map[string]string{}
 	for {
 		for server, secret := range servers {
@@ -126,10 +128,13 @@ func main() {
 					log.Debug(err)
 					msgC <- err.Error()
 					badState[server] = err.Error()
+					downTime[server] = time.Now().UTC()
 				} else {
 					if _, ok := badState[server]; ok {
+						elapsed := time.Since(downTime[server])
 						delete(badState, server)
-						msgC <- fmt.Sprintf("[%v] is now healthy", server)
+						delete(downTime, server)
+						msgC <- fmt.Sprintf("[%v] is now healthy [down %v]", server, elapsed.String())
 					}
 				}
 			}(server, secret)

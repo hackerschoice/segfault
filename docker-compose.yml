@@ -408,8 +408,9 @@ networks:
       - subnet: 172.20.0.0/24
 
   incoming-net:
+    # name: sf-direct
+    # ODD: Naming this network means that the ports/exposed wont get routed to this IP but to another iP
     driver: bridge
-    name: sf-direct
     ipam:
       driver: default
       config:

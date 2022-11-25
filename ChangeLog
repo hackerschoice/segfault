@@ -1,3 +1,10 @@
+0.3.8 - 2022-11-00
+    * MoSH support (preliminary)
+    * DoS fix for arp table exhaustion (@leonarth)
+    * FORWARD Policy = DROP
+    * Support for tunneling TOR via VPN (SF_TOR_VIA_VPN=1)
+    * Fixed SSH login via .onion
+
 0.3.4 - 2022-11-01
     * Fixed race condition between RUNNING and ready to docker-exec
     * Renamed sf.conf variables

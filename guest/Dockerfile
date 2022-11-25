@@ -73,6 +73,7 @@ RUN	apt-get update -y \
 		netcat-traditional \
 		man-db \
 		manpages-dev \
+		mosh \
 		sudo \
 		tcpdump \
 		telnet \
@@ -114,6 +115,7 @@ RUN	apt-get update -y \
 		emacs \
 		emailharvester \
 		enum4linux \
+		exa \
 		exiftool \
 		gnupg \
 		hashcat \
@@ -129,6 +131,7 @@ RUN	apt-get update -y \
 		mtr \
 		most \
 		neofetch \
+		neovim \
 		nikto \
 		ngrep \
 		openssh-client \
@@ -137,8 +140,10 @@ RUN	apt-get update -y \
 		pip \
 		proxychains \
 		python-is-python3 \
+		python3-pwntools \
 		python3-venv \
 		python3-virtualenv \
+		radare2 \
 		recon-ng \
 		rclone \
 		rlwrap \
@@ -150,7 +155,9 @@ RUN	apt-get update -y \
 		sshpass \
 		ssh-audit \
 		theharvester \
+		tmate \
 		tree \
+		torsocks \
 		w3m \
 		weechat weechat-plugins weechat-matrix \
 		whatweb \
@@ -167,6 +174,7 @@ RUN	apt-get update -y \
 		nodejs \
 		php \
 		pkg-config \
+		ripgrep \
 		rust-all \
 		ruby \
 		x11-apps \

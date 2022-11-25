@@ -11,6 +11,6 @@ GS_SECRET=$(echo -n "GS-${SF_SEED}${SF_FQDN}" | sha512sum | base64 -w0)
 GS_SECRET="${GS_SECRET//[^[:alpha:]]}"
 GS_SECRET="${GS_SECRET:0:12}"
 
-[[ ! -f /config/guest/gsnc-access-22.txt ]] && echo "${GS_SECRET}" >/config/guest/gsnc-access-22.txt
+echo "${GS_SECRET}" >/config/guest/gsnc-access-22.txt
 
 exec /gs-netcat -l -d "$1" -p 22 -s "22-${GS_SECRET}"

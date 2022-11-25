@@ -21,6 +21,11 @@ alias l='ls -Alh'
 unalias lt 2>/dev/null
 alias lt='ls -Alhrt'
 
+unalias vi 2>/dev/null
+unalias vim 2>/dev/null
+alias vi='nvim'
+alias vim='nvim'
+
 [[ -e /usr/bin/lsd ]] && {
 	alias ls='lsd --icon never'
 }

@@ -63,9 +63,17 @@ genkey_hidden()
 
 # Route all traffic that comes to this instance through TOR.
 iptables -t nat -A PREROUTING -p tcp ! -d sf-tor --syn -j REDIRECT --to-ports 9040
-# Route to SSHD and NGINX via sf-router
-ip route add 172.22.0.22/32 via 172.20.0.2
-ip route add 172.20.1.80/32 via 172.20.0.2
+
+if [[ -n $SF_TOR_VIA_VPN ]]; then
+	# Route TOR via VPN
+	ip route del default
+	ip route add default via 172.20.0.2
+else
+	# Route TOR directly to Internet but incoming
+	# onion connectoins to these two (via sf-router)
+	ip route add 172.22.0.22/32 via 172.20.0.2
+	ip route add 172.20.1.80/32 via 172.20.0.2
+fi
 
 umask 0077
 genkey_hidden 22

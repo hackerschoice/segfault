@@ -20,7 +20,7 @@ do_exit_err()
 	[[ -z $CPID ]] && { kill $CPID; unset CPID; }
 
 	killall encfs # This will unmount
-	exit "$1"
+	ERREXIT "$1" "Exiting main thread"
 }
 
 xmkdir()
@@ -42,21 +42,25 @@ encfs_mkdir()
 	secdir="$2"
 	rawdir="$3"
 
-	[[ -d "${secdir}" ]] && mountpoint "${secdir}" >/dev/null && {
-		echo "[encfs-${name}] Already mounted."
-		[[ ! -e "${secdir}/${MARK_FN}" ]] && return 1
-		ERR "[encfs-${name}] Mounted but markfile exist showing not encrypted."
-		return 255
-	}
+	xmkdir "${rawdir}" || return 255
+
+	if [[ -d "${secdir}" ]]; then
+		mountpoint "${secdir}" >/dev/null && {
+			echo "[encfs-${name}] Already mounted."
+			[[ ! -e "${secdir}/${MARK_FN}" ]] && return 1
+			ERR "[encfs-${name}] Mounted but markfile exist showing not encrypted."
+			return 255
+		}
+		return 0
+	fi
+
+	# HERE: $secdir does _NOT_ exist.
 
 	# If EncFS died then a stale mount point might still exist.
 	# -d/-e/-f all fail (Transport endpoint is not connected)
 	# Force an unmount if it's not a directory (it's 'stale').
-	fusermount -zu "${secdir}" 2>/dev/null && [[ -d "${secdir}" ]] && return
-	[[ ! -d "${secdir}" ]] && fusermount -zu "${secdir}" 2>/dev/null
-
+	fusermount -zu "${secdir}" 2>/dev/null	
 	xmkdir "${secdir}" || return 255
-	xmkdir "${rawdir}" || return 255
 }
 
 # [name] [SECRET] [SECDIR] [RAWDIR] [noatime,noexec] [info]
@@ -112,8 +116,6 @@ encfs_mount_server()
 	touch "${secdir}/.IS-ENCRYPTED"
 
 	[[ ! -d "${secdir}/${name}" ]] && mkdir "${secdir}/${name}"
-
-	# redis-cli -h sf-redis SET "encfs-ts-${name}" "$(date +%s)"
 }
 
 # [LID]
@@ -257,16 +259,24 @@ cmd_xfs_quota()
 	xfs_quota -x -c "limit -p ihard=${ilimit} $prjid" || { BAD 0 "XFS_QUOTA filed"; return 255; }
 }
 
-
+# Note: Started as background process.
 redis_loop_forever()
 {
 	local secdir
 	local cmd
 	local lid
 	local reqid
+	local n_conn_err
 
 	while :; do
-		res=$(redis-cli -h sf-redis BLPOP encfs 0) || ERREXIT 250 "Failed with $?"
+		res=$(redis-cli -h 172.20.2.254 BLPOP encfs 0) || {
+			((n_conn_err++))
+			[[ $n_conn_err -gt 180 ]] && ERREXIT 250 "Giving up..."
+			WARN "Waiting for Redis..."
+			sleep 1
+			continue
+		}
+		unset n_conn_err
 
 		[[ -z $res ]] && {
 			# HERE: no result
@@ -300,7 +310,7 @@ redis_loop_forever()
 		fi
 
 		# ALL OK
-		redis-cli -h sf-redis RPUSH "encfs-${reqid}-${lid}-${cmd}" "OK" >/dev/null
+		redis-cli -h 172.20.2.254 RPUSH "encfs-${reqid}-${lid}-${cmd}" "OK" >/dev/null
 	done
 }
 
@@ -323,6 +333,7 @@ export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 encfs_mount_server "everyone" "${ENCFS_SERVER_PASS}"
 # Create mountpoint for guest's /everyone/this
 [[ ! -d "/encfs/sec/everyone-root/everyone/this" ]] && mkdir "/encfs/sec/everyone-root/everyone/this"
+cp "/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt" "/encfs/sec/everyone-root/everyone"
 encfs_mount_server "www" "${ENCFS_SERVER_PASS}"
 
 BASE_RAWDIR_WWW=$(find /encfs/raw/www-root/      -maxdepth 1 -type d -inum "$(stat -c %i /encfs/sec/www-root/www)")

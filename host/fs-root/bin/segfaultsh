@@ -233,7 +233,7 @@ mk_portforward()
 
 	ipport=$(echo -e "DEL portd:response-${LID}\"\n\
 RPUSH portd:blcmd \"getport ${LID}\"\n\
-BLPOP portd:response-${LID} 5" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h sf-redis) || return
+BLPOP portd:response-${LID} 5" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h 172.20.2.254) || return
 	# DEBUGF "ipport='$ipport'"
 	ipport="${ipport##*$'\n'}"
 	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to get Reverse Port Forward (ipport='$ipport')"; return; }
@@ -427,7 +427,7 @@ setup_fs_ilimit()
 	dir=${dir#*overlay2/}
 
 	res=$(echo -e "RPUSH encfs \"$$ ${LID} X ${SF_USER_ROOT_FS_INODE} ${dir}\"\n\
-BLPOP \"encfs-$$-${LID}-X\" 10" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h sf-redis) || return 255
+BLPOP \"encfs-$$-${LID}-X\" 10" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h 172.20.2.254) || return 255
 	[[ -z $res || "${res##*$'\n'}" != "OK" ]] && return 255
 
 	return 0
@@ -782,7 +782,7 @@ encfspass="${encfspass:0:24}"
 
 # Start & Wait for EncFS
 res=$(echo -e "RPUSH encfs \"$$ ${LID} M ${encfspass}\"\n\
-BLPOP \"encfs-$$-${LID}-M\" 10" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h sf-redis) || ERREXIT 230 "Can't reach EncFSD"
+BLPOP \"encfs-$$-${LID}-M\" 10" | REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw -h 172.20.2.254) || ERREXIT 230 "Can't reach EncFSD"
 [[ -z $res || "${res##*$'\n'}" != "OK" ]] && ERREXIT 229 "Bad answer from EncFSD"
 echo_pty -n "...."
 
@@ -894,7 +894,7 @@ c_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end
 exec_devnull docker exec sf-router bash -c "source /dev/shm/net-devs.txt || exit
 iptables --new-chain 'SYN-LIMIT-${c_ip}' 2>/dev/null || exit 0
 # HERE: Chain did not exist yet.
-iptables -I FORWARD 1 -i \"\${DEV}\" -o \"\${DEV_GW}\" -s '${c_ip}' -p tcp --syn -j 'SYN-LIMIT-${c_ip}' &&
+iptables -I FORWARD 1 -i \"\${DEV_LG}\" -o \"\${DEV_GW}\" -s '${c_ip}' -p tcp --syn -j 'SYN-LIMIT-${c_ip}' &&
 iptables -A 'SYN-LIMIT-${c_ip}' -m limit --limit \"1/sec\" --limit-burst 8196 -j RETURN &&
 iptables -A 'SYN-LIMIT-${c_ip}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
 

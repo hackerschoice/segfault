@@ -3,6 +3,7 @@ services:
 
   sf-redis:
     image: redis
+    container_name: sf-redis
     read_only: true
     hostname: sf-redis
     restart: ${SF_RESTART:-on-failure}
@@ -19,6 +20,7 @@ services:
   sf-encfsd:
     build: encfsd
     image: sf-encfsd
+    container_name: sf-encfsd
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - sf-redis
@@ -50,6 +52,7 @@ services:
   sf-destructor:
     build: encfsd
     image: sf-encfsd
+    container_name: sf-destructor
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - sf-redis
@@ -87,6 +90,7 @@ services:
   sf-portd:
     build: encfsd
     image: sf-encfsd
+    container_name: sf-portd
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - sf-redis
@@ -103,6 +107,7 @@ services:
 
   dns-doh:
     image: crazymax/cloudflared
+    container_name: sf-dns-doh
     restart: ${SF_RESTART:-on-failure}
     networks:
       dns-doh-net:
@@ -110,6 +115,7 @@ services:
 
   dnsmasq:
     image: 4km3/dnsmasq:2.85-r2
+    container_name: sf-dnsmasq
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dns-doh
@@ -120,9 +126,7 @@ services:
       vpn-net:
         ipv4_address: 172.20.0.53
       dns-doh-net:
-        ipv4_address: 172.23.0.53
-      guest-net:
-        ipv4_address: 10.11.255.53
+        ipv4_address: 172.23.0.3
       access-net:
         ipv4_address: 172.22.0.53
 
@@ -243,7 +247,7 @@ services:
       vpn-net:
         ipv4_address: 172.20.0.2
       guest-net:
-        ipv4_address: 10.11.255.253 # Will be replaced by init.sh with 10.11.0.1
+        ipv4_address: 10.11.0.254 # Will be replaced by init.sh with 10.11.0.1
       access-net:
         ipv4_address: 172.22.0.254
       dmz-net:
@@ -253,9 +257,19 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1 # SNAT
       - net.ipv4.conf.all.rp_filter=2
+      - net.netfilter.nf_conntrack_frag6_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180 # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
+      # - net.netfilter.nf_conntrack_udp_timeout=10
+      - net.netfilter.nf_conntrack_icmp_timeout=10
     ports:
       - "${SF_SSH_PORT:-22}:22"
       - "${SF_SSH_PORT2:-443}:22"
+      - "25002-25050:25002-25050/udp" # MOSH.
+      # FIXME: Docker cant start container with two many port forwards
+      # - "25002-26023:25002-26023/udp" # MOSH. 
     environment:
       - SF_DEBUG
       - SF_MAXOUT
@@ -265,6 +279,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
     entrypoint: ["/init.sh"]
 
   router-fix-network:
@@ -281,12 +296,16 @@ services:
   tor:
     build: tor
     image: sf-tor
+    container_name: sf-tor
     hostname: sf-tor
     networks:
       vpn-net:
         ipv4_address: 172.20.0.111
     cap_add:
       - NET_ADMIN
+    environment:
+      - SF_DEBUG
+      - SF_TOR_VIA_VPN
     restart: ${SF_RESTART:-on-failure}
     dns: 172.20.0.53
     depends_on:
@@ -300,6 +319,7 @@ services:
   gsnc:
     build: gsnc
     image: sf-gsnc
+    container_name: sf-gsnc
     networks:
       access-net:
         ipv4_address: 172.22.0.21
@@ -341,7 +361,7 @@ services:
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
     # Add any variables to docker_sshd.sh as well.
     environment:
-      - SF_DNS=10.11.255.53
+      - SF_DNS=172.20.0.53
       - SF_TOR=172.20.0.111
       - SF_BASEDIR=${SF_BASEDIR}
       - SF_SHMDIR=${SF_SHMDIR:-/dev/shm/sf}
@@ -362,6 +382,7 @@ services:
 
   nginx:
     image: nginx
+    container_name: sf-nginx
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - sf-encfsd
@@ -388,12 +409,14 @@ networks:
 
   incoming-net:
     driver: bridge
+    name: sf-direct
     ipam:
       driver: default
       config:
       - subnet: 172.28.0.0/24
 
   access-net:
+    # sf-host and gsnc
     name: sf-access
     driver: bridge
     ipam:
@@ -420,7 +443,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.23.0.0/24
+        - subnet: 172.23.0.0/29
 
   # User's shell
   guest-net:
@@ -429,5 +452,9 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 10.11.0.0/16
+        - subnet: 10.11.0.0/24
+
+        # 255 hosts. BUG-ARP-CACHE
         # default gw is always 10.11.0.1 and is the host side of the bridge (?)
+        # The init.sh script in sf-router will overwrite it's own interface with 10.11.0.1
+        # so that the sf-router receives all traffic.

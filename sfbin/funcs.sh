@@ -32,6 +32,10 @@ WARN()
 	echo -e >&2 "[$(date '+%F %T' -u)] [${CDY}#${IS_WARN} WARN${CN}] $*"
 }
 
+WARN_RESET()
+{
+	unset IS_WARN
+}
 
 LOG()
 {

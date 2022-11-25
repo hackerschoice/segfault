@@ -1,6 +1,7 @@
 
-# SF_REDIS_SERVER=172.20.2.254
-SF_REDIS_SERVER="${SF_REDIS_SERVER:-sf-redis}"
+# BUG-ARP-CACHE, _must_ use IP address
+SF_REDIS_SERVER=172.20.2.254
+# SF_REDIS_SERVER="${SF_REDIS_SERVER:-sf-redis}"
 REDCMD=("redis-cli" "--raw" "-h" "${SF_REDIS_SERVER}")
 export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 

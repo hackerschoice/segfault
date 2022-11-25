@@ -1,5 +1,21 @@
 #! /bin/bash
 
+
+down()
+{
+	docker container prune -f
+	c=($(docker ps -f name=^lg --all --quiet))
+	[[ -n $c ]] && docker stop "${c[@]}"
+	docker-compose "$@"
+	docker network prune -f
+	# Sometimes docker gets into a state when it complains about overlappting
+	# network pool even that 'docker network ls' shows no networks beside
+	# the 3 default networks and with no containers running:
+	ip link show | cut -f2 -d" " | grep -E "^(br-)"  | while read x; do x="${x%@*}"; x="${x%:*}"; [[ -z $x ]] && continue; ip link delete "${x}" down; done
+	# ip link show | cut -f2 -d" " | grep -E "^(br-|veth)"  | while read x; do x="${x%@*}"; x="${x%:*}"; [[ -z $x ]] && continue; ip link delete "${x}" down; done
+	ifconfig docker0 down
+}
+
 [[ -z $SF_REDIS_AUTH ]] && {
 	# SF_REDIS_AUTH=$(dd bs=1024 count=1 if=/dev/urandom status=none | sha512sum | base64 -w0)
 	SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0)
@@ -9,11 +25,8 @@
 }
 
 [[ "$1" == down ]] && {
-	docker container prune -f
-	c=($(docker ps -f name=^lg --all --quiet))
-	[[ -n $c ]] && docker stop "${c[@]}"
-	docker-compose "$@"
-	exec docker network prune -f
+	down "$@"
+	exit 
 }
 [[ "$1" != up ]] && exec docker-compose "$@"
 
@@ -22,31 +35,6 @@ BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 source "${BINDIR}/funcs.sh" || exit 254
 
 [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set"
-
-# [DIR] [project name] [id] [INODE-LIMIT] [BYTES_MAX]
-# xfs_init_quota()
-# {
-# 	local dir
-# 	local prj
-# 	local id
-# 	local ihard
-# 	local err
-# 	local bhard
-# 	dir=$(readlink -f "$1")
-# 	prj=$2
-# 	id=$3
-# 	ihard=$4
-# 	bhard=$5
-
-# 	command -v xfs_quota &>/dev/null || { WARN "[${prj}] Not found: xfs_quota"; return 255; }
-
-# 	grep "^${prj}" /etc/projid &>/dev/null || echo "${prj}:${id}" >>/etc/projid
-# 	# This survives a reboot but maybe our parameters have changed. Set to latest:
-# 	xfs_quota -x -c "limit -p ihard=${ihard} bhard=${bhard} ${prj}" || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
-# 	xfs_quota -x -c "project -s -p${dir} ${prj}" >/dev/null || { WARN "[${prj}] XFS-QUOTA not set"; return 255; }
-
-# 	echo "[${dir##*/}] Quota set to inode-max=${ihard}, bytes-max=${bhard}."
-# }
 
 # Load variables from ENV but only those not already set in
 # user's environemtn.
@@ -116,8 +104,6 @@ blockio_init()
 load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 
-# [[ ! -d "${SF_DATADIR}/everyone-root" ]] && mkdir -p "${SF_DATADIR}/everyone-root"
-# [[ ! -d "${SF_DATADIR}/www-root" ]] && mkdir -p "${SF_DATADIR}/www-root"
 [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
 [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
 
@@ -140,8 +126,38 @@ load_env
 # device that we are using...
 blockio_init
 
+# BUG-ARP-CACHE:
+# User can cause arp-table overflow. The kernel limit is global for all arp tables
+# but each container gets its own arp table. All containers just put pressure on the global
+# limit.
+# Attack: A user can spawn multiple containers and create 'incomplete' arp entries in its own
+# table. Those entries reduce the amount of entries avaialble for other containers (it's a global limit
+# and not a limit per container).
+#
+# Oddity: Docker-compose is making the host name of each service available (e.g sf-redis, sf-tor etc).
+# This is not done via an /etc/hosts entry but handled by Docker internally. The problem is that
+# 'somewhere' docker (internally) needs an arp-entry (which fails during an attack). Then the
+# name (e.g. sf-redis or so) can not be resolved and all goes to shits.
+#
+# Tweaking base_reachable_time_ms and gc_stale_time has no effect. Best we can do:
+# 1. Use static IPs where possible for inter-container communication.
+# 2. Limit the User's local network (to /22 or /24)
+# 3. Increase the global size of the kernel's arp table (gc_thresh3)
+sysctl -q -w net.ipv4.neigh.default.gc_thresh3=65536 || WARN "Could not set /proc/.../gc_thresh3"
+sysctl -q -w net.netfilter.nf_conntrack_buckets=16384 || WARN "Could not set /proc/.../nf_conntrack_buckets"
+sysctl -q -w net.netfilter.nf_conntrack_max=131072 || WARN "Could not set /proc/.../nf_conntrack_max"
+
+# Make sure /dev/shm is 'shared'
+[[ "$(findmnt -no TARGET,PROPAGATION /dev/shm)" != *"shared"* ]] && {
+	mount --make-shared /dev/shm/ || ERREXIT 252
+}
+
 # If there was a warning then wait...
 WARN_ENTER
 
-exec docker-compose "$@"
-
+# exec docker-compose "$@"
+docker-compose "$@"
+ret=$?
+# If not started as background (-d): run DOWN.
+[[ "$*" != *" -d"* ]] && { down "down"; exit; }
+echo -e "May need to run \`${CDC}$0 down${CN}\` (code=$ret)"

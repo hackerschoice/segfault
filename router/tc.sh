@@ -30,15 +30,15 @@ DEV_SHELL=${1:-eth1}
 
 # All outgoing interfaces
 DEV_GW=${2:-eth3}  # Traffic via VPN (User's shell)
-DEV_I22=${3:-eth0} # SSHD return traffic to User
+DEV_DIRECT=${3:-eth0} # SSHD return traffic to User
 
 # Delete all. This might set $? to false
 tc qdisc del dev "${DEV_GW}" root 2>/dev/null
-tc qdisc del dev "${DEV_I22}" root 2>/dev/null
+tc qdisc del dev "${DEV_DIRECT}" root 2>/dev/null
 true # force $? to be true
 
 [[ -n $SF_MAXOUT ]] && { tc_set "${DEV_GW}" "${SF_MAXOUT}" || exit 255; }
-[[ -n $SF_MAXOUT ]] && { tc_set "${DEV_I22}" "${SF_MAXOUT}" || exit 255; }
+[[ -n $SF_MAXOUT ]] && { tc_set "${DEV_DIRECT}" "${SF_MAXOUT}" || exit 255; }
 
 [[ -n $SF_MAXIN ]] && { tc_set "${DEV_SHELL}" "${SF_MAXIN}" || exit 255; }
 

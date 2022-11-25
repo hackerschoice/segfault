@@ -70,14 +70,14 @@ ip route add default via 172.22.0.254
 
 # This is the entry point for SF-HOST (e.g. host/Dockerfile)
 # Fix ownership if mounted from within vbox
-[[ -e "${SF_CFG_HOST_DIR}/etc/ssh/ssh_host_rsa_key" ]] || {
+[[ ! -e "${SF_CFG_HOST_DIR}/etc/ssh/ssh_host_rsa_key" ]] && {
 	[[ ! -d "${SF_CFG_HOST_DIR}/etc/ssh" ]] && { mkdir -p "${SF_CFG_HOST_DIR}/etc/ssh" || SLEEPEXIT 255 5; }
 
 	ssh-keygen -A -f "${SF_CFG_HOST_DIR}" 2>&1 # Always return 0, even on failure.
 	[[ ! -f "${SF_CFG_HOST_DIR}/etc/ssh/ssh_host_rsa_key" ]] && SLEEPEXIT 255 5
 }
 
-[[ -e "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" ]] || {
+[[ ! -e "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" ]] && {
 	ssh-keygen -q -t ed25519 -C "" -N "" -f "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" 2>&1
 	[[ ! -f "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" ]] && SLEEPEXIT 255 5
 }
@@ -93,7 +93,9 @@ chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
 	chown "${SF_USER}":nobody "/home/${SF_USER}/.ssh/authorized_keys" "/home/${SF_USER}/.ssh/id_ed25519"
 }
 
-[[ ! -f "${SF_CFG_GUEST_DIR}/id_ed25519" ]] && cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
+# Always copy as it may have gotten updated:
+cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
+# [[ ! -f "${SF_CFG_GUEST_DIR}/id_ed25519" ]] && cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
 
 # SSHD resets the environment variables. The environment variables relevant to the guest
 # are stored in a file here and then read by `segfaultsh'.

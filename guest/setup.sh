@@ -56,16 +56,15 @@ ln -s /sf/bin/sf-motd.sh /usr/bin/help
 set +e
 
 # Non-Fatal. WARN but continue if any of the following commands fail
-sed 's/^TorAddress.*/ToorAddress 172.20.0.111/' -i /etc/tor/torsocks.conf || WARN "Failed /etc/tor/torsocks.conf"
+sed 's/^TorAddress.*/TorAddress 172.20.0.111/' -i /etc/tor/torsocks.conf || WARN "Failed /etc/tor/torsocks.conf"
 [[ -f /usr/bin/mosh-server ]] && mv /usr/bin/mosh-server /usr/bin/mosh-server.orig
 [[ -f /usr/bin/mosh-server.sh ]] && { mv /usr/bin/mosh-server.sh /usr/bin/mosh-server; chmod 755 /usr/bin/mosh-server; }
 
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {
-	echo -e "Blah"
 	while [[ $i -lt ${#WARNS[@]} ]]; do
 		((i++))
-		echo -e "${CR}[WARN #$i]${CN} ${WARNS[$((i-1))]}"
+		echo -e "[${CR}WARN #$i${CN}] ${WARNS[$((i-1))]}"
 	done
 	echo "Continuing in 5 seconds..."
 	sleep 5

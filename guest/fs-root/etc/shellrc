@@ -15,25 +15,53 @@ CW="\e[1;37m" # white
 CF="\e[2m"    # faint
 CUL="\e[4m"
 
-unalias l 2>/dev/null
 alias l='ls -Alh'
-
-unalias lt 2>/dev/null
 alias lt='ls -Alhrt'
 
-unalias vi 2>/dev/null
-unalias vim 2>/dev/null
-alias vi='nvim'
-alias vim='nvim'
+[[ -e /usr/bin/nvim ]] && {
+	alias vi='nvim'
+	alias vim='nvim'
+}
 
-[[ -e /usr/bin/lsd ]] && {
-	alias ls='lsd --icon never'
+tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
+	# Be gay and color it all. We love it.
+	[[ -e /usr/bin/grc ]] && {
+		cmds+=(configure curl df dig du env findmnt free id ifconfig)
+		cmds+=(lsattr lsblk lsof make mount mtr netstat nmap ntpdate)
+		cmds+=(ping ps pv pss stat sysctl traceroute uptime vmstat wdiff whois)
+		for c in "${cmds[@]}"; do
+			alias $c="/usr/bin/grc --colour=auto $c"
+		done
+		unset cmds
+
+		# These need stdout buffer disabled:
+		cmds+=(tcpdump)
+		for c in "${cmds[@]}"; do
+			alias $c="/usr/bin/stdbuf -o0 /usr/bin/grc --colour=auto $c"
+		done
+		unset cmds
+	}
+
+	[[ -e /usr/bin/lsd ]] && {
+		alias ls='lsd --icon never'
+	}
+
+	[[ -e /usr/share/source-highlight/src-hilite-lesspipe.sh ]] && {
+		export LESSOPEN="| /usr/share/source-highlight/src-hilite-lesspipe.sh %s"
+		export LESS=' -R '
+	}
+
+	[[ -e /usr/bin/highlight ]] && {
+		alias cat='highlight -O ansi --stdout'
+	}
 }
 
 [[ -f /usr/bin/zoxide ]] && {
 	eval "$(zoxide init $(basename $SHELL))"
 	alias cd='z'
 }
+
+[[ -f /usr/bin/fdfind ]] && alias fd=fdfind
 
 [[ -z $LANG ]] && export LANG=en_US.UTF-8
 

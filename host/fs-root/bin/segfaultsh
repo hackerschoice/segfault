@@ -482,6 +482,8 @@ load_limits()
 		# HERE: Root-FS / is _writeable_ by user.
 		[[ ${SF_USER_ROOT_FS_SIZE_NUM} -gt 0 ]] && {
 			# HERE: Root-Fs is LIMITED in size
+			# These files must be mounted read-only as these are special files
+			# for docker and ingored by --opt storage-size= limitations.
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/hosts:/etc/hosts:ro")
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/db/db-${LID}/hostname:/etc/hostname:ro")
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/resolv.conf:/etc/resolv.conf:ro")

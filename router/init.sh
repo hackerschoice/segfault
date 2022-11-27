@@ -44,7 +44,7 @@ devbyip()
 	echo "${2:?}"
 }
 
-init_revport()
+init_revport_once()
 {
 	[[ -n $IS_REVPORT_INIT ]] && return
 	IS_REVPORT_INIT=1
@@ -69,7 +69,6 @@ init_revport()
 	unset ips
 	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --restore-mark
 	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark ! --mark 0 -j ACCEPT
-	# iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark --mark "11${n}" -j ACCEPT
 	for n in {240..254}; do
 		mac="$(ip neigh show 172.20.0."${n}")"
 		mac="${mac##*lladdr }"
@@ -115,7 +114,7 @@ use_vpn()
 	# Configure FW rules for reverse port forwards.
 	# Any earlier than this and the MAC of the routers are not known. Thus do it here.
 
-	init_revport # called ONCE
+	init_revport_once
 
 	local _ip
 	local f
@@ -175,7 +174,24 @@ ipt_set()
 
 	iptables -P FORWARD DROP
 
-	# -----BEGIN DIREC SSH-----
+	# 0. Path MTU Discovery is not supported by all routers on the Internet.
+	# 1. Some routers fragment large TCP packets. The fragments are re-assembles at my
+	#    router (sf-router) but the resulting TCP have BAD checksum.
+	# 2a. NordVPN/London `whois -h 192.34.234.30  google.com` => two fragments. Bad Checksum.
+	# 2b. CryptoStorm/Serbia `wget https://raw.githubusercontent.com/theaog/spirit/master/spirit.tgz`
+	#     => No fragments at all. Dropped upsteream?
+	#    (Oddly, this would mean the upstream re-assembles the fragments - no upstream router
+	#    is supposed to re-assemble the fragments. Is there a stateful-IDS upsteam?
+	#
+	# Kernel trace shows (on sf-router) that it fails in checksum verification after
+	# fragment re-assembly (dropwatch -l kas):
+	#    https://www.cyberciti.biz/faq/linux-show-dropped-packets-per-interface-command/
+	#
+	# The only way around this is to advertise a smaller MSS for TCP and hope for the best
+	# for all other protocols. Ultimately we need bad routers on the Internet to disappear.
+	iptables -A FORWARD -i ${DEV_LG} -o ${DEV_GW} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1380
+
+	# -----BEGIN DIRECT SSH-----
 	# Note: The IP addresses are FLIPPED because we use DNAT/SNAT/MASQ in PREROUTING
 	# before the FORWARD chain is hit
 
@@ -213,16 +229,31 @@ ipt_set()
 	# => Already set by SSHD -D1080 setup
 }
 
-ipt_syn_limit()
+ipt_syn_limit_set()
 {
-	# -----BEGIN TCP SYN RATE LIMT-----
-	iptables --new-chain SYN-LIMIT
-	iptables -I FORWARD 1 -i "${DEV_LG}" -o "${DEV_GW}" -p tcp --syn -j SYN-LIMIT
+	local in
+	local out
+	local limit
+	local burst
+	in="$1"
+	out="$2"
+	limit="$3"
+	burst="$4"
+
+	iptables --new-chain "SYN-LIMIT-${in}-${out}"
+	iptables -I FORWARD 1 -i "${in}" -o "${out}" -p tcp --syn -j "SYN-LIMIT-${in}-${out}"
 	# Refill bucket at a speed of 20/sec and take out max of 64k at one time.
 	# 64k are taken and thereafter limit to 20syn/second (as fast as the bucket refills)
-	iptables -A SYN-LIMIT -m limit --limit "20/sec" --limit-burst 10000 -j RETURN
-	iptables -A SYN-LIMIT -j DROP
-	# -----END TCP SYN RATE LIMIT-----
+	iptables -A "SYN-LIMIT-${in}-${out}" -m limit --limit "${limit}" --limit-burst "${burst}" -j RETURN
+	iptables -A "SYN-LIMIT-${in}-${out}" -j DROP
+}
+
+ipt_syn_limit()
+{
+	# User to VPN
+	ipt_syn_limit_set "${DEV_LG}"     "${DEV_GW}" "20/sec" "10000"
+	# SSH -D1080 forwards to VPN
+	ipt_syn_limit_set "${DEV_ACCESS}" "${DEV_GW}" "5/sec" "5000"
 }
 
 # Delete old vpn_status

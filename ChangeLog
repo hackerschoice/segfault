@@ -1,4 +1,6 @@
 0.3.8 - 2022-11-00
+    * Gay colours. #OneLove
+    * MSS forced to 1380 to handle bad routers
     * MoSH support (preliminary)
     * DoS fix for arp table exhaustion (@leonarth)
     * FORWARD Policy = DROP

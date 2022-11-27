@@ -52,6 +52,7 @@ RUN	apt-get update -y \
 		gcc \
 		gdb \
 		git \
+		grc \
 		hexedit \
 		html2text \
 		libc-devtools \
@@ -60,7 +61,10 @@ RUN	apt-get update -y \
 		ltrace \
 		make \
 		patch \
+		pv \
+		source-highlight \
 		strace \
+		wdiff \
 		whiptail \
 		xterm \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
@@ -69,13 +73,15 @@ RUN	apt-get update -y \
 		iftop \
 		iputils-tracepath \
 		gsocket \
-		nano \
-		netcat-traditional \
 		man-db \
 		manpages-dev \
 		mosh \
+		nano \
+		netcat-traditional \
+		ntpdate \
 		sudo \
 		tcpdump \
+		tcpick \
 		telnet \
 		traceroute \
 		wireguard-tools \
@@ -103,6 +109,7 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		altdns \
 		apache2-utils \
+		apt-file \
 		bat \
 		cmseek \
 		commix \
@@ -117,8 +124,10 @@ RUN	apt-get update -y \
 		enum4linux \
 		exa \
 		exiftool \
+		fd-find \
 		gnupg \
 		hashcat \
+		highlight \
 		htop \
 		ldap-utils \
 		joe \
@@ -141,6 +150,7 @@ RUN	apt-get update -y \
 		proxychains \
 		python-is-python3 \
 		python3-pwntools \
+		python3-pygments \
 		python3-venv \
 		python3-virtualenv \
 		radare2 \

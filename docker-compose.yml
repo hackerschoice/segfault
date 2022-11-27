@@ -408,8 +408,10 @@ networks:
       - subnet: 172.20.0.0/24
 
   incoming-net:
-    # name: sf-direct
-    # ODD: Naming this network means that the ports/exposed wont get routed to this IP but to another iP
+    # Note: 'name' must be the first in alphabetic order. Docker forwards
+    # the host's port to the _first_ network (in alphanetic order). sf-router
+    # expects all host traffic to arrive at 172.28.0.2.
+    name: A-sf-direct
     driver: bridge
     ipam:
       driver: default

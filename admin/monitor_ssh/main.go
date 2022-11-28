@@ -57,6 +57,7 @@ var (
 )
 
 func main() {
+
 	if *versionFlag {
 		fmt.Printf("%v compiled on %v from commit %v\n", os.Args[0], Buildtime, Version)
 		os.Exit(0)
@@ -97,12 +98,15 @@ func main() {
 	var (
 		wg = &sync.WaitGroup{}
 
-		// protects `connTracker` from concurrent r/w
+		// protects `connTracker` from concurrent r/w.
 		mu          sync.Mutex
 		connTracker int
 	)
 
-	// program main loop
+	// keeps track of a server down time.
+	var downTime = map[string]time.Time{}
+	// program main loop.
+	var badState = map[string]string{}
 	for {
 		for server, secret := range servers {
 
@@ -117,8 +121,21 @@ func main() {
 
 				err := checkServer(server, secret)
 				if err != nil {
+					if badState[server] == err.Error() {
+						log.Debugf("%v has already been reported")
+						return
+					}
 					log.Debug(err)
 					msgC <- err.Error()
+					badState[server] = err.Error()
+					downTime[server] = time.Now().UTC()
+				} else {
+					if _, ok := badState[server]; ok {
+						elapsed := time.Since(downTime[server])
+						delete(badState, server)
+						delete(downTime, server)
+						msgC <- fmt.Sprintf("[%v] is now healthy [down %v]", server, elapsed.String())
+					}
 				}
 			}(server, secret)
 		}
@@ -152,12 +169,14 @@ func checkServer(server, secret string) error {
 	if err != nil {
 		return fmt.Errorf("[%v] connection failed: %v", server, err)
 	}
+	defer client.Close()
 
 	session, err := client.NewSession()
 	if err != nil {
 		return fmt.Errorf("[%v] SSH session failed: %v", server, err)
 	}
 	defer session.Close()
+
 	session.Setenv("SECRET", secret)
 
 	// configure terminal mode

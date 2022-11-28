@@ -225,6 +225,10 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_DMZ}" -s 172.20.0.111 -d 172.20.1.80 -p tcp --dport 80 -j ACCEPT
 	iptables -A FORWARD -o "${DEV_GW}" -i "${DEV_DMZ}" -d 172.20.0.111 -s 172.20.1.80 -p tcp --sport 80 -j ACCEPT
 
+	# TOR via VPN gateways
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s 172.20.0.111 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -d 172.20.0.111 -j ACCEPT
+	
 	# Onion to SSHD
 	# => Already set by SSHD -D1080 setup
 }

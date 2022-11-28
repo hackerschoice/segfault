@@ -1,3 +1,3 @@
 all: Dockerfile
-	docker build -t sf-gsnc .
+	docker build --network host -t sf-gsnc .
 

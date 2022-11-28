@@ -1,3 +1,3 @@
 all: Dockerfile
-	docker build -t sf-tor .
+	docker build --network host -t sf-tor .
 

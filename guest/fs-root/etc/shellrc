@@ -46,79 +46,51 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		alias ls='lsd --icon never'
 	}
 
-	[[ -e /usr/share/source-highlight/src-hilite-lesspipe.sh ]] && {
+	[[ -e /usr/bin/bat ]] && {
 		less() {
 			[[ ! -t 1 ]] && { command less "$@"; return; }
 			# Only if output goes to PTY
-			LESS=' -R ' LESSOPEN="| /usr/share/source-highlight/src-hilite-lesspipe.sh %s" command less "$@"
+			LESS=" -R " LESSOPEN="| /usr/bin/bat --color always --style=plain %s" command less "$@"
 		}
 
 		# eg. cat -An /etc/shellrc | hl sh
-		hl() {
-			local show_usage
-			local lang
-			if [[ $SHELL == *"zsh" ]]; then
-				lang=${1:l}
-			elif [[ $SHELL == *"bash" ]]; then
-				lang="${1,,}"
-			else
-				lang="$(echo "$1" |  tr '[:upper:]' '[:lower:]')"
-			fi
+		hl() { /usr/bin/bat --color always -pp -l "$@"; }
 
-			case $lang in
-				bash|ash|zsh|csh|ksh|shell) lang="sh" ;;
-				py) lang="python" ;;
-				make|mk) lang="makefile" ;;
-				pl) lang="perl" ;;
-				j) lang="json" ;;
-				config|cnf) lang="conf" ;;
-				cc|cxx) lang="cpp" ;;
-				rb) lang="ruby" ;;
-			esac
-
-			# [[ ! -e "/usr/share/source-highlight/${lang}.lang" ]] && {
-			# 	show_usage=1
-			# 	echo >&2 -e "${CDR}Not found: ${CDY}/usr/share/source-highlight/${CY}${lang}${CDY}.lang${CN}"
-			# }
-
-			[[ ${#} -le 0 || -n "$show_usage" ]] && {
-				echo >&2 -e "First parameter must be one of:\n\
-   c           cpp         ruby        rust      css\n\
-   go          php         python      asm       ini\n\
-   conf        diff        html        java      spec\n\
-   json        lua         makefile    perl      ldap\n\
-   sh          xml         log         sql\n\
-Example: ${CDC}cat -An /etc/shellrc | hl sh${CN}"
-				return
-			}
-			# [[ ! -f "/usr/share/source-highlight/${lang}.lang" ]] && { command cat; return }
-			source-highlight --failsafe -f esc --style-file=esc.style --src-lang="${lang}"
-		}
 		alias hi=hl
 		alias syntax=hl
 
 		_hicmd() {
 			local cmd
+			local ex
 			cmd=$1
 			shift 1
-			[[ ! -t 1 || ${#} -le 0 || ${1:0:1} == "-" ]] && { command "$cmd" "$@"; return; }
+
+			# If any Opts are given then use orignal command.
+			for o in "$@"; do
+				[[ ${o} == "--" ]] && continue
+				[[ ${o:0:1} == "-" ]] && { command "$cmd" "$@"; return; }
+			done
+
+			[[ ! -t 1 || ${#} -le 0 ]] && { command "$cmd" "$@"; return; }
 			for source in "$@"; do
 				[[ "$source" == "--" ]] && continue
-				# Produce the correct error code by the real app
-				[[ ! -e "$source" ]] && { command "$cmd" -- "$source"; return; }
     			case $source in
-        			*ChangeLog|*changelog)
-	        			command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=changelog.lang --style-file=esc.style ;;
+        			# *ChangeLog|*changelog)
+	        		# 	command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=changelog.lang --style-file=esc.style ;;
 			        *Makefile|*makefile)
-				        command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=makefile.lang --style-file=esc.style ;;
+				        command "$cmd" -- "$source" | bat -pp -l Makefile ;;
 			        *.bashrc|*.zshrc|*.profile|*.bash_profile|*rc.local|*.shellrc)
-				        command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=sh.lang --style-file=esc.style ;;
+				        command "$cmd" -- "$source" | bat -pp -l bash ;;
 			        *)
-						command "$cmd" -- "$source" | source-highlight --failsafe -f esc --src-lang="${source##*.}" --style-file=esc.style ;;
+						ex="${source##*.}"
+						[[ -z $ex || $ex == $source ]] && { command "$cmd" "$@"; return; }
+						# Check if extension exists...
+						bat -pp -l "$ex" </dev/null 2>/dev/null || { command "$cmd" "$@"; return; }
+						command "$cmd" -- "$source" | bat -pp -l "$ex" ;;
 			    esac
 			done
 		}
-		cat() { _hicmd cat "$@"; }
+		alias cat="/usr/bin/bat -pp"
 		tail() { _hicmd tail "$@"; }
 		head() { _hicmd head "$@"; }
 	}

@@ -1,3 +1,3 @@
 all: Dockerfile
-	docker build -t sf-router .
+	docker build --network host -t sf-router .
 

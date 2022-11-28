@@ -57,6 +57,21 @@ ERREXIT()
 	exit "$code"
 }
 
+SLEEPEXIT()
+{
+	local code
+	local s
+	code="$1"
+	s="$1"
+
+	shift 2
+
+	ERR "$@"
+
+	slee "$s"
+	exit "$code"
+}
+
 if [[ -z $SF_DEBUG ]]; then
 	DEBUGF(){ :;}
 else

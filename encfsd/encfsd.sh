@@ -88,7 +88,7 @@ encfs_mount()
 	# echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o fsname=/dev/sec-\"${name}\" -o \"${opts}\"" >/dev/null
 	# --nocache -> Blindly hoping that encfs consumes less memory?!
 	# -s single thread. Seems to give better I/O performance and uses less memory (!)
-	echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs -s --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"" >/dev/null
+	ERRSTR=$(echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs -s --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"")
 	ret=$?
 	[[ $ret -eq 0 ]] && return 0
 
@@ -112,7 +112,9 @@ encfs_mount_server()
 	# We use a file as a semaphore so that we dont need to give
 	# the waiting container access to redis.
 	[[ -f "${secdir}/.IS-ENCRYPTED" ]] && rm -f "${secdir}/.IS-ENCRYPTED"	
-	encfs_mount "${name}" "${secret}" "${secdir}" "${rawdir}" "noexec,noatime" || ERREXIT 254 "EncFS ${name}-root failed."
+	# Note: Use SLEEPEXIT to give sf-destructor enough time to start (and aquire `pid: "service:sf-encfsd"`)
+	# so that sf-encfs has enough time to report the error (likely cause is bad SF_SEED=)
+	encfs_mount "${name}" "${secret}" "${secdir}" "${rawdir}" "noexec,noatime" || SLEEPEXIT 254 15 "EncFS ${name}-root failed '${ERRSTR}."
 	touch "${secdir}/.IS-ENCRYPTED"
 
 	[[ ! -d "${secdir}/${name}" ]] && mkdir "${secdir}/${name}"

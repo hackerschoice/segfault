@@ -24,11 +24,11 @@ alias lt='ls -Alhrt'
 }
 
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
-	# Be gay and color it all. We love it.
+	# Be gay and color it all. #OneLove
 	[[ -e /usr/bin/grc ]] && {
 		cmds+=(configure curl df dig du env findmnt free id ifconfig)
 		cmds+=(lsattr lsblk lsof make mount mtr netstat nmap ntpdate)
-		cmds+=(ping ps pv pss stat sysctl traceroute uptime vmstat wdiff whois)
+		cmds+=(ping ps pv ss stat sysctl traceroute uptime vmstat wdiff whois)
 		for c in "${cmds[@]}"; do
 			alias $c="/usr/bin/grc --colour=auto $c"
 		done
@@ -47,12 +47,80 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	}
 
 	[[ -e /usr/share/source-highlight/src-hilite-lesspipe.sh ]] && {
-		export LESSOPEN="| /usr/share/source-highlight/src-hilite-lesspipe.sh %s"
-		export LESS=' -R '
-	}
+		less() {
+			[[ ! -t 1 ]] && { command less "$@"; return; }
+			# Only if output goes to PTY
+			LESS=' -R ' LESSOPEN="| /usr/share/source-highlight/src-hilite-lesspipe.sh %s" command less "$@"
+		}
 
-	[[ -e /usr/bin/highlight ]] && {
-		alias cat='highlight -O ansi --stdout'
+		# eg. cat -An /etc/shellrc | hl sh
+		hl() {
+			local show_usage
+			local lang
+			if [[ $SHELL == *"zsh" ]]; then
+				lang=${1:l}
+			elif [[ $SHELL == *"bash" ]]; then
+				lang="${1,,}"
+			else
+				lang="$(echo "$1" |  tr '[:upper:]' '[:lower:]')"
+			fi
+
+			case $lang in
+				bash|ash|zsh|csh|ksh|shell) lang="sh" ;;
+				py) lang="python" ;;
+				make|mk) lang="makefile" ;;
+				pl) lang="perl" ;;
+				j) lang="json" ;;
+				config|cnf) lang="conf" ;;
+				cc|cxx) lang="cpp" ;;
+				rb) lang="ruby" ;;
+			esac
+
+			# [[ ! -e "/usr/share/source-highlight/${lang}.lang" ]] && {
+			# 	show_usage=1
+			# 	echo >&2 -e "${CDR}Not found: ${CDY}/usr/share/source-highlight/${CY}${lang}${CDY}.lang${CN}"
+			# }
+
+			[[ ${#} -le 0 || -n "$show_usage" ]] && {
+				echo >&2 -e "First parameter must be one of:\n\
+   c           cpp         ruby        rust      css\n\
+   go          php         python      asm       ini\n\
+   conf        diff        html        java      spec\n\
+   json        lua         makefile    perl      ldap\n\
+   sh          xml         log         sql\n\
+Example: ${CDC}cat -An /etc/shellrc | hl sh${CN}"
+				return
+			}
+			# [[ ! -f "/usr/share/source-highlight/${lang}.lang" ]] && { command cat; return }
+			source-highlight --failsafe -f esc --style-file=esc.style --src-lang="${lang}"
+		}
+		alias hi=hl
+		alias syntax=hl
+
+		_hicmd() {
+			local cmd
+			cmd=$1
+			shift 1
+			[[ ! -t 1 || ${#} -le 0 || ${1:0:1} == "-" ]] && { command "$cmd" "$@"; return; }
+			for source in "$@"; do
+				[[ "$source" == "--" ]] && continue
+				# Produce the correct error code by the real app
+				[[ ! -e "$source" ]] && { command "$cmd" -- "$source"; return; }
+    			case $source in
+        			*ChangeLog|*changelog)
+	        			command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=changelog.lang --style-file=esc.style ;;
+			        *Makefile|*makefile)
+				        command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=makefile.lang --style-file=esc.style ;;
+			        *.bashrc|*.zshrc|*.profile|*.bash_profile|*rc.local|*.shellrc)
+				        command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=sh.lang --style-file=esc.style ;;
+			        *)
+						command "$cmd" -- "$source" | source-highlight --failsafe -f esc --src-lang="${source##*.}" --style-file=esc.style ;;
+			    esac
+			done
+		}
+		cat() { _hicmd cat "$@"; }
+		tail() { _hicmd tail "$@"; }
+		head() { _hicmd head "$@"; }
 	}
 }
 

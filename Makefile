@@ -1,4 +1,4 @@
-VER := 0.3.7a
+VER := 0.3.8rc2
 
 all:
 	make -C guest
@@ -62,6 +62,7 @@ FILES_PROVISION += "segfault-$(VER)/provision/system/sf.slice"
 FILES_PROVISION += "segfault-$(VER)/provision/system/sf_guest.slice"
 FILES_PROVISION += "segfault-$(VER)/provision/system/daemon.json"
 FILES_PROVISION += "segfault-$(VER)/provision/env.example"
+FILES_PROVISION += "segfault-$(VER)/provision/update.sh"
 
 FILES_ENCFSD += "segfault-$(VER)/encfsd/Makefile"
 FILES_ENCFSD += "segfault-$(VER)/encfsd/Dockerfile"
@@ -87,6 +88,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/hosts"
 FILES_CONFIG += "segfault-$(VER)/config/etc/resolv.conf"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
+FILES_ROOT += "segfault-$(VER)/ChangeLog"
 FILES_ROOT += "segfault-$(VER)/docker-compose.yml"
 FILES_ROOT += "segfault-$(VER)/sfbin/wait_semaphore.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/vpn_wg2status.sh"

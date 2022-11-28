@@ -70,3 +70,14 @@ IS_APT_INSTALLED()
 {
 	[[ "$(apt -qq list "$*" 2>/dev/null)" = *"[installed]" ]] && return 0 || return 1
 }
+
+MD5F ()
+{
+    local f;
+    local res;
+    f="$1";
+    [[ ! -f "$f" ]] && return;
+    res=$(md5sum "$f");
+    echo "${res%% *}"
+}
+

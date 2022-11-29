@@ -114,8 +114,6 @@ ENV_LOAD()
 			eval '[[ -n $'"$name"' ]]' && continue
 		}
 		val="${str#*=}"
-		# Do not evaluate $ (like $HOME => /root).
-		val="${val//\$/\\$}"
 		# Escape ' with '"'"'
 		val=${val//\'/\'\"\'\"\'}
 		eval "$name"=\'${val}\'

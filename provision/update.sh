@@ -13,10 +13,10 @@ SFI_SRCDIR="$(cd "$(dirname "${0}")/.." || exit; pwd)"
 source "${SFI_SRCDIR}/provision/system/funcs" || exit 255
 NEED_ROOT
 
-source "${SFI_SRCDIR}/.env" || ERREXIT 250
+ENV_LOAD "${SFI_SRCDIR}/.env" add || ERREXIT 250 "Failed to load .env"
 
-# FIXME: Should only load env's that are not yet set
 [[ -z $SF_BASEDIR ]] && ERREXIT 255 "SF_BASEDIR= not set"
+[[ ! -d "$SF_BASEDIR" ]] && ERREXIT 255 "Directory not found (SF_BASEDIR=): $SF_BASEDIR"
 
 # [mode] [file] [dest-file]
 merge_file()

@@ -81,3 +81,46 @@ MD5F ()
     echo "${res%% *}"
 }
 
+# Load .env file into bash variables.
+# .env variables are not quotes. Thus we can not use 'source .env'
+# in case a variable value contains a whitespace. (dare you, team docker!).
+# Instead load & parse them one by one and run through eval to set CFG_
+ENV_LOAD()
+{
+	local file
+	local old_ifs
+	local arr
+	local mode
+	file="$1"
+	mode="${2,,}"
+	old_ifs="$IFS"
+
+	[[ ! -f "$file" ]] && return 255
+
+	IFS=$'\n'
+	arr=($(<"${file}"))
+
+	local i
+	local name
+	local val
+	i=0
+	# Note '.env' values are not 'quoted' but bash need them quoted "strings".
+	while [[ $i -lt ${#arr[@]} ]]; do
+		str=${arr[$i]}
+		((i++))
+		[[ "${str:0:3}" != 'SF_' ]] && continue
+		name="${str%%=*}"
+		[[ $mode == "add" ]] && {
+			eval '[[ -n $'"$name"' ]]' && continue
+		}
+		val="${str#*=}"
+		# Do not evaluate $ (like $HOME => /root).
+		val="${val//\$/\\$}"
+		# Escape ' with '"'"'
+		val=${val//\'/\'\"\'\"\'}
+		eval "$name"=\'${val}\'
+	done
+
+	IFS="$old_ifs"
+}
+

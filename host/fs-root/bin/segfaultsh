@@ -286,7 +286,7 @@ print_goodbye()
 	[[ -z $IS_PTY ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
-	n=$(IFS=$'\n' n=($(docker top "lg-${LID}" -o pid )); echo "${#n[@]}")
+	n=$(IFS=$'\n' n=($(bash -c "exec docker top \"lg-${LID}\" -o pid 2>/dev/null")); echo "${#n[@]}")
 	[[ ! $n -gt 1 ]] && n=1
 	((n--))
 

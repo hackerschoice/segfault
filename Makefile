@@ -1,13 +1,13 @@
-VER := 0.3.8p1
+VER := 0.3.9a1
 
 all:
-	make -C guest
+	make -C cleaner/cg
 	make -C host
 	make -C tor
 	make -C encfsd
 	make -C router
 	make -C gsnc
-	make -C cleaner/cg
+	make -C guest
 	docker pull redis
 	docker pull nginx
 	docker pull hackerschoice/cryptostorm
@@ -30,6 +30,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/apt/apt.conf.d/01norecommend"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/cheat/conf.yml"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/source-highlight/src-hilite-lesspipe.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/pelicanconf.py"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/tasks.py"

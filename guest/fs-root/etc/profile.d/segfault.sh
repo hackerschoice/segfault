@@ -11,3 +11,6 @@
 	[[ -z $SHELL ]] && export SHELL=/bin/zsh
 	[[ -e /etc/zsh_profile ]] && . /etc/zsh_profile
 }
+
+[[ -e "/etc/cheat/conf.yml" ]] && export CHEAT_CONFIG_PATH="/etc/cheat/conf.yml"
+export EDITOR=vim

@@ -105,7 +105,7 @@ setup()
 	xmkdir /sec/usr/lib
 	xmkdir /sec/usr/bin
 	xmkdir /sec/usr/sbin
-	xmkdir /sec/usr/share
+	xmkdir /sec/usr/share/cheatsheets/personal
 
 	# Copy Pelican www
 	[[ ! -d /sec/www ]] && {
@@ -116,6 +116,8 @@ setup()
 	# Setup rc.local (if not exist) and execute rc.local
 	[[ ! -f /sec/usr/etc/rc.local ]] && setup_rclocal
 	/bin/bash /sec/usr/etc/rc.local
+
+	return 0 # TRUE
 }
 
 DEBUGF "Setting up user's instance..."

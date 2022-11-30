@@ -1,4 +1,7 @@
-0.3.8 - 2022-11-00
+0.3.9 - 2022-12-00
+    * supervisord, cheat
+
+0.3.8 - 2022-11-29
     * Gay colours. #OneLove
     * MSS forced to 1380 to handle bad routers
     * MoSH support (preliminary)

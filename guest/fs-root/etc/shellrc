@@ -24,15 +24,49 @@ alias lt='ls -Alhrt'
 }
 
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
+	_grccmd()
+	{
+		local cmd
+		cmd=$1
+		shift 1
+		[[ ! -t 1 ]] && { command "$cmd" "$@"; return; }
+
+		command "$cmd" "$@" | /usr/bin/python3 /usr/bin/grcat "conf.${cmd}"
+		[[ -n ${PIPESTATUS[0]} ]] && return ${PIPESTATUS[0]}
+		return ${pipestatus[1]}
+	}
+
+	_grcset()
+	{
+		local c
+		c=$1
+
+		unalias "$c" 2>/dev/null
+
+		# Execution is faster if we assign a shell function
+		[[ -e "/usr/share/grc/conf.${c}" ]] && {
+			eval "function ${c} { _grccmd \"$c\" \"\$@\"; }"
+			# ZSH only: "$c"() { _grccmd "$0" "$@"; }
+			return
+		}
+
+		# Fallback to slower (calls grc which calls grcat)
+		alias $c="/usr/bin/grc --colour=auto $c"
+	}
+
 	# Be gay and color it all. #OneLove
 	[[ -e /usr/bin/grc ]] && {
 		cmds+=(configure curl df dig du env findmnt free id ifconfig)
-		cmds+=(lsattr lsblk lsof make mount mtr netstat nmap ntpdate)
-		cmds+=(ping ps pv ss stat sysctl traceroute uptime vmstat wdiff whois)
+		cmds+=(lsattr lsblk lsof lspci make mount netstat nmap ntpdate)
+		cmds+=(ping ps pv ss sockstat stat sysctl traceroute traceroute6 uptime vmstat wdiff whois)
 		for c in "${cmds[@]}"; do
-			alias $c="/usr/bin/grc --colour=auto $c"
+			_grcset "$c"
 		done
 		unset cmds
+
+		# Currently broken: mtr 
+		# Special case
+		[[ "${SHELL##*/}" == "zsh" ]] && alias ./configure="/usr/bin/grc --colour=auto ./configure"
 
 		# These need stdout buffer disabled:
 		cmds+=(tcpdump)
@@ -40,7 +74,9 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 			alias $c="/usr/bin/stdbuf -o0 /usr/bin/grc --colour=auto $c"
 		done
 		unset cmds
+
 	}
+	unset -f _grcset
 
 	[[ -e /usr/bin/lsd ]] && {
 		alias ls='lsd --icon never'

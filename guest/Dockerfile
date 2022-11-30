@@ -36,6 +36,7 @@ RUN	apt-get update -y \
 		python3-pip \
 		screen \
 		sharutils \
+		supervisor \
 		tmux \
 		unzip \
 		xxd \
@@ -79,6 +80,7 @@ RUN	apt-get update -y \
 		nano \
 		netcat-traditional \
 		ntpdate \
+		sockstat \
 		sudo \
 		tcpdump \
 		tcpick \
@@ -119,12 +121,14 @@ RUN	apt-get update -y \
 		dotnet-runtime-6.0 \
 		dstat \
 		duf \
+		elinks \
 		emacs \
 		emailharvester \
 		enum4linux \
 		exa \
 		exiftool \
 		fd-find \
+		fzf \
 		gnupg \
 		hashcat \
 		highlight \
@@ -198,6 +202,7 @@ RUN	apt-get update -y \
 		git-dumper \
 		ipython \
 		shodan \
+		maigret \
 	&& /pkg-install.sh HACK pip install \
 		hashid \
 		sqlmap \
@@ -216,6 +221,10 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh LARGE curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
 	&& /pkg-install.sh LARGE dpkg -i /tmp/geonet.deb \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
+	&& /pkg-install.sh LARGE bash -c "{ curl -SsfL https://github.com/cheat/cheat/releases/download/4.2.2/cheat-linux-amd64.gz | gunzip >/usr/bin/cheat \
+		&& chmod 755 /usr/bin/cheat \
+		&& mkdir -p /usr/share/cheatsheets/community \
+		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }" \
 	&& /pkg-install.sh DEVEL bash -c "{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }" \
 	&& { rm -f /tmp/*.deb; true; } \
 	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin"

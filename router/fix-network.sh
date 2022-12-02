@@ -1,13 +1,14 @@
 #! /bin/bash
 
 # This is a hack.
-# - Docker sets the default route to 10.11.0.1 which is the host-side of the bridge.
+# - Docker sets the default route to 169.254.224.1 which is the host-side of the bridge.
 # - Our 'router' instance likes to receive all the traffic instead.
-# - Remove host's bridge ip of 10.11.0.1 (set to 10.255.255.254/31 or any nonsense)
-# - Router's init.sh script will take over 10.11.0.1
-# An alternative would be to assign a default gw in user's sf-shell but this
-# would require NET_ADMIN, which we dont want to grant the user.
-#
+# - Remove host's bridge ip of 169.254.224.1 
+# - Router's init.sh script will take over 169.254.224.1
+# An alternative would be to assign a default gw in user's sf-shell
+# and use nsenter -n to change the default route (without giving NET_ADMIN
+# to the user).
+
 ERREXIT()
 {
 	local code
@@ -19,23 +20,14 @@ ERREXIT()
 	exit "$code"
 }
 
-[[ -n $SF_DEBUG ]] && {
-	ip link show >&2
-	ip addr show >&2
-	ip route show >&2
-}
-
-ip addr show | grep -F 'inet 10.255.255.254' >/dev/null && ERREXIT 0 "Host's bridge already fixed and set to 10.255.255.254."
-
-l=$(ip addr show | grep -F 'inet 10.11.' | head -n1)
+l=$(ip addr show | grep -F "inet ${NET_LG_ROUTER_IP}" | head -n1)
 [[ -z $l ]] && ERREXIT 255 "Failed to find network"
 
 DEV="$(echo "$l" | awk '{ print $7; }')"
-[[ -z $DEV ]] && ERREXIT 254 "Failed to find device"
+[[ -z $DEV ]] && ERREXIT 254 "Failed to find device (l=$l)"
 
-ip link show "$DEV" >/dev/null || ERREXIT 253 "Failed to find device (DEV='${DEV}')"
-# Set to anything non-existing like 10.255...
-/usr/sbin/ifconfig "$DEV" 10.255.255.254/31 && ERREXIT 0 "SUCCESS"
-
-ERREXIT 252 "Failed to disable host's bridge"
-
+# Remove _any_ ip from the interface. This means LGs can never exit
+# to the Internet via the host but still route packets to sf-router.
+# sf-router is taking over the IP NET_LG_ROUTER_IP
+ip link set "$DEV" arp off
+ip addr flush "$DEV"

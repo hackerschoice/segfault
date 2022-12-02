@@ -11,8 +11,7 @@ services:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
     networks:
       redis-net:
-        ipv4_address: 172.20.2.254
-    # Should use "sfbin/sf up" to generate SF_REDIS_AUTH
+        ipv4_address: ${SF_REDIS_IP}
     command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH}" ]
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/redis/redis.conf:/redis.conf:ro"
@@ -34,6 +33,7 @@ services:
       weight: 500
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_SEED=${SF_SEED}
       - SF_DEBUG
     command: ["/encfsd.sh"]
@@ -111,7 +111,7 @@ services:
     restart: ${SF_RESTART:-on-failure}
     networks:
       dns-doh-net:
-        ipv4_address: 172.23.0.2
+        ipv4_address: ${SF_DOH_IP}
 
   dnsmasq:
     image: 4km3/dnsmasq:2.85-r2
@@ -121,14 +121,13 @@ services:
       - dns-doh
     cap_add:
       - NET_ADMIN
-    command: ["--no-resolv", "--domain-needed", "--server=172.23.0.2#5053", "--server=/onion/172.20.0.111#5353"]
+    command: ["--no-resolv", "--domain-needed", "--server=${SF_DOH_IP}#5053", "--server=/onion/${SF_TOR_IP}#5353"]
     networks:
       vpn-net:
-        ipv4_address: 172.20.0.53
+        ipv4_address: ${SF_NET_VPN_DNS_IP}
       dns-doh-net:
-        ipv4_address: 172.23.0.3
       access-net:
-        ipv4_address: 172.22.0.53
+        ipv4_address: ${SF_NET_ACCESS_DNS_IP}
 
   nordvpn:
     image: hackerschoice/cryptostorm
@@ -138,7 +137,7 @@ services:
       - dnsmasq
       - sf-redis
       - router
-    dns: 172.20.0.53
+    dns: ${SF_NET_VPN_DNS_IP}
     cap_add:
       - NET_ADMIN #required
     environment:
@@ -148,13 +147,14 @@ services:
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     networks:
       vpn-net:
-        ipv4_address: 172.20.0.254
+        ipv4_address: ${SF_NORDVPN_IP}
       redis-net:
     extra_hosts:
-      - "sf-redis:172.20.2.254"
+      - "sf-redis:${SF_REDIS_IP}"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -173,7 +173,7 @@ services:
       - dnsmasq
       - sf-redis
       - router
-    dns: 172.20.0.53
+    dns: ${SF_NET_VPN_DNS_IP}
     cap_add:
       - NET_ADMIN #required
     environment:
@@ -184,13 +184,14 @@ services:
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     networks:
       vpn-net:
-        ipv4_address: 172.20.0.253
+        ipv4_address: ${SF_CRYPTOSTORM_IP}
       redis-net:
     extra_hosts:
-      - "sf-redis:172.20.2.254"
+      - "sf-redis:${SF_REDIS_IP}"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -208,7 +209,7 @@ services:
       - dnsmasq
       - sf-redis
       - router
-    dns: 172.20.0.53
+    dns: ${SF_NET_VPN_DNS_IP}
     cap_add:
       - NET_ADMIN #required
     environment:
@@ -218,13 +219,14 @@ services:
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     networks:
       vpn-net:
-        ipv4_address: 172.20.0.252
+        ipv4_address: ${SF_MULLVAD_IP}
       redis-net:
     extra_hosts:
-      - "sf-redis:172.20.2.254"
+      - "sf-redis:${SF_REDIS_IP}"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -243,15 +245,15 @@ services:
       - router-fix-network
     networks:
       incoming-net:
-        ipv4_address: 172.28.0.2
+        ipv4_address: ${SF_NET_DIRECT_ROUTER_IP}
       vpn-net:
-        ipv4_address: 172.20.0.2
+        ipv4_address: ${SF_NET_VPN_ROUTER_IP}
       guest-net:
-        ipv4_address: 10.11.0.254 # Will be replaced by init.sh with 10.11.0.1
+        ipv4_address: ${SF_NET_LG_ROUTER_IP_DUMMY} # Will be replaced by init.sh with x.x.x.1
       access-net:
-        ipv4_address: 172.22.0.254
+        ipv4_address: ${SF_NET_ACCESS_ROUTER_IP}
       dmz-net:
-        ipv4_address: 172.20.1.254
+        ipv4_address: ${SF_NET_DMZ_ROUTER_IP}
     cap_add:
       - NET_ADMIN
     sysctls:
@@ -274,6 +276,23 @@ services:
       - SF_DEBUG
       - SF_MAXOUT
       - SF_MAXIN
+      - NET_LG=${SF_NET_LG:?}
+      - NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
+      - NET_LG_ROUTER_IP_DUMMY=${SF_NET_LG_ROUTER_IP_DUMMY:?}
+      - NET_VPN=${SF_NET_VPN:?}
+      - NET_ONION=${SF_NET_ONION:?}
+      - TOR_IP=${SF_TOR_IP:?}
+      - GSNC_IP=${SF_GSNC_IP:?}
+      - SSHD_IP=${SF_SSHD_IP:?}
+      - NGINX_IP=${SF_NGINX_IP:?}
+      - NET_DIRECT_ROUTER_IP=${SF_NET_DIRECT_ROUTER_IP:?}
+      - NET_DIRECT_BRIDGE_IP=${SF_NET_DIRECT_BRIDGE_IP:?}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
+      - NET_ACCESS_ROUTER_IP=${SF_NET_ACCESS_ROUTER_IP:?}
+      - NET_DMZ_ROUTER_IP=${SF_NET_DMZ_ROUTER_IP:?}
+      - SF_NORDVPN_IP=${SF_NORDVPN_IP:?}
+      - SF_CRYPTOSTORM_IP=${SF_CRYPTOSTORM_IP:?}
+      - SF_MULLVAD_IP=${SF_MULLVAD_IP:?}
     restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
@@ -281,6 +300,42 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
     entrypoint: ["/init.sh"]
+
+  # router:
+  #   build: router
+  #   image: sf-router
+  #   hostname: sf-wg
+  #   container_name: sf-wg
+  #   depends_on:
+  #     - router-fix-network
+  #   networks:
+  #     incoming-net:
+  #       ipv4_address: ${SF_NET_DIRECT_WG_IP}
+  #     guest-net:
+  #       ipv4_address: ${SF_NET_LG_WG_IP}
+  #   cap_add:
+  #     - NET_ADMIN
+  #   sysctls:
+  #     - net.ipv4.conf.all.src_valid_mark=1 # SNAT
+  #     - net.ipv4.conf.all.rp_filter=2
+  #     - net.netfilter.nf_conntrack_frag6_timeout=10
+  #     - net.netfilter.nf_conntrack_generic_timeout=180 # default is 600
+  #     - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10
+  #     - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
+  #     - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
+  #     # - net.netfilter.nf_conntrack_udp_timeout=10
+  #     - net.netfilter.nf_conntrack_icmp_timeout=10
+  #   ports:
+  #     - "61337:61337/udp"
+  #   environment:
+  #     - SF_DEBUG
+  #   restart: ${SF_RESTART:-on-failure}
+  #   volumes:
+  #     - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
+  #     - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
+  #     - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+  #     - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+  #   entrypoint: ["/init-wg.sh"]
 
   router-fix-network:
     build: router
@@ -290,6 +345,7 @@ services:
       - NET_ADMIN
     environment:
       - SF_DEBUG
+      - NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
     restart: ${SF_RESTART:-on-failure}:1
     entrypoint: ["/fix-network.sh"]
 
@@ -300,14 +356,14 @@ services:
     hostname: sf-tor
     networks:
       vpn-net:
-        ipv4_address: 172.20.0.111
+        ipv4_address: ${SF_TOR_IP}
     cap_add:
       - NET_ADMIN
     environment:
       - SF_DEBUG
       - SF_TOR_VIA_VPN
     restart: ${SF_RESTART:-on-failure}
-    dns: 172.20.0.53
+    dns: ${SF_NET_VPN_IP}
     depends_on:
       - dnsmasq
       - nginx
@@ -322,8 +378,8 @@ services:
     container_name: sf-gsnc
     networks:
       access-net:
-        ipv4_address: 172.22.0.21
-    dns: 172.22.0.53
+        ipv4_address: ${SF_GSNC_IP}
+    dns: ${SF_NET_ACCESS_DNS_IP}
     cap_add:
       - NET_ADMIN # need to set default route
     depends_on:
@@ -335,9 +391,10 @@ services:
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_DEBUG
       - SF_SEED=${SF_SEED}
+      - SSHD_IP=${SF_SSHD_IP}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
-    entrypoint: ["/sf-gsnc.sh", "172.22.0.22"]
+    entrypoint: ["/sf-gsnc.sh", "${SF_SSHD_IP}"]
 
   segfault:
     build: host
@@ -347,9 +404,9 @@ services:
     networks:
       # WARNING: sshd's port forward/socks can access those networks.
       access-net:
-        ipv4_address: 172.22.0.22
+        ipv4_address: ${SF_SSHD_IP}
       redis-net:
-    dns: 172.22.0.53
+    dns: ${SF_NET_ACCESS_DNS_IP}
     cap_add:
       - NET_ADMIN # need to set default route
       - SYS_ADMIN # Move non-priv sshd to guest's network Namespace (setns())
@@ -365,8 +422,8 @@ services:
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
     # Add any variables to docker_sshd.sh as well.
     environment:
-      - SF_DNS=172.20.0.53
-      - SF_TOR=172.20.0.111
+      - SF_DNS=${SF_NET_VPN_DNS_IP}  # passed to sf-guest
+      - SF_TOR=${SF_TOR_IP}
       - SF_BASEDIR=${SF_BASEDIR}
       - SF_SHMDIR=${SF_SHMDIR:-/dev/shm/sf}
       - SF_USER=${SF_USER:-root}
@@ -394,7 +451,7 @@ services:
     entrypoint: ["/sf/bin/wait_semaphore.sh", "/sec/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]
     networks:
       dmz-net:
-        ipv4_address: 172.20.1.80
+        ipv4_address: ${SF_NGINX_IP}
     dns: 255.255.255.255
     cap_add:
       - NET_ADMIN # need to set default route
@@ -408,59 +465,61 @@ networks:
     name: sf-vpn
     driver: bridge
     ipam:
-      driver: default
       config:
-      - subnet: 172.20.0.0/24
+      - subnet: ${SF_NET_VPN}
 
   incoming-net:
     # Note: 'name' must be the first in alphabetic order. Docker forwards
     # the host's port to the _first_ network (in alphanetic order). sf-router
-    # expects all host traffic to arrive at 172.28.0.2.
+    # expects all host traffic to arrive at SF_NET_DIRECT_ROUTE_IP.
     name: A-sf-direct
     driver: bridge
     ipam:
-      driver: default
       config:
-      - subnet: 172.28.0.0/24
+      - subnet: ${SF_NET_DIRECT}
 
   access-net:
     # sf-host and gsnc
     name: sf-access
     driver: bridge
     ipam:
-      driver: default
       config:
-      - subnet: 172.22.0.0/24
+      - subnet: ${SF_NET_ACCESS}
 
   dmz-net:
     name: sf-dmz
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.1.0/24
+        - subnet: ${SF_NET_DMZ}
 
   redis-net:
     name: sf-redis-net
     driver: bridge
+    internal: true
     ipam:
       config:
-        - subnet: 172.20.2.0/24
+        - subnet: ${SF_NET_REDIS}
 
   dns-doh-net:
     name: sf-dns-doh
     driver: bridge
     ipam:
       config:
-        - subnet: 172.23.0.0/29
+        - subnet: ${SF_NET_DOH}
 
   # User's shell
   guest-net:
     name: sf-guest
     driver: bridge
+    # Can not use 'internal'. This will only remvoe the host's bridge
+    # but this also means we can not route via 10.11.0.* even if we can
+    # ping the router.
+    # internal: true
     ipam:
-      driver: default
       config:
-        - subnet: 10.11.0.0/24
+        - subnet: ${SF_NET_LG}
+          # gateway: 10.11.0.1 # Set's the IP of the host's bridge.
 
         # 255 hosts. BUG-ARP-CACHE
         # default gw is always 10.11.0.1 and is the host side of the bridge (?)

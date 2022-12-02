@@ -17,7 +17,6 @@ down()
 }
 
 [[ -z $SF_REDIS_AUTH ]] && {
-	# SF_REDIS_AUTH=$(dd bs=1024 count=1 if=/dev/urandom status=none | sha512sum | base64 -w0)
 	SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0)
 	SF_REDIS_AUTH="${SF_REDIS_AUTH//[^[:alnum:]]}"
 	SF_REDIS_AUTH="${SF_REDIS_AUTH:0:32}"

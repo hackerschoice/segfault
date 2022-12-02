@@ -1,47 +1,39 @@
 #! /bin/bash
 
-# - Take over host's 10.11.0.1 (and set host's sf-host to 10.255.255.254).
+# - Take over host's 169.254.224.1 (and set host's sf-host to 169.254.255.254).
 # - Force default route to VPN Gateways
 
 source "/sf/bin/funcs.sh"
 
-TOR_GW="172.20.0.111"
-
-
-# https://en.wikipedia.org/wiki/Reserved_IP_addresses
-BAD_ROUTES+=("0.0.0.0/8")
-BAD_ROUTES+=("10.0.0.0/8")
-BAD_ROUTES+=("127.0.0.0/8")
-BAD_ROUTES+=("172.16.0.0/12")
-BAD_ROUTES+=("100.64.0.0/10")
-BAD_ROUTES+=("169.254.0.0/16")
-BAD_ROUTES+=("192.0.0.0/24")
-BAD_ROUTES+=("192.0.2.0/24")
-BAD_ROUTES+=("192.88.99.0/24")
-BAD_ROUTES+=("192.168.0.0/16")
-BAD_ROUTES+=("198.18.0.0/15")
-BAD_ROUTES+=("198.51.100.0/15")
-BAD_ROUTES+=("203.0.113.0/24")
-BAD_ROUTES+=("224.0.0.0/4")
-BAD_ROUTES+=("233.252.0.0/24")
-BAD_ROUTES+=("240.0.0.0/24")
-BAD_ROUTES+=("255.255.255.255/32")
-
-blacklist_routes()
+ASSERT_EMPTY()
 {
-	for ip in "${BAD_ROUTES[@]}"; do
-		iptables -A FORWARD -p tcp -d "$ip" -j REJECT --reject-with tcp-reset
-		iptables -A FORWARD -d "$ip" -j REJECT
-	done
+	[[ -n $2 ]] && return
+
+	ERREXIT 255 "ASSERT: \$$1= is empty" 
 }
+
+ASSERT_EMPTY "NET_VPN" "$NET_VPN"
+ASSERT_EMPTY "NET_LG" "$NET_LG"
+ASSERT_EMPTY "NET_LG_ROUTER_IP" "$NET_LG_ROUTER_IP"
+ASSERT_EMPTY "NET_LG_ROUTER_IP_DUMMY" "$NET_LG_ROUTER_IP_DUMMY"
+ASSERT_EMPTY "NET_ACCESS_ROUTER_IP" "$NET_ACCESS_ROUTER_IP"
+ASSERT_EMPTY "NET_VPN_ROUTER_IP" "$NET_VPN_ROUTER_IP"
+ASSERT_EMPTY "TOR_IP" "$TOR_IP"
+ASSERT_EMPTY "GSNC_IP" "$GSNC_IP"
+ASSERT_EMPTY "SSHD_IP" "$SSHD_IP"
+ASSERT_EMPTY "NGINX_IP" "$NGINX_IP"
+ASSERT_EMPTY "NET_DIRECT_ROUTER_IP" "$NET_DIRECT_ROUTER_IP"
+ASSERT_EMPTY "NET_DIRECT_BRIDGE_IP" "$NET_DIRECT_BRIDGE_IP"
+ASSERT_EMPTY "NET_DMZ_ROUTER_IP" "$NET_DMZ_ROUTER_IP"
+
+VPN_IPS=("$SF_NORDVPN_IP" "$SF_CRYPTOSTORM_IP" "$SF_MULLVAD_IP")
 
 devbyip()
 {
 	local dev
 	dev="$(ip addr show | grep -F "inet $1" | head -n1 | awk '{print $7;}')"
-	[[ -n $dev ]] && { echo "$dev"; return; }
-	echo -e >&2 "DEV for '${1}' not found. Using $2"
-	echo "${2:?}"
+	[[ -z $dev ]] && { echo -e >&2 "DEV not found for ip '$1'"; return 255; }
+	echo "$dev"
 }
 
 init_revport_once()
@@ -58,32 +50,39 @@ init_revport_once()
 	# root server would not see the true source IP of the reverse connection.
 
 	# Get the MAC address of all routers.
-	unset ips
-	for n in {240..254}; do ips+=("172.20.0.${n}"); done
-	fping -c3 -A -t20 -p10 -4 -q "${ips[@]}" 2>/dev/null 
+	fping -c3 -A -t20 -p10 -4 -q "${VPN_IPS[@]}" 2>/dev/null 
 
 	# Mark every _NEW_ connection from VPN
 	# --restore-mark 'copies' the mark from the connmark target to the current
 	# packet (and then immediately checks if the packet is already part of an
 	# already tracked connection (! --mark 0 -j ACCEPT)
-	unset ips
 	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --restore-mark
 	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -m mark ! --mark 0 -j ACCEPT
-	for n in {240..254}; do
-		mac="$(ip neigh show 172.20.0."${n}")"
+	local idx
+	local ips
+	local ips_idx
+	local i
+	i=0
+	while [[ i -lt ${#VPN_IPS[@]} ]]; do
+		ip=${VPN_IPS[$idx]}
+		idx=$i
+		[[ -z $ip ]] && ERREXIT 255 "Oops, VPN_IPS[$idx] contains empty VPN IP"
+		((i++))
+		mac="$(ip neigh show "${ip}")"
 		mac="${mac##*lladdr }"
 		mac="${mac%% *}"
-		[[ "${#mac}" -ne 17 ]] && continue # empty or '172.20.0.240 dev eth4 FAILED'
+		[[ "${#mac}" -ne 17 ]] && continue # empty or '169.254.239.x dev eth4 FAILED'
 
-		ips+=("${n}")
+		ips_idx+=("$idx")
+		ips+=("$ip")
 		# Mark any _NEW_ connection by GW's mac.
-		iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p tcp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${n}"
-		iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p udp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${n}"
+		iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p tcp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${idx}"
+		iptables -A PREROUTING -t mangle -i "${DEV_GW}" -p udp -m conntrack --ctstate NEW -m mac --mac-source "${mac}" -j MARK --set-mark "11${idx}"
 	done
 	# --save-mark adds the mark of a current packet to the connmark target
 	iptables -A PREROUTING -t mangle -i "${DEV_GW}" -j CONNMARK --save-mark
 
-	echo -e >&2 "[$(date '+%F %T' -u)] RevPort set up for 172.20.0.[${ips[@]}]"
+	echo -e >&2 "[$(date '+%F %T' -u)] RevPort set up for ${ips[*]}"
 
 	# Route return traffic back to VPN-GW the packet came in from.
 	# Every return packet is marked (11nnn). If it is marked (e.g. it is a return packet)
@@ -93,14 +92,14 @@ init_revport_once()
 	# we only need to route return packets). 
 
 	# Load the ConnTrack MARKS:
-	# ..but only if not from MOSH's redirections (to 10.11.0.1)
-	iptables -A PREROUTING -t mangle -i "${DEV_LG}" ! -d 10.11.0.1 -j CONNMARK --restore-mark
-	for n in "${ips[@]}"; do
+	# ..but only if not from MOSH's redirections (to 169.254.224.1)
+	iptables -A PREROUTING -t mangle -i "${DEV_LG}" ! -d "${NET_LG_ROUTER_IP}" -j CONNMARK --restore-mark
+	for idx in "${ips_idx[@]}"; do
 		# On return path (-i DEV), add 12nnn mark for every packet that was initially tracked (11nnn).
-		iptables -A PREROUTING -t mangle -i "${DEV_LG}" -m mark --mark "11${n}" -j MARK --set-mark "12${n}"
+		iptables -A PREROUTING -t mangle -i "${DEV_LG}" -m mark --mark "11${idx}" -j MARK --set-mark "12${idx}"
 		# Add a routing table for return packets to force them via GW (mac) they came in from.
-		ip rule add fwmark "12${n}" table "8${n}"
-		ip route add default via "172.20.0.${n}" dev ${DEV_GW} table "8${n}"
+		ip rule add fwmark "12${idx}" table "8${idx}"
+		ip route add default via "${VPN_IPS[$idx]}" dev ${DEV_GW} table "8${idx}"
 	done
 }
 
@@ -142,9 +141,8 @@ use_tor()
 	IS_TOR=1
 
 	echo -e >&2 "$(date) Switching to TOR" 
-	# iptables -t mangle -A PREROUTING -i ${DEV_LG} -p udp -d 10.11.0.1 --sport 25002:26023 -j MARK --set-mark 22
 	ip route del default 2>/dev/null
-	ip route add default via "${TOR_GW}"
+	ip route add default via "${TOR_IP}"
 }
 
 monitor_failover()
@@ -199,7 +197,7 @@ ipt_set()
 	iptables -A FORWARD -o ${DEV_ACCESS} -p tcp --dport 22 --syn -m hashlimit --hashlimit-mode srcip --hashlimit-name ssh_brute_limit --hashlimit-above 10/min --hashlimit-burst 16 -j DROP
 
 	# DNAT in use: 172.28.0.1 -> 172.22.0.22
-	iptables -A FORWARD -i ${DEV_DIRECT} -p tcp -d 172.22.0.22 --dport 22 -j ACCEPT 
+	iptables -A FORWARD -i ${DEV_DIRECT} -p tcp -d "${SSHD_IP}" --dport 22 -j ACCEPT 
 
 	# SNAT in use: 172.22.0.22 -> 172.28.0.1
 	# Inconing from 172.22.0.22 -> 172.22.0.254 (MASQ)
@@ -211,26 +209,26 @@ ipt_set()
 	iptables -A FORWARD -o "${DEV_LG}" -i "${DEV_GW}" -j ACCEPT
 
 	# GSNC can access Internet via DIRECT
-	iptables -A FORWARD -i "${DEV_ACCESS}" -o ${DEV_DIRECT} -p tcp -s 172.22.0.21 -j ACCEPT
-	iptables -A FORWARD -o "${DEV_ACCESS}" -i ${DEV_DIRECT} -p tcp -d 172.22.0.21 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_ACCESS}" -o ${DEV_DIRECT} -p tcp -s "${GSNC_IP}" -j ACCEPT
+	iptables -A FORWARD -o "${DEV_ACCESS}" -i ${DEV_DIRECT} -p tcp -d "${GSNC_IP}" -j ACCEPT
 
 	# SSHD can forward ports to LGs (ssh -L) and LGs can access
 	# SSHD reverse ports (ssh -R) but not port 22 (sshd service)
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_ACCESS}" -p tcp --dport 22 -j REJECT  --reject-with tcp-reset
-	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_LG}" -s 172.22.0.22 -j ACCEPT
-	iptables -A FORWARD -o "${DEV_ACCESS}" -i "${DEV_LG}" -d 172.22.0.22 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_LG}" -s "${SSHD_IP}" -j ACCEPT
+	iptables -A FORWARD -o "${DEV_ACCESS}" -i "${DEV_LG}" -d "${SSHD_IP}" -j ACCEPT
 
 	# SSHD -D1080 forward
-	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_GW}" -s 172.22.0.22 -j ACCEPT
-	iptables -A FORWARD -o "${DEV_ACCESS}" -i "${DEV_GW}" -d 172.22.0.22 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_GW}" -s "${SSHD_IP}" -j ACCEPT
+	iptables -A FORWARD -o "${DEV_ACCESS}" -i "${DEV_GW}" -d "${SSHD_IP}" -j ACCEPT
 
 	# Onion to NGINX
-	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_DMZ}" -s 172.20.0.111 -d 172.20.1.80 -p tcp --dport 80 -j ACCEPT
-	iptables -A FORWARD -o "${DEV_GW}" -i "${DEV_DMZ}" -d 172.20.0.111 -s 172.20.1.80 -p tcp --sport 80 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_DMZ}" -s "${TOR_IP}" -d "${NGINX_IP}" -p tcp --dport 80 -j ACCEPT
+	iptables -A FORWARD -o "${DEV_GW}" -i "${DEV_DMZ}" -d "${TOR_IP}" -s "${NGINX_IP}" -p tcp --sport 80 -j ACCEPT
 
 	# TOR via VPN gateways
-	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s 172.20.0.111 -j ACCEPT
-	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -d 172.20.0.111 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s "${TOR_IP}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -d "${TOR_IP}" -j ACCEPT
 	
 	# Onion to SSHD
 	# => Already set by SSHD -D1080 setup
@@ -266,11 +264,11 @@ ipt_syn_limit()
 # Delete old vpn_status
 [[ -f /config/guest/vpn_status ]] && rm -f /config/guest/vpn_status
 
-DEV_DIRECT="$(devbyip 172.28.0. eth0)"
-DEV_LG="$(devbyip 10.11. eth3)"
-DEV_ACCESS="$(devbyip 172.22.0. eth1)"
-DEV_GW="$(devbyip 172.20.0. eth4)"
-DEV_DMZ="$(devbyip 172.20.1. eth2)"
+DEV_DIRECT="$(devbyip "${NET_DIRECT_ROUTER_IP}")" || exit
+DEV_LG="$(devbyip "${NET_LG_ROUTER_IP_DUMMY}")" || exit
+DEV_ACCESS="$(devbyip ${NET_ACCESS_ROUTER_IP})" || exit
+DEV_GW="$(devbyip "${NET_VPN_ROUTER_IP}")" || exit
+DEV_DMZ="$(devbyip "${NET_DMZ_ROUTER_IP}")" || exit
 
 echo -e "\
 DEV_DIRECT="${DEV_DIRECT}"\n\
@@ -293,10 +291,10 @@ DEV_DMZ="${DEV_DMZ}"\n\
 set -e
 ipt_set
 
-
 ipt_syn_limit
 
 ip route del default
+
 # -----BEGIN SSH traffic is routed via Direct Internet-----
 # All traffic must go via the router (for Traffic Control etc).
 #
@@ -311,20 +309,20 @@ ip route del default
 # - ip rule show
 # - ip route show table 207
 # Forward all SSHD traffic to the router (172.28.0.2) to sf-host:22.
-iptables -t mangle -A PREROUTING -i ${DEV_DIRECT} -p tcp -d 172.28.0.2 --dport 22 -j MARK --set-mark 722
+iptables -t mangle -A PREROUTING -i ${DEV_DIRECT} -p tcp -d "${NET_DIRECT_ROUTER_IP}" --dport 22 -j MARK --set-mark 722
 ip rule add fwmark 722 table 207
-ip route add default via 172.22.0.22 dev ${DEV_ACCESS} table 207
+ip route add default via "${SSHD_IP}" dev ${DEV_ACCESS} table 207
 
 # Any return traffic from the SSHD shall go out (directly) to the Internet or to TOR (if arrived from TOR)
-iptables -t mangle -A PREROUTING -i ${DEV_ACCESS} -p tcp -s 172.22.0.22 --sport 22 -d 172.20.0.111 -j RETURN
-iptables -t mangle -A PREROUTING -i ${DEV_ACCESS} -p tcp -s 172.22.0.22 --sport 22 -j MARK --set-mark 22
+iptables -t mangle -A PREROUTING -i ${DEV_ACCESS} -p tcp -s "${SSHD_IP}" --sport 22 -d "${TOR_IP}" -j RETURN
+iptables -t mangle -A PREROUTING -i ${DEV_ACCESS} -p tcp -s "${SSHD_IP}" --sport 22 -j MARK --set-mark 22
 ip rule add fwmark 22 table 201
-ip route add default via 172.28.0.1 dev ${DEV_DIRECT} table 201
+ip route add default via "${NET_DIRECT_BRIDGE_IP}" dev ${DEV_DIRECT} table 201
 
 # Forward packets to SSHD (172.22.0.22)
-iptables -t nat -A PREROUTING -p tcp -d 172.28.0.2 --dport 22 -j DNAT --to-destination 172.22.0.22
+iptables -t nat -A PREROUTING -p tcp -d "${NET_DIRECT_ROUTER_IP}" --dport 22 -j DNAT --to-destination "${SSHD_IP}"
 # Make packets appear as if this router was listening on port 22
-iptables -t nat -A POSTROUTING -p tcp -s 172.22.0.22 --sport 22 -j SNAT --to-source 172.28.0.2
+iptables -t nat -A POSTROUTING -p tcp -s "${SSHD_IP}" --sport 22 -j SNAT --to-source "${NET_DIRECT_ROUTER_IP}"
 # When connecting from Docker's host:
 # Note: Traffic from router to shell leaves with src=172.28.0.1 and dst=172.22.0.22
 # However, at the SSHD they appear to be comming from src=172.22.0.254 because
@@ -333,12 +331,12 @@ iptables -t nat -A POSTROUTING -p tcp -s 172.22.0.22 --sport 22 -j SNAT --to-sou
 # same MAC.
 # Instead use a hack to force traffic from 172.28.0.1 to be coming
 # from 172.22.0.254 (This router's IP)
-iptables -t nat -A POSTROUTING -s 172.28.0.1 -o ${DEV_ACCESS} -j MASQUERADE
+iptables -t nat -A POSTROUTING -s "${NET_DIRECT_BRIDGE_IP}" -o ${DEV_ACCESS} -j MASQUERADE
 # -----END SSH traffic is routed via Internet-----
 
-# Take over host's IP so we become the router for all Internet traffic.
-ifconfig "${DEV_LG}" 10.11.0.1/16
-
+# Take over host's IP so we become the router for all LGs.
+ip addr del "${NET_LG_ROUTER_IP_DUMMY}/${NET_LG##*/}" dev "${DEV_LG}" || ERREXIT 253 "Could not delete ${NET_LG_ROUTER_IP_DUMMY}"
+ip addr add "${NET_LG_ROUTER_IP}/${NET_LG##*/}" dev "${DEV_LG}" || ERREXIT 252 "Could not assign '${NET_LG_ROUTER_IP}/${NET_LG##*/}' to '${DEV_LG}'"
 # -----BEGIN MOSH-----
 # https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg
 # Range 30,000 - 65,535 is used by CryptoStorm
@@ -358,51 +356,69 @@ ifconfig "${DEV_LG}" 10.11.0.1/16
 # 4. Mark any traffic from LG to _router_ to leave via DIRECT (because it was masq'ed before)
 
 # Mark incoming packets 
-iptables -t nat -A PREROUTING -i ${DEV_DIRECT} -p udp -d 172.28.0.2 -j MARK --set-mark 52
+iptables -t nat -A PREROUTING -i ${DEV_DIRECT} -p udp -d "${NET_DIRECT_ROUTER_IP}" -j MARK --set-mark 52
 
 # Forward different port's to separate LG's
-# Each LG has a dedicated UDP port: 25002 -> 10.11.0.2, 25003 -> 10.11.0.3, ...
-i=2
-while [[ $i -lt 1024 ]]; do
-	x=$((i%256))
-	y=$((i/256))
-	iptables -t nat -A PREROUTING -i ${DEV_DIRECT} -p udp -d 172.28.0.2 --dport $((25000 + i)) -j DNAT --to-destination 10.11.$y.$x
+# Each LG has a dedicated UDP port: 25002 -> 10.11.0.2, 25003 -> 19.11.0.3, ...
+# Get 10.11.y.x
+s=${NET_LG%/*}
+y=${s%.*}
+base=${y%.*}   # 10.11.y.x
+y=${y##*.}
+x=${s##*.}
+i=3       # First free IP is 10.11.0.3 (the 3rd IP).
+((x+=i))
+set +e
+# FIXME: Calculate max size rather then 4 Class-C
+while [[ $i -lt $((256 * 4 - 3)) ]]; do
+	iptables -t nat -A PREROUTING -i ${DEV_DIRECT} -p udp -d "${NET_DIRECT_ROUTER_IP}" --dport $((25000 + i)) -j DNAT --to-destination "${base}.$y.$x" || ERREXIT
 	((i++))
+	((x++))
+	[[ $x -lt 256 ]] && continue
+	x=0
+	((y++))
 done
+set -e
 
 # Odd, mark-52 is no match in this chain
 # iptables -A FORWARD -m mark --mark 52 -j ACCEPT
 iptables -A FORWARD -i ${DEV_DIRECT} -o ${DEV_LG} -p udp --dport 25002:26023 -j ACCEPT
 iptables -A FORWARD -o ${DEV_DIRECT} -i ${DEV_LG} -p udp --sport 25002:26023 -j ACCEPT
 
-# HERE: Came in via DIRECT and dport is within range => Send to LG and MASQ as sf-router (10.11.0.1)
+# HERE: Came in via DIRECT and dport is within range => Send to LG and MASQ as sf-router (169.254.224.1)
 iptables -t nat -A POSTROUTING -o ${DEV_LG} -m mark --mark 52 -j MASQUERADE
 
 # Return traffic to _router_ should be routed via DIRECT (it's MASE'ed return traffic)
-iptables -t mangle -A PREROUTING -i ${DEV_LG} -p udp -d 10.11.0.1 --sport 25002:26023 -j MARK --set-mark 22
+iptables -t mangle -A PREROUTING -i ${DEV_LG} -p udp -d "${NET_LG_ROUTER_IP}" --sport 25002:26023 -j MARK --set-mark 22
 # -----END MOSH-----
 
 # -----BEGIN GSNC traffic is routed via Internet----
 # GSNC TCP traffic to 443 and 7350 goes to (direct) Internet
-iptables -t mangle -A PREROUTING -i ${DEV_ACCESS} -p tcp -s 172.22.0.21 -j MARK --set-mark 22
+iptables -t mangle -A PREROUTING -i ${DEV_ACCESS} -p tcp -s "${GSNC_IP}" -j MARK --set-mark 22
 # -----END GSNC traffic is routed via Internet----
 
 # MASQ all traffic because the VPN/TOR instances dont know the route back
-# to sf-guest (10.11.0.0/16).
+# to sf-guest (169.254.224/20).
 iptables -t nat -A POSTROUTING -o "${DEV_GW}" -j MASQUERADE
 # MASQ SSHD's forward to user's server
-iptables -t nat -A POSTROUTING -s 172.22.0.22 -o "${DEV_LG}" -j MASQUERADE
+iptables -t nat -A POSTROUTING -s "${SSHD_IP}" -o "${DEV_LG}" -j MASQUERADE
 # MASQ GSNC to (direct) Internet
-iptables -t nat -A POSTROUTING -s 172.22.0.21 -o "${DEV_DIRECT}" -j MASQUERADE
+iptables -t nat -A POSTROUTING -s "${GSNC_IP}" -o "${DEV_DIRECT}" -j MASQUERADE
 # MASQ traffic from TOR to DMZ (nginx)
 iptables -t nat -A POSTROUTING -o "${DEV_DMZ}" -j MASQUERADE
-# TOR traffic (10.111.0.0/16) always goes to TOR (transparent proxy)
-ip route add 10.111.0.0/16 via "${TOR_GW}"
-blacklist_routes
+# TOR traffic (169.254.240.0/21) always goes to TOR (transparent proxy)
+ip route add "${NET_ONION}" via "${TOR_IP}"
+
+# blacklist_routes
+# Everything else REJECT with RST or ICMP
+iptables -A FORWARD -p tcp -j REJECT --reject-with tcp-reset
+iptables -A FORWARD -j REJECT
+
 echo -e >&2 "FW: SUCCESS"
+
+# Set up Traffic Control (limit bandwidth)
 /tc.sh "${DEV_LG}" "${DEV_GW}" "${DEV_DIRECT}"
 echo -e >&2 "TC: SUCCESS"
-# iptables -t mangle -A PREROUTING -i ${DEV_LG} -p udp -d 10.11.0.1 --sport 25002:26023 -j MARK --set-mark 22
 
 set +e
 # By default go via TOR until vpn_status exists

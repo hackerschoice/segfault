@@ -12,5 +12,10 @@
 	[[ -e /etc/zsh_profile ]] && . /etc/zsh_profile
 }
 
+[[ -n $BASH ]] && {
+	# user on zsh and did `bash -il`
+	export SHELL="/bin/bash"
+}
+
 [[ -e "/etc/cheat/conf.yml" ]] && export CHEAT_CONFIG_PATH="/etc/cheat/conf.yml"
 export EDITOR=vim

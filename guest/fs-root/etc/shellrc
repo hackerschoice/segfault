@@ -31,7 +31,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		shift 1
 		[[ ! -t 1 ]] && { command "$cmd" "$@"; return; }
 
-		command "$cmd" "$@" | /usr/bin/python3 /usr/bin/grcat "conf.${cmd}"
+		command "$cmd" "$@" | /usr/bin/python3 /usr/bin/grcat "conf.${cmd##*/}"
 		[[ -n ${PIPESTATUS[0]} ]] && return ${PIPESTATUS[0]}
 		return ${pipestatus[1]}
 	}
@@ -44,7 +44,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		unalias "$c" 2>/dev/null
 
 		# Execution is faster if we assign a shell function
-		[[ -e "/usr/share/grc/conf.${c}" ]] && {
+		[[ -e "/usr/share/grc/conf.${c##*/}" ]] && {
 			eval "function ${c} { _grccmd \"$c\" \"\$@\"; }"
 			# ZSH only: "$c"() { _grccmd "$0" "$@"; }
 			return
@@ -56,7 +56,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 
 	# Be gay and color it all. #OneLove
 	[[ -e /usr/bin/grc ]] && {
-		cmds+=(configure curl df dig du env findmnt free id ifconfig)
+		cmds+=(./configure curl df dig du env findmnt free id ifconfig)
 		cmds+=(lsattr lsblk lsof lspci make mount netstat nmap ntpdate)
 		cmds+=(ping ps pv ss sockstat stat sysctl traceroute traceroute6 uptime vmstat wdiff whois)
 		for c in "${cmds[@]}"; do
@@ -64,9 +64,8 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		done
 		unset cmds
 
-		# Currently broken: mtr 
-		# Special case
-		[[ "${SHELL##*/}" == "zsh" ]] && alias ./configure="/usr/bin/grc --colour=auto ./configure"
+		# Currently broken:
+		# - mtr (no output) 
 
 		# These need stdout buffer disabled:
 		cmds+=(tcpdump)

@@ -19,7 +19,7 @@ ghbin()
 	asset="$3"
 
 	loc="https://api.github.com/repos/"$loc"/releases/latest"
-	url=$(curl -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url')
+	url=$(curl -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
 	[[ -z "$url" ]] && { echo >&2 "URL: '$loc'"; return 255; }
 	case $url in
 		*.zip)

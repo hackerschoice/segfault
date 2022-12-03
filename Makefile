@@ -15,7 +15,6 @@ all:
 	docker pull crazymax/cloudflared
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
-FILES_GUEST += "segfault-$(VER)/guest/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/Dockerfile"
 FILES_GUEST += "segfault-$(VER)/guest/Makefile"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/sbin/halt"
@@ -27,6 +26,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/zsh_command_not_found"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/proxychains.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-motd.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-setup.sh"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/apt/apt.conf.d/01norecommend"

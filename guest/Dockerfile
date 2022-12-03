@@ -8,12 +8,10 @@ WORKDIR /root/
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
 
-COPY setup.sh pkg-install.sh /
+COPY setup.sh fs-root/sf/bin/pkg-install.sh /
 
 RUN	apt-get update -y \
 	&& /pkg-install.sh MINI apt-get install -y --no-install-recommends \
-		ca-certificates \
-		curl \
 		iputils-ping \
 		iproute2 \
 		lsb-release \
@@ -29,8 +27,12 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		bc \
 		bsdmainutils \
+		ca-certificates \
+		curl \
 		dos2unix \
 		file \
+		git \
+		jq \
 		less \
 		openssh-sftp-server \
 		python3-pip \
@@ -52,7 +54,6 @@ RUN	apt-get update -y \
 		gawk \
 		gcc \
 		gdb \
-		git \
 		grc \
 		hexedit \
 		html2text \
@@ -80,6 +81,7 @@ RUN	apt-get update -y \
 		nano \
 		netcat-traditional \
 		ntpdate \
+		rpcbind \
 		sockstat \
 		sudo \
 		tcpdump \
@@ -95,16 +97,22 @@ RUN	apt-get update -y \
 		ffuf \
 		hydra \
 		gobuster \
+		impacket-scripts \
 		irssi \
 		nbtscan \
 		netdiscover \
+		ncrack \
 		nmap \
+		onesixtyone \
+		oracle-instantclient-sqlplus \
+		oscanner \
 		pagekite \
 		shadowsocks-libev \
 		shadowsocks-v2ray-plugin \
 		snmpcheck \
 		socat \
 		thc-ipv6 \
+		tnscmd10g \
 		tshark \
 		webshells \
 		weevely \
@@ -117,6 +125,7 @@ RUN	apt-get update -y \
 		commix \
 		dirb \
 		dirsearch \
+		dnsenum \
 		dnsrecon \
 		dotnet-runtime-6.0 \
 		dstat \
@@ -125,6 +134,8 @@ RUN	apt-get update -y \
 		emacs \
 		emailharvester \
 		enum4linux \
+		evil-winrm \
+		eyewitness \
 		exa \
 		exiftool \
 		fd-find \
@@ -136,17 +147,19 @@ RUN	apt-get update -y \
 		ldap-utils \
 		joe \
 		john \
-		jq \
 		lsof \
 		lynx \
 		mc \
 		mg \
 		mtr \
 		most \
+		mycli \
+		mypager \
+		nfs-common \
 		neofetch \
 		neovim \
-		nikto \
 		ngrep \
+		nikto \
 		openssh-client \
 		p7zip-full \
 		peass \
@@ -159,15 +172,18 @@ RUN	apt-get update -y \
 		python3-virtualenv \
 		radare2 \
 		recon-ng \
+		redis-tools \
 		rclone \
 		rlwrap \
 		smbclient \
 		smbmap \
 		snmp \
 		speedtest-cli \
+		sqsh \
 		sslscan \
 		sshpass \
 		ssh-audit \
+		sublist3r \
 		theharvester \
 		tmate \
 		tree \
@@ -180,6 +196,7 @@ RUN	apt-get update -y \
 		wrk \
 		zoxide \
 	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		bloodhound \
 		default-jdk \
 		exploitdb \
 		gem \
@@ -192,9 +209,16 @@ RUN	apt-get update -y \
 		rust-all \
 		ruby \
 		x11-apps \
-	&& /pkg-install.sh HUGE go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest \
-	&& /pkg-install.sh HUGE go install -v github.com/sagernet/sing-box/cmd/sing-box@latest \
-	&& /pkg-install.sh HUGE go install -v github.com/tomnomnom/waybackurls@latest \
+	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
+	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_amd64.zip$' httpx \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei 'linux_amd64.zip$' nuclei \
+	&& /pkg-install.sh LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
+	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
+	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
+	&& /pkg-install.sh LARGE bash -c "{ mkdir -p /usr/share/cheatsheets/community \
+		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }" \
 	&& /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \
@@ -204,35 +228,26 @@ RUN	apt-get update -y \
 		shodan \
 		maigret \
 	&& /pkg-install.sh HACK pip install \
+		arsenal-cli \
 		hashid \
+		kerbrute \
 		sqlmap \
-	&& /pkg-install.sh HACK bash -c "{ curl -fsSL https://github.com/projectdiscovery/uncover/releases/download/v0.0.8/uncover_0.0.8_linux_amd64.zip -o /tmp/pkg.zip \
-		&& unzip /tmp/pkg.zip uncover -d /usr/bin && rm -f /tmp/pkg.zip \
-		&& curl -fsSL https://github.com/projectdiscovery/httpx/releases/download/v1.2.4/httpx_1.2.4_linux_amd64.zip -o /tmp/pkg.zip \
-		&& unzip /tmp/pkg.zip httpx -d /usr/bin && rm -f /tmp/pkg.zip \
-		&& curl -fsSL https://github.com/projectdiscovery/nuclei/releases/download/v2.7.7/nuclei_2.7.7_linux_amd64.zip -o /tmp/pkg.zip \
-		&& unzip /tmp/pkg.zip nuclei -d /usr/bin && rm -f /tmp/pkg.zip; }" \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \
 		PyCryptodome \
-	&& /pkg-install.sh LARGE curl -fsSL https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb -o /tmp/lsd.deb \
-	&& /pkg-install.sh LARGE dpkg -i /tmp/lsd.deb \
-	&& /pkg-install.sh LARGE curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
-	&& /pkg-install.sh LARGE dpkg -i /tmp/geonet.deb \
+	&& /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
+		&& dpkg -i /tmp/geonet.deb; }" \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
-	&& /pkg-install.sh LARGE bash -c "{ curl -SsfL https://github.com/cheat/cheat/releases/download/4.2.2/cheat-linux-amd64.gz | gunzip >/usr/bin/cheat \
-		&& chmod 755 /usr/bin/cheat \
-		&& mkdir -p /usr/share/cheatsheets/community \
-		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }" \
 	&& /pkg-install.sh DEVEL bash -c "{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }" \
 	&& { rm -f /tmp/*.deb; true; } \
-	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin"
+	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin" \
+	&& echo "DONE."
 
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*
 
-# Do fs-root last (on vmbox it messes with chmod and setup.sh fixes it)
+# Do fs-root last (on vmbox it messes with permissions on directories and setup.sh fixes it)
 COPY /fs-root/ /
 RUN		/setup.sh \
 	&& rm -f /setup.sh /pkg-install.sh

@@ -2,6 +2,7 @@ VER := 0.3.9a2
 
 all:
 	make -C cleaner/cg
+	make -C master
 	make -C host
 	make -C tor
 	make -C encfsd
@@ -45,6 +46,11 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/Articles/wor
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/mydw.md"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/about.md"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/images"
+
+FILES_MASTER += "segfault-$(VER)/host/Dockerfile"
+FILES_MASTER += "segfault-$(VER)/host/Makefile"
+FILES_MASTER += "segfault-$(VER)/host/init-master.sh"
+FILES_MASTER += "segfault-$(VER)/host/fs-root/etc/nginx/nginx.conf"
 
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"
@@ -113,7 +119,7 @@ FILES_CLEANER += "segfault-$(VER)/cleaner/cg/main.go"
 FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Makefile"
 FILES_CLEANER += "segfault-$(VER)/cleaner/cg/sysinfo_linux.go"
 
-FILES += $(FILES_CLEANER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES += $(FILES_CLEANER) $(FILES_MASTER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

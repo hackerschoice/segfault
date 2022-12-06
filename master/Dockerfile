@@ -10,11 +10,13 @@ RUN    apt-get update \
               iperf \
               net-tools \
               netcat \
+              nginx \
               tcpdump \
               wget \
               vim \
        && rm -rf /var/lib/apt/lists/*
 
-COPY tc.sh init.sh fix-network.sh /
+COPY init-master.sh /
+COPY /fs-root/ /
 CMD ["bash", "-il"]
 

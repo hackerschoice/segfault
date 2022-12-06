@@ -301,41 +301,56 @@ services:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
     entrypoint: ["/init.sh"]
 
-  # router:
-  #   build: router
-  #   image: sf-router
-  #   hostname: sf-wg
-  #   container_name: sf-wg
-  #   depends_on:
-  #     - router-fix-network
-  #   networks:
-  #     incoming-net:
-  #       ipv4_address: ${SF_NET_DIRECT_WG_IP}
-  #     guest-net:
-  #       ipv4_address: ${SF_NET_LG_WG_IP}
-  #   cap_add:
-  #     - NET_ADMIN
-  #   sysctls:
-  #     - net.ipv4.conf.all.src_valid_mark=1 # SNAT
-  #     - net.ipv4.conf.all.rp_filter=2
-  #     - net.netfilter.nf_conntrack_frag6_timeout=10
-  #     - net.netfilter.nf_conntrack_generic_timeout=180 # default is 600
-  #     - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10
-  #     - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
-  #     - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
-  #     # - net.netfilter.nf_conntrack_udp_timeout=10
-  #     - net.netfilter.nf_conntrack_icmp_timeout=10
-  #   ports:
-  #     - "61337:61337/udp"
-  #   environment:
-  #     - SF_DEBUG
-  #   restart: ${SF_RESTART:-on-failure}
-  #   volumes:
-  #     - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
-  #     - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
-  #     - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
-  #     - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-  #   entrypoint: ["/init-wg.sh"]
+  master:
+    build: master
+    image: sf-master
+    hostname: sf-master
+    container_name: sf-master
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - SF_DEBUG
+    restart: ${SF_RESTART:-on-failure}
+    volumes:
+      - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+    entrypoint: ["/init-master.sh"]
+
+  wg:
+    build: router
+    image: sf-router
+    hostname: sf-wg
+    container_name: sf-wg
+    depends_on:
+      - router-fix-network
+    networks:
+      incoming-net:
+        ipv4_address: ${SF_NET_DIRECT_WG_IP}
+      guest-net:
+        ipv4_address: ${SF_NET_LG_WG_IP}
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1 # SNAT
+      - net.ipv4.conf.all.rp_filter=2
+      - net.netfilter.nf_conntrack_frag6_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180 # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
+      # - net.netfilter.nf_conntrack_udp_timeout=10
+      - net.netfilter.nf_conntrack_icmp_timeout=10
+    ports:
+      - "61337:61337/udp"
+    environment:
+      - SF_DEBUG
+    restart: ${SF_RESTART:-on-failure}
+    volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
+      - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+    entrypoint: ["/init-wg.sh"]
 
   router-fix-network:
     build: router

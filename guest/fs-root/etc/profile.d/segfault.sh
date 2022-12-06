@@ -1,4 +1,4 @@
-# source'd during interactive shell login to SF-GUEST.
+# source'd during interactive shell login to SF-GUEST (e.g. bash -il, not bash -i)
 
 # Trampoline to this script:
 [[ -f /sf/bin/sf-motd.sh ]] && [[ -n "$SF_IS_LOGINSHELL" ]] && {
@@ -17,5 +17,6 @@
 	export SHELL="/bin/bash"
 }
 
+[[ -n $COLORTERM ]] && export COLORTERM=truecolor
 [[ -e "/etc/cheat/conf.yml" ]] && export CHEAT_CONFIG_PATH="/etc/cheat/conf.yml"
 export EDITOR=vim

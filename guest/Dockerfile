@@ -10,7 +10,8 @@ ARG SF_PACKAGES
 
 COPY setup.sh fs-root/sf/bin/pkg-install.sh /
 
-RUN	apt-get update -y \
+RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
+	&& apt-get update -y \
 	&& /pkg-install.sh MINI apt-get install -y --no-install-recommends \
 		iputils-ping \
 		iproute2 \
@@ -57,10 +58,12 @@ RUN	apt-get update -y \
 		grc \
 		hexedit \
 		html2text \
+		lib32z1 \
 		libc-devtools \
 		libevent-dev \
 		libssl-dev \
 		ltrace \
+		lz4 \
 		make \
 		patch \
 		pv \
@@ -94,6 +97,7 @@ RUN	apt-get update -y \
 	&& DEBIAN_FRONTEND=noninteractive /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		assetfinder \
 		dnsmap \
+		dnsx \
 		ffuf \
 		hydra \
 		gobuster \
@@ -114,12 +118,16 @@ RUN	apt-get update -y \
 		thc-ipv6 \
 		tnscmd10g \
 		tshark \
+		upx \
 		webshells \
 		weevely \
 	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		altdns \
 		apache2-utils \
 		apt-file \
+		apt-src \
+		apt-utils \
+		backdoor-factory \
 		bat \
 		cmseek \
 		commix \
@@ -152,6 +160,8 @@ RUN	apt-get update -y \
 		mc \
 		mg \
 		mtr \
+		mono-mcs \
+		mono-devel \
 		most \
 		mycli \
 		mypager \
@@ -165,6 +175,7 @@ RUN	apt-get update -y \
 		peass \
 		pip \
 		proxychains \
+		python2-minimal \
 		python-is-python3 \
 		python3-pwntools \
 		python3-pygments \
@@ -184,6 +195,7 @@ RUN	apt-get update -y \
 		sshpass \
 		ssh-audit \
 		sublist3r \
+		syncthing \
 		theharvester \
 		tmate \
 		tree \
@@ -208,17 +220,43 @@ RUN	apt-get update -y \
 		ripgrep \
 		rust-all \
 		ruby \
+		veil \
 		x11-apps \
 	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_amd64.zip$' httpx \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei 'linux_amd64.zip$' nuclei \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder 'linux_amd64.zip$' subfinder \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu 'linux_amd64.zip$' naabu \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify 'linux_amd64.zip$' proxify \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/katana 'linux_amd64.zip$' katana \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx 'linux_amd64.zip$' tlsx \
+	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_amd64.tar.xz$' smap \
 	&& /pkg-install.sh LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
 	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
-	&& /pkg-install.sh LARGE bash -c "{ mkdir -p /usr/share/cheatsheets/community \
-		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }" \
+	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
+	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
+	&& /pkg-install.sh LARGE bash -c '{ mkdir -p /usr/share/cheatsheets/community \
+		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
+	&& /pkg-install.sh HUGE bash -c '{ cd /tmp \
+		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
+		&& cd pwndbg \
+		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
+		&& { dpkg --add-architecture i386 \
+			&& apt-get update \
+			&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
+			&& dpkg --force-architecture --remove-architecture i386; } \
+		&& pip install -Ur requirements.txt \
+		&& cd .. \
+		&& mv pwndbg /usr/share \
+		&& echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
+		&& mkdir -p /usr/src/glibc \
+		&& cd /usr/src/glibc \
+		&& apt-src install glibc \
+		&& echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
+		&& echo DONE; }' \
 	&& /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \
@@ -230,11 +268,11 @@ RUN	apt-get update -y \
 	&& /pkg-install.sh HACK pip install \
 		arsenal-cli \
 		hashid \
-		kerbrute \
 		sqlmap \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \
+		names \
 		PyCryptodome \
 	&& /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
 		&& dpkg -i /tmp/geonet.deb; }" \

@@ -15,8 +15,19 @@
 # ZSH specific
 function cnf_preexec() {
     local cmd
-    cmd="${1#"${1%%[^[:space:]]*}"}" # remove leading whitespace characters
+
+    cmd="$1"
+    # Remove any variable like in `FOO=blah duf`
+    while :; do
+        cmd="${cmd#"${cmd%%[^[:space:]]*}"}" # remove leading whitespace characters
+        [[ $cmd != *" "* ]] && break
+        # Check if first string before " " is a variable (contains '=')
+        [[ ${cmd%% *} != *"="* ]] && break
+        # HERE: It's a variable. Remove it for 'cmd'
+        cmd=${cmd#* }
+    done
     typeset -g cnf_command="${cmd%% *}"
+
     whence -- "${cnf_command}" >& /dev/null && return
     # HERE: command not found
     [ -n "$cnf_once" ] && return

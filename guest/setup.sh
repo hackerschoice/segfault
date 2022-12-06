@@ -19,7 +19,6 @@ sed 's/\(\s*PROMPT=.*\)n└─\(.*\)/\1n%{%G└%}%{%G─%}\2/g' -i /etc/skel/.zs
 sed '/\^P toggle_oneline_prompt/d' -i /etc/skel/.zshrc
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.zshrc
 
-
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.bashrc
 sed 's/\(\s*\)set mouse=/"\1set mouse=/g' -i /usr/share/vim/vim90/defaults.vim
 rm -f /etc/skel/.bashrc.original

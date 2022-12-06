@@ -1,5 +1,8 @@
 0.3.9 - 2022-12-00
-    * supervisord, cheat
+    * cheat, supervisord, pwndgb, smap, subfinder, naabu, proxify, katana, tlxs, dnsx, veil ...
+    * glibc sources
+    * SSHD MaxStartups/LoginGraceTime & ipt hashlimit --syn
+    * command_not_found ENV= fix
 
 0.3.8 - 2022-11-29
     * Gay colours. #OneLove

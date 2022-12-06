@@ -45,6 +45,21 @@ ghbin()
 			&& chmod 755 "/usr/bin/${asset}" \
 			&& return 0
 			;;
+		*.tar.bz2)
+			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin "$asset" \
+			&& chmod 755 "/usr/bin/${asset}" \
+			&& return 0
+			;;
+		*.bz2)
+			curl -SsfL "$url" | bunzip2 >"/usr/bin/${asset}" \
+			&& chmod 755 "/usr/bin/${asset}" \
+			&& return 0
+			;;
+		*.xz)
+			curl -SsfL "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin "$asset" \
+			&& chmod 755 "/usr/bin/${asset}" \
+			&& return 0
+			;;
 		*)
 			curl -SsfL "$url" >"/usr/bin/${asset}" \
 			&& chmod 755 "/usr/bin/${asset}" \

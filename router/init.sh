@@ -195,6 +195,9 @@ ipt_set()
 	# Note: The IP addresses are FLIPPED because we use DNAT/SNAT/MASQ in PREROUTING
 	# before the FORWARD chain is hit
 
+	# Limit annoying SSHD brute force attacks
+	iptables -A FORWARD -o ${DEV_ACCESS} -p tcp --dport 22 --syn -m hashlimit --hashlimit-mode srcip --hashlimit-name ssh_brute_limit --hashlimit-above 10/min --hashlimit-burst 16 -j DROP
+
 	# DNAT in use: 172.28.0.1 -> 172.22.0.22
 	iptables -A FORWARD -i ${DEV_DIRECT} -p tcp -d 172.22.0.22 --dport 22 -j ACCEPT 
 

@@ -26,6 +26,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		zsh-autosuggestions \
 		zsh-syntax-highlighting \
 	&& /pkg-install.sh BASE apt-get install -y --no-install-recommends \
+		apt-src \
 		bc \
 		bsdmainutils \
 		ca-certificates \
@@ -122,10 +123,11 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		webshells \
 		weevely \
 	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		aha \
 		altdns \
+		amass \
 		apache2-utils \
 		apt-file \
-		apt-src \
 		apt-utils \
 		backdoor-factory \
 		bat \
@@ -152,7 +154,10 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		hashcat \
 		highlight \
 		htop \
+		libxml2-utils \
 		ldap-utils \
+		ldapscripts \
+		jsbeautifier \
 		joe \
 		john \
 		lsof \
@@ -200,19 +205,27 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		tmate \
 		tree \
 		torsocks \
+		urlcrazy \
 		w3m \
+		wafw00f \
 		weechat weechat-plugins weechat-matrix \
 		whatweb \
 		wipe \
 		wpscan \
 		wrk \
+		xdg-utils \
+		xmlstarlet \
+		xsltproc \
+		xvfb \
 		zoxide \
 	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		bloodhound \
+		chromium \
+		cutycapt \
 		default-jdk \
 		exploitdb \
 		gem \
-		golang-go \
+		golang \
 		npm \
 		nodejs \
 		php \
@@ -220,6 +233,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		ripgrep \
 		rust-all \
 		ruby \
+		rubygems \
 		veil \
 		x11-apps \
 	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
@@ -247,7 +261,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		&& { dpkg --add-architecture i386 \
 			&& apt-get update \
 			&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
-			&& dpkg --force-architecture --remove-architecture i386; } \
+			&& dpkg --force-architecture --remove-architecture i386 \
+			&& rm -f /var/lib/apt/lists/*-i386_Packages.lz4; } \
 		&& pip install -Ur requirements.txt \
 		&& cd .. \
 		&& mv pwndbg /usr/share \
@@ -267,17 +282,24 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		maigret \
 	&& /pkg-install.sh HACK pip install \
 		arsenal-cli \
+		h8mail \
 		hashid \
 		sqlmap \
+		webtech \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \
+		dnspython \
+		ipaddress \
 		names \
+		netaddr \
 		PyCryptodome \
+		tldextract \
+		urllib3 \
 	&& /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
 		&& dpkg -i /tmp/geonet.deb; }" \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
-	&& /pkg-install.sh DEVEL bash -c "{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }" \
+	&& /pkg-install.sh DEVEL bash -c '{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }' \
 	&& { rm -f /tmp/*.deb; true; } \
 	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin" \
 	&& echo "DONE."

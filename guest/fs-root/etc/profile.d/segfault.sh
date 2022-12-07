@@ -7,16 +7,17 @@
 	unset SF_IS_LOGINSHELL # Only display motd on ssh login but not zsh -il or su - user
 }
 
-[[ -n $ZSH_NAME ]] && {
-	[[ -z $SHELL ]] && export SHELL=/bin/zsh
-	[[ -e /etc/zsh_profile ]] && . /etc/zsh_profile
-}
-
 [[ -n $BASH ]] && {
 	# user on zsh and did `bash -il`
 	export SHELL="/bin/bash"
 }
 
-[[ -n $COLORTERM ]] && export COLORTERM=truecolor
+[[ -n $ZSH_NAME ]] && {
+	# user on bash and did `zsh -il`
+	export SHELL=/bin/zsh
+	[[ -e /etc/zsh_profile ]] && . /etc/zsh_profile
+}
+
+[[ -z $COLORTERM ]] && export COLORTERM=truecolor
 [[ -e "/etc/cheat/conf.yml" ]] && export CHEAT_CONFIG_PATH="/etc/cheat/conf.yml"
 export EDITOR=vim

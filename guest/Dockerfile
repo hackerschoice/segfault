@@ -62,12 +62,14 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		lib32z1 \
 		libc-devtools \
 		libevent-dev \
+		libev-dev \
 		libssl-dev \
 		ltrace \
 		lz4 \
 		make \
 		patch \
 		pv \
+		sbcl \
 		source-highlight \
 		strace \
 		wdiff \

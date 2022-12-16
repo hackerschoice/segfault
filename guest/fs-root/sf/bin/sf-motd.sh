@@ -57,7 +57,7 @@ loc="${loc:0:15}"
 echo -e "\
 Your workstation  : ${CDY}${loc}${CN}
 ${VPN_DST}\
-TOR Proxy         : ${CDG}${SF_TOR:-UNKNOWN}:9050${CN}
+TOR Proxy         : ${CDG}${SF_TOR_IP:-UNKNOWN}:9050${CN}
 Reverse Port      : ${IPPORT}${CN}
 Shared storage    : ${CDM}/everyone ${CF}(encrypted)${CN}
 Your storage      : ${CDM}/sec      ${CF}(encrypted)${CN}"

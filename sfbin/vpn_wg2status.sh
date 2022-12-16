@@ -18,6 +18,7 @@ PROVIDER=\"${PROVIDER}\"\n" >/dev/shm/env.txt
 fi
 
 source /sf/bin/funcs.sh
+source /sf/bin/funcs_redis.sh
 
 # From all files update the VPN status file
 create_vpn_status()
@@ -64,7 +65,7 @@ down()
 
 	/sf/bin/rportfw.sh fw_delall
 
-	redis-cli -h 172.20.2.254 RPUSH portd:cmd "vpndown ${PROVIDER}" >/dev/null
+	red RPUSH portd:cmd "vpndown ${PROVIDER}"
 
 	[[ "${PROVIDER,,}" == "cryptostorm" ]] && curl -fsSL --retry 1 --max-time 5 http://10.31.33.7/fwd -ddelallfwd=1
 
@@ -128,7 +129,7 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 	# Delete all old port forwards.
 	[[ "${PROVIDER,,}" == "cryptostorm" ]] && curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -ddelallfwd=1
 
-	redis-cli -h 172.20.2.254 RPUSH portd:cmd "vpnup ${PROVIDER}" >/dev/null
+	red RPUSH portd:cmd "vpnup ${PROVIDER}"
 	true
 }
 

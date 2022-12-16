@@ -12,8 +12,6 @@ down()
 	# network pool even that 'docker network ls' shows no networks beside
 	# the 3 default networks and with no containers running:
 	ip link show | cut -f2 -d" " | grep -E "^(br-)"  | while read x; do x="${x%@*}"; x="${x%:*}"; [[ -z $x ]] && continue; ip link delete "${x}" down; done
-	# ip link show | cut -f2 -d" " | grep -E "^(br-|veth)"  | while read x; do x="${x%@*}"; x="${x%:*}"; [[ -z $x ]] && continue; ip link delete "${x}" down; done
-	ifconfig docker0 down
 }
 
 [[ -z $SF_REDIS_AUTH ]] && {

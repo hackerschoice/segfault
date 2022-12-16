@@ -1,6 +1,7 @@
 #! /bin/bash
 
 source /sf/bin/funcs.sh
+source /sf/bin/funcs_redis.sh
 
 MARK_FN="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
 
@@ -271,7 +272,7 @@ redis_loop_forever()
 	local n_conn_err
 
 	while :; do
-		res=$(redis-cli -h 172.20.2.254 BLPOP encfs 0) || {
+		res=$(redr BLPOP encfs 0) || {
 			((n_conn_err++))
 			[[ $n_conn_err -gt 180 ]] && ERREXIT 250 "Giving up..."
 			WARN "Waiting for Redis..."
@@ -312,7 +313,7 @@ redis_loop_forever()
 		fi
 
 		# ALL OK
-		redis-cli -h 172.20.2.254 RPUSH "encfs-${reqid}-${lid}-${cmd}" "OK" >/dev/null
+		red RPUSH "encfs-${reqid}-${lid}-${cmd}" "OK" >/dev/null
 	done
 }
 

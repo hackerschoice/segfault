@@ -12,9 +12,12 @@ services:
     networks:
       redis-net:
         ipv4_address: ${SF_REDIS_IP}
+      master-net:
+        ipv4_address: ${SF_NET_MASTER_REDIS_IP}
     command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH}" ]
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/redis/redis.conf:/redis.conf:ro"
+      # - "${SF_SHMDIR:-/dev/shm/sf}/redis:/dev/shm/redis"
 
   sf-encfsd:
     build: encfsd
@@ -63,6 +66,7 @@ services:
       - apparmor:unconfined
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     pid: "service:sf-encfsd"
     command: ["/destructor.sh"]
@@ -96,6 +100,7 @@ services:
       - sf-redis
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     command: ["/portd.sh"]
     networks:
@@ -301,20 +306,60 @@ services:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
     entrypoint: ["/init.sh"]
 
+  # The master for modifying other containers
+  # - Set default routes
+  # - Retrieve dmesg
+  # - Set WireGuard routes for FOB
   master:
     build: master
     image: sf-master
     hostname: sf-master
     container_name: sf-master
+    depends_on:
+      - sf-redis
+    # network_mode: none  # FIXME: Make redis available via shared socket so we dont need network on 'master'.
+    networks:
+      master-net:
+    # dns: 255.255.255.255
     cap_add:
       - NET_ADMIN
+      - SYS_ADMIN   # For nsenter
+      - SYSLOG      # For dmesg
+    pid: "host"     # For nsenter
     environment:
       - SF_DEBUG
+      - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_NET_MASTER_REDIS_IP}
+      - SF_RPC_IP=${SF_RPC_IP:?}
+      - SF_DNS=${SF_NET_VPN_DNS_IP}
+      - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
+      - SF_WG_PRIVATE=${SF_WG_PRIVATE:?}
     restart: ${SF_RESTART:-on-failure}
     volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}/master:/dev/shm/master"
+      - "${SF_BASEDIR:-.}/config/db:/config/db"
+      # - "${SF_SHMDIR:-/dev/shm/sf}/redis:/dev/shm/redis"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+      - "/segfault/master/cgi-bin:/cgi-bin:ro" # FIXME-2022: Remove in production
+      - "/var/run/docker.sock:/var/run/docker.sock"
     entrypoint: ["/init-master.sh"]
+
+  rpc:
+    image: nginx
+    container_name: sf-rpc
+    depends_on:
+      - master
+    restart: ${SF_RESTART:-on-failure}
+    networks:
+      guest-net:
+        ipv4_address: ${SF_RPC_IP}
+    dns: 255.255.255.255 # FIXME-2022: Enable in production
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}/master:/dev/shm/master"
+      - "${SF_BASEDIR:-.}/config/etc/nginx/nginx-rpc.conf:/etc/nginx/nginx.conf:ro"
 
   wg:
     build: router
@@ -341,7 +386,7 @@ services:
       # - net.netfilter.nf_conntrack_udp_timeout=10
       - net.netfilter.nf_conntrack_icmp_timeout=10
     ports:
-      - "61337:61337/udp"
+      - "61337:61337/udp"  # FIXME: use IPTABLES instead for 2^15-65535/udp to sf-wg
     environment:
       - SF_DEBUG
     restart: ${SF_RESTART:-on-failure}
@@ -378,7 +423,7 @@ services:
       - SF_DEBUG
       - SF_TOR_VIA_VPN
     restart: ${SF_RESTART:-on-failure}
-    dns: ${SF_NET_VPN_IP}
+    dns: ${SF_NET_VPN_DNS_IP}
     depends_on:
       - dnsmasq
       - nginx
@@ -396,7 +441,7 @@ services:
         ipv4_address: ${SF_GSNC_IP}
     dns: ${SF_NET_ACCESS_DNS_IP}
     cap_add:
-      - NET_ADMIN # need to set default route
+      - NET_ADMIN # need to set default route via sf-router
     depends_on:
       - dnsmasq
       - router
@@ -423,7 +468,7 @@ services:
       redis-net:
     dns: ${SF_NET_ACCESS_DNS_IP}
     cap_add:
-      - NET_ADMIN # need to set default route
+      - NET_ADMIN # need to set default route via sf-router
       - SYS_ADMIN # Move non-priv sshd to guest's network Namespace (setns())
     pid: host # Move non-priv sshd to guest's network NameSpace.
     depends_on:
@@ -438,19 +483,21 @@ services:
     # Add any variables to docker_sshd.sh as well.
     environment:
       - SF_DNS=${SF_NET_VPN_DNS_IP}  # passed to sf-guest
-      - SF_TOR=${SF_TOR_IP}
+      - SF_TOR_IP=${SF_TOR_IP}
       - SF_BASEDIR=${SF_BASEDIR}
       - SF_SHMDIR=${SF_SHMDIR:-/dev/shm/sf}
       - SF_USER=${SF_USER:-root}
       - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_IP=${SF_REDIS_IP}
+      - SF_RPC_IP=${SF_RPC_IP}
       - SF_SEED=${SF_SEED}
       - SF_DEBUG
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"
-      - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
@@ -468,8 +515,8 @@ services:
       dmz-net:
         ipv4_address: ${SF_NGINX_IP}
     dns: 255.255.255.255
-    cap_add:
-      - NET_ADMIN # need to set default route
+    # cap_add:
+    #   - NET_ADMIN # need to set default route
     volumes:
       - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave,ro"
@@ -515,6 +562,14 @@ networks:
     ipam:
       config:
         - subnet: ${SF_NET_REDIS}
+
+  master-net:
+    name: sf-master-net
+    driver: bridge
+    # internal: true # FIXME-2022, enable in production
+    ipam:
+      config:
+        - subnet: ${SF_NET_MASTER}
 
   dns-doh-net:
     name: sf-dns-doh

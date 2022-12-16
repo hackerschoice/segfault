@@ -6,37 +6,14 @@
 # Uses BLPOP as a blocking mutex so that only 1 segfaultsh
 # can request a port at a time (until the request has been completed).
 
-
-##### BEGIN TESTING #####
-false && {
-# Requests (for testing)
-SF_REDIS_SERVER=127.0.0.1 SF_DEBUG=1 ./portd.sh
-
-# Cryptostorm add port to available port list:
-docker exec -it sf-cryptostorm curl 10.31.33.7/fwd
-docker exec segfault_sf-redis_1 bash -c 'echo -e "\
-SADD portd:providers CryptoStorm\n\
-SADD portd:ports \"CryptoStorm 37.120.217.76:31337\"" | \
-REDISCLI_AUTH="${SF_REDIS_AUTH}" redis-cli --raw'
-
-# Test log in
-ssh -p2222 -o "SetEnv SF_DEBUG=1" root@127.1
-
-# Redis commands to test mutex
-DEL portd:response-0bcdefghi9
-RPUSH portd:blcmd "getport 0bcdefghi9"
-BLPOP portd:response-0bcdefghi9 5
-}
-##### END TESTING ###
-
 # High/Low watermarks for pool of ports
 # Refill pool to WM_HIGH if it ever drops below WM_LOW
 WM_LOW=2
 WM_HIGH=5
 
 # BASEDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
-source "/sf/bin/funcs.sh"
-source "/sf/bin/funcs_redis.sh"
+source "/sf/bin/funcs.sh" || exit
+source "/sf/bin/funcs_redis.sh" || exit
 
 # [LID] [PROVIDER] [IP] [PORT]
 config_port()
@@ -125,7 +102,7 @@ cmd_getport()
 	i=0
 	unset err
 	while :; do
-		res=$(red SPOP portd:ports) && break
+		res=$(redr SPOP portd:ports) && break
 		# Dont wait unless there is a provider serving us..
 		# [[ ! "$(red SCARD portd:providers)" -gt 0 ]] && { err=1; break; } # ALWAYS WAIT. Provider might be back soon.
 		# Check if we already times out before and since then
@@ -220,7 +197,7 @@ cmd_remport()
 
 	# Iterate through all ports assigned to this LID (normally just 1)
 	while :; do
-		res=$(red SPOP "portd:assigned-${lid}") || break
+		res=$(redr SPOP "portd:assigned-${lid}") || break
 		# [PROVIDER] [PORT]
 		provider="${res%% *}"
 		ipport="${res##* }"
@@ -274,7 +251,7 @@ cmd_vpndown()
 
 	# Update all containers that used this provider.
 	while :; do
-		res=$(red SPOP "portd:assigned-${provider}") || break
+		res=$(redr SPOP "portd:assigned-${provider}") || break
 		# [LID] [PORT]
 		lid="${res%% *}"
 		ipport="${res##* }"
@@ -312,7 +289,7 @@ cmd_fillstock()
 	local IFS
 	IFS=$'\n'
 
-	in_stock=$(red SCARD portd:ports)
+	in_stock=$(redr SCARD portd:ports)
 
 	# Check if we are below our water mark and if so then request more  ports.
 	[[ $in_stock -ge "$WM_LOW" ]] && return
@@ -336,7 +313,7 @@ cmd_fillstock()
 			members=($(docker exec "sf-${provider,,}" /sf/bin/rportfw.sh moreports "${req_num}"))
 			ret=$?
 			# Fatal error. Never try this provider again.
-			[[ $ret -eq 255 ]] && redr SREM portd:providers "${provider}"
+			[[ $ret -eq 255 ]] && red SREM portd:providers "${provider}"
 			# Temporary error.
 			[[ $ret -ne 0 ]] && continue
 
@@ -344,7 +321,7 @@ cmd_fillstock()
 			# and we can request ports again.
 			[[ ${#members[@]} -ge $req_num ]] && good+=("${provider}")
 
-			redr SADD portd:ports "${members[@]}" >/dev/null
+			red SADD portd:ports "${members[@]}" >/dev/null
 			((in_stock+=${#members[@]}))
 		done
 

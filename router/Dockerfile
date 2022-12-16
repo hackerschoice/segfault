@@ -15,6 +15,6 @@ RUN    apt-get update \
               vim \
        && rm -rf /var/lib/apt/lists/*
 
-COPY tc.sh init.sh fix-network.sh /
+COPY tc.sh init.sh init-wg.sh fix-network.sh /
 CMD ["bash", "-il"]
 

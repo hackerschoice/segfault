@@ -1,6 +1,7 @@
 #! /bin/bash
 
 source /sf/bin/funcs.sh
+source /sf/bin/funcs_redis.sh
 
 # [LID] <1=encfs> <1=Container>
 # Either parameter can be "" to not stop encfs or lg-container 
@@ -15,7 +16,7 @@ stop_lg()
 
 	LOG "$lid" "Stopping"
 
-	redis-cli -h 172.20.2.254 RPUSH portd:cmd "remport ${lid}" >/dev/null
+	red portd:cmd "remport ${lid}"
 
 	# Tear down container
 	[[ ! -z $is_container ]] && docker stop "lg-$lid" &>/dev/nuill

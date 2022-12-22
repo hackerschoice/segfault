@@ -151,6 +151,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		exa \
 		exiftool \
 		fd-find \
+		fossil \
 		fzf \
 		gnupg \
 		hashcat \
@@ -165,6 +166,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		lsof \
 		lynx \
 		mc \
+		mercurial \
 		mg \
 		mtr \
 		mono-mcs \
@@ -208,6 +210,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		tree \
 		torsocks \
 		urlcrazy \
+		uvicorn \
 		w3m \
 		wafw00f \
 		weechat weechat-plugins weechat-matrix \
@@ -219,6 +222,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		xmlstarlet \
 		xsltproc \
 		xvfb \
+		zlib1g-dev \
 		zoxide \
 	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		bloodhound \
@@ -279,6 +283,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \
 	&& /pkg-install.sh LARGE pip install \
+		discord \
 		git-dumper \
 		ipython \
 		shodan \
@@ -293,6 +298,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		cryptocode \
 		colorama \
 		dnspython \
+		dulwhich \
 		ipaddress \
 		names \
 		netaddr \

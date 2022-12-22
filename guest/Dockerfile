@@ -133,6 +133,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		apt-utils \
 		backdoor-factory \
 		bat \
+		clang \
 		cmseek \
 		commix \
 		dirb \
@@ -157,7 +158,14 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		hashcat \
 		highlight \
 		htop \
+		libcurl4-openssl-dev \
+		libedit2 \
+		libgcc-12-dev \
+		libstdc++-12-dev \
+		libicu-dev \
+		libxml2-dev \
 		libxml2-utils \
+		libz3-dev \
 		ldap-utils \
 		ldapscripts \
 		jsbeautifier \

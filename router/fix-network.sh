@@ -31,3 +31,6 @@ DEV="$(echo "$l" | awk '{ print $7; }')"
 # sf-router is taking over the IP NET_LG_ROUTER_IP
 ip link set "$DEV" arp off
 ip addr flush "$DEV"
+
+
+STOP HERE: ADD firewall/forwards for WG setup here. Call this bootup.sh

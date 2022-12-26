@@ -1,4 +1,4 @@
-VER := 0.3.9a1
+VER := 0.3.9a2
 
 all:
 	make -C cleaner/cg
@@ -96,6 +96,7 @@ FILES_ROOT += "segfault-$(VER)/sfbin/vpn_wg2status.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/rportfw.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_redis.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/funcs_admin.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 
 FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Dockerfile"

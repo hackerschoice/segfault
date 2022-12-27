@@ -22,7 +22,7 @@ container_df()
 		echo "${size:0:10} ${cn:0:20} $(echo "$mdir" | grep -Po '^.+?(?=/diff)'  )" 
 	done        
 }
-echo -e "${CDC}container_df <regex>${CN}        # eg \`container_df ^lg\`"
+echo -e "${CDC}container_df <regex>${CN}                   # eg \`container_df ^lg\`"
 
 # Send a message to all PTS of a specific container
 # Example: lgwall lg-NGVlMTNmMj "Get \nlost\n"
@@ -43,7 +43,7 @@ lgwall()
 		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && echo -e "\n@@@@@ SYSTEM MESSAGE\n${2}\n@@@@@" >>"${fn}"
 	done
 }
-echo -e "${CDC}lgwall [lg-LID] <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
+echo -e "${CDC}lgwall [lg-LID] <message>${CN}              # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
 
 # <lg-LID> <MESSAGE>
 lgstop()
@@ -51,7 +51,7 @@ lgstop()
 	[[ -n $2 ]] && { lgwall "${1}" "$2"; }
 	docker stop "${1}"
 }
-echo -e "${CDC}lgstop [lg-LID] <message>${CN}    # eg \`lgstop lg-NmEwNWJkMW '***ABUSE***\nContact Sysop'\`"
+echo -e "${CDC}lgstop [lg-LID] <message>${CN}              # eg \`lgstop lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
 
 _sfcg_forall()
 {
@@ -107,7 +107,7 @@ lgps()
 
 		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
 		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
-		echo -e "${CDY}====> ${CB}${lglid} ${CDM}UNKNOWN ${CG}${ip} ${CDG}${geoip} ${CN}"
+		echo -e "${CDY}====> ${CB}${lglid} ${CG}${ip} ${CDG}${geoip} ${CN}"
 		if [[ -z $match ]]; then
 			echo "$str"
 		else
@@ -120,7 +120,7 @@ lgps()
 	done
 	[[ ${#stoparr[@]} -gt 0 ]] && docker stop "${stoparr[@]}"
 }
-echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}    # eg \`lgps 'dd if=/dev/zero' stop '***ABUSE***\nContact Sysop'\`"
+echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}       # eg \`lgps 'dd if=/dev/zero' stop "'"***ABUSE***\\nContact Sysop"`'
 
 #plgtop "/bin/bash /everyone" stop                # Example
 #plgtop "dd if=/dev/zero of=/dev/null" stop
@@ -133,7 +133,10 @@ echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}    # eg \`lgps 'dd if=/dev/
 lg_cleaner()
 {
 	local is_stop
-	is_stoop="$1"
+	local max
+	max="$1"
+	is_stop="$2"
+	[[ -z $max ]] && max=3
 	IFS=$'\n'
 	real=($(ps alxww | grep -v grep | grep -F " docker-exec-sigproxy exec -i" | awk '{print $16;}'))
 	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))
@@ -145,14 +148,13 @@ lg_cleaner()
 		n=${#arr[@]}
 		[[ ! $n -gt 1 ]] && n=1
 		((n--))
-		[[ $n -gt 3 ]] && continue
-		echo "===========Stopping $x n=$n"
+		[[ $max -gt 0 ]] && [[ $n -gt $max ]] && continue
+		echo "===========> $x n=$n"
 		docker top "$x"
 		[[ -n $is_stop ]] && docker stop -t1 "$x"
 	done
 }
-echo -e "${CDC}lg_cleaner [stop]${CN}"
-
+echo -e "${CDC}lg_cleaner [max_pid_count=3] <stop>${CN}    # eg \`lg_cleaner 3 stop\` or \`lg_cleaner 0\`"
 
 # Delete all images
 docker_clean()

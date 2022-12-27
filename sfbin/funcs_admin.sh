@@ -164,6 +164,21 @@ docker_clean()
 }
 echo -e "${CDC}docker_clean${CN}"
 
+_sfmax()
+{
+	docker stats --no-stream --format "table {{.Name}}\t{{.Container}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}" | grep -E '(^lg-|^NAME)' | sort -k "$1" -h
+}
+
+lgcpu() { _sfmax 3; }
+lgmem() { _sfmax 4; }
+lgio() { _sfmax 7; }
+lgbio() { echo "========= INPUT"; _sfmax 8; echo "=========== OUTPUT"; _sfmax 10; }
+echo -e "${CDC}lgcpu${CN}                                  # Sorted list of CPU usage"
+echo -e "${CDC}lgmem${CN}                                  # Sorted list of MEM usage"
+echo -e "${CDC}lgio${CN}                                   # Sorted list of Network OUT usage"
+echo -e "${CDC}lgbio${CN}                                  # Sorted list of BlockIO usage"
+
+
 sftop()
 {
 	docker run --rm -ti --name=ctop --volume /var/run/docker.sock:/var/run/docker.sock:ro   quay.io/vektorlab/ctop:latest

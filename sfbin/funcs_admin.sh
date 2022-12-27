@@ -1,8 +1,14 @@
 #! /bin/bash
 
 [[ $(basename -- "$0") == "funcs_admin.sh" ]] && { echo "ERROR. Use \`source $0\` instead."; exit 1; }
-BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)"
-source "${BASEDIR}/funcs.sh"
+_basedir="$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)"
+source "${_basedir}/funcs.sh"
+unset _basedir
+
+_cgbdir="/sys/fs/cgroup"
+[[ -d /sys/fs/cgroup/unified/ ]] && _cgbdir="/sys/fs/cgroup/unified"
+_self_for_guest_dir="/dev/shm/sf-u1000/self-for-guest"
+[[ -d /dev/shm/sf/self-for-guest ]] && _self_for_guest_dir="/dev/shm/sf/self-for-guest"
 
 # Show overlay2 usage by container REGEX match.
 # container_df ^lg
@@ -20,7 +26,7 @@ echo -e "${CDC}container_df <regex>${CN}        # eg \`container_df ^lg\`"
 
 # Send a message to all PTS of a specific container
 # Example: lgwall lg-NGVlMTNmMj "Get \nlost\n"
-# [LID] [message]
+# [lg-LID] [message]
 lgwall()
 {
 	# This 
@@ -34,53 +40,91 @@ lgwall()
 		[[ ! -c "$fn" ]] && continue
 		hex=$(stat -c %t "$fn")
 		maj="$((16#$hex))"
-		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && echo -e "$2" >>"${fn}"
+		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && echo -e "\n@@@@@ SYSTEM MESSAGE\n${2}\n@@@@@" >>"${fn}"
 	done
 }
-echo -e "${CDC}lgwall <LID> <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
+echo -e "${CDC}lgwall [lg-LID] <message>${CN}      # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
 
-# 
+# <lg-LID> <MESSAGE>
+lgstop()
+{
+	[[ -n $2 ]] && { lgwall "${1}" "$2"; }
+	docker stop "${1}"
+}
+echo -e "${CDC}lgstop [lg-LID] <message>${CN}    # eg \`lgstop lg-NmEwNWJkMW '***ABUSE***\nContact Sysop'\`"
+
+_sfcg_forall()
+{
+	docker ps --format "{{.Names}}"  --filter 'name=^lg-'
+}
+
+# [LG-LID]
+_sfcg_psarr()
+{
+	local found
+	local lglid
+	local match
+	local str
+	lglid="$1"
+	match="$2"
+	found=0
+	[[ -z $match ]] && found=1 # empty string => Show all
+
+	IFS= str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd)
+	[[ -n $str ]] && [[ -n $match ]] && [[ "$str" =~ $match ]] && found=1
+
+	echo "$str"
+	# IFS=$'\n' arr=("$str")
+	# printf "%s\n" "${arr[@]}"
+	return $found
+}
+
 # Show all LID where REGEX matches a process+arguments and optionally stop
 # the container.
 # Example: plgtop urandom
 # Example: plgtop urandom stop
-# [<REGEX>] <stop>
-plgtop()
+# [<REGEX>] <stop> <stop-message-to-user>
+lgps()
 {
-	systemd-cgls -l -u docker_limit.slice | while read x; do
-		[[ $x == *" [init-"* ]] && { lid="${x#* \[init-}"; lid="${lid%%-*}"; }
-		[[ ! $x =~ ${1:?} ]] && continue
-		[[ ${#lid} -ne 10 ]] && continue
+	local i
+	local ip
+	local geoip
+	local lglid
+	local match
+	local stoparr
+	local stopmsg
+	match=$1
+	stopmsg="$3"
 
-		echo "====> lg-${lid}"
-		docker top "lg-${lid}" | grep -E "${1:?}"'|$'
-		[[ -n $2 ]] && docker stop "lg-${lid}"
-		unset lid
+	stoparr=()
+	i=0
+	IFS=$'\n' arr=($(_sfcg_forall))
+	while [[ $i -lt ${#arr[@]} ]]; do
+		lglid=${arr[$i]}
+		((i++))
+		IFS= str=$(_sfcg_psarr "$lglid" "$match")
+		[[ $? -eq 0 ]] && continue
+
+		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
+		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
+		echo -e "${CDY}====> ${CB}${lglid} ${CDM}UNKNOWN ${CG}${ip} ${CDG}${geoip} ${CN}"
+		if [[ -z $match ]]; then
+			echo "$str"
+		else
+			echo "$str" | grep -E "${match:?}"'|$'
+		fi
+		[[ -n $2 ]] && {
+			[[ -n $stopmsg ]] && lgwall "${lglid}" "$stopmsg"
+			stoparr+=("${lglid}")
+		}
 	done
+	[[ ${#stoparr[@]} -gt 0 ]] && docker stop "${stoparr[@]}"
 }
-echo -e "${CDC}plgtop <ps regex> [stop]${CN}    # eg \`plgtop 'dd if=/dev/zero' stop\`"
+echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}    # eg \`lgps 'dd if=/dev/zero' stop '***ABUSE***\nContact Sysop'\`"
 
 #plgtop "/bin/bash /everyone" stop                # Example
 #plgtop "dd if=/dev/zero of=/dev/null" stop
 #plgtop "bzip2 -9" stop
-
-# Show user's IP by matching process+argument
-# Example: plgip urandom
-plgip()
-{
-	systemd-cgls -l | while read x; do
-		[[ $x == *" [init-"* ]] && { lid="${x#* \[init-}"; lid="${lid%%-*}"; }
-		[[ ! $x =~ ${1:?} ]] && continue
-		[[ ${#lid} -ne 10 ]] && continue
-
-		fn="/dev/shm/sf-u1000/self-for-guest/lg-${lid}/ip"
-		[[ -f "$fn" ]] && ip=$(<"$fn") || ip="Not Found"
-		echo "lg-$lid $ip"
-		unset lid
-	done
-}
-echo -e "${CDC}plgip <ps regex>${CN}            # eg \`plgip 'dd if=/dev/zero'\`"
-
 
 # Stop all container that have no SSH connection and only 3 processes (init, sleep, zsh)
 # NOTE: This should not happen any longer since a bug in docker-sigproxy got fixed.
@@ -109,29 +153,6 @@ lg_cleaner()
 }
 echo -e "${CDC}lg_cleaner [stop]${CN}"
 
-# Stop all container that have no SSH connection 
-# Example: lg_nossh
-# Example: lg_nossh stop
-lg_nossh()
-{
-	local is_stop
-	is_stoop="$1"
-	IFS=$'\n'
-	real=($(ps alxww | grep -v grep | grep -F " docker-exec-sigproxy exec -i" | awk '{print $16;}'))
-	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))
-	for x in "${all[@]}"; do
-		[[ ! $x =~ ^lg- ]] && continue
-		[[ "${real[*]}" =~ $x ]] && continue
-		# check how many processes are running:
-		arr=($(docker top "${x}" -o pid ))
-		n=${#arr[@]}
-		[[ ! $n -gt 1 ]] && n=1
-		((n--))
-		echo "=========== $x n=$n"
-		docker top "$x"
-	done
-}
-echo -e "${CDC}lg_nossh${CN}"
 
 # Delete all images
 docker_clean()

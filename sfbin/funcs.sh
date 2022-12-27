@@ -1,6 +1,6 @@
 
 CY="\e[1;33m" # yellow
-# CG="\e[1;32m" # green
+CG="\e[1;32m" # green
 CR="\e[1;31m" # red
 CC="\e[1;36m" # cyan
 # CM="\e[1;35m" # magenta

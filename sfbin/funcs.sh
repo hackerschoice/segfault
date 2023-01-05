@@ -14,11 +14,18 @@ CN="\e[0m"    # none
 # night-mode
 CDY="\e[0;33m" # yellow
 CDG="\e[0;32m" # green
-# CDR="\e[0;31m" # red
+CDR="\e[0;31m" # red
 CDB="\e[0;34m" # blue
 CDC="\e[0;36m" # cyan
 CDM="\e[0;35m" # magenta
 CUL="\e[4m"
+
+ASSERT_EMPTY()
+{
+	[[ -n $2 ]] && return
+
+	ERREXIT 255 "ASSERT: \$$1= is empty" 
+}
 
 
 ERR()

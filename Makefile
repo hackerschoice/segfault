@@ -110,6 +110,7 @@ FILES_ROOT += "segfault-$(VER)/sfbin/rportfw.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_redis.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_admin.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/funcs_net.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 
 FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Dockerfile"

@@ -274,9 +274,6 @@ services:
     ports:
       - "${SF_SSH_PORT:-22}:22"
       - "${SF_SSH_PORT2:-443}:22"
-      - "25002-25050:25002-25050/udp" # MOSH.
-      # FIXME: Docker cant start container with two many port forwards
-      # - "25002-26023:25002-26023/udp" # MOSH. 
     environment:
       - SF_DEBUG
       - SF_MAXOUT
@@ -355,7 +352,7 @@ services:
     networks:
       guest-net:
         ipv4_address: ${SF_RPC_IP}
-    dns: 255.255.255.255 # FIXME-2022: Enable in production
+    dns: 255.255.255.255
     entrypoint: ["nginx", "-g", "daemon off;"]
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/master:/dev/shm/master"
@@ -385,8 +382,6 @@ services:
       - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
       # - net.netfilter.nf_conntrack_udp_timeout=10
       - net.netfilter.nf_conntrack_icmp_timeout=10
-    ports:
-      - "61337:61337/udp"  # FIXME: use IPTABLES instead for 2^15-65535/udp to sf-wg
     environment:
       - SF_DEBUG
     restart: ${SF_RESTART:-on-failure}
@@ -400,13 +395,20 @@ services:
   router-fix-network:
     build: router
     image: sf-router
+    container_name: sf-fix-network
     network_mode: host # host's stack
+    privileged: true  # For 'sysctl -w' in fix-network.sh
     cap_add:
       - NET_ADMIN
     environment:
       - SF_DEBUG
       - NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
+      - NET_DIRECT_WG_IP=${SF_NET_DIRECT_WG_IP:?}
+      - NET_DIRECT_ROUTER_IP=${SF_NET_DIRECT_ROUTER_IP:?}
+      - NET_DIRECT_BRIDGE_IP=${SF_NET_DIRECT_BRIDGE_IP:?}
     restart: ${SF_RESTART:-on-failure}:1
+    volumes:
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
     entrypoint: ["/fix-network.sh"]
 
   tor:

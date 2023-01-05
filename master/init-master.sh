@@ -23,7 +23,7 @@ arr=($(docker inspect -f '{{.Id}} {{.State.Pid}}' "sf-wg"))
 [[ ${#arr[@]} -eq 0 ]] && ERREXIT 255 "Cant get sf-wg info: res=${#arr[@]}"
 echo "WG_CID=\"${arr[0]}\"
 WG_PID=\"${arr[1]}\"" >/dev/shm/config.txt
-echo "${SF_WG_PRIVATE}" >/dev/shm/private
+# echo "${SF_WG_PRIVATE}" >/dev/shm/private
 
 exec -a '[master] sleep' sleep infinity
 # sleep infinity

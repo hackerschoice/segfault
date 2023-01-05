@@ -11,6 +11,7 @@ RUN    apt-get update \
               net-tools \
               netcat \
               tcpdump \
+              wireguard-tools \
               wget \
               vim \
        && rm -rf /var/lib/apt/lists/*

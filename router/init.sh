@@ -5,13 +5,6 @@
 
 source "/sf/bin/funcs.sh"
 
-ASSERT_EMPTY()
-{
-	[[ -n $2 ]] && return
-
-	ERREXIT 255 "ASSERT: \$$1= is empty" 
-}
-
 ASSERT_EMPTY "NET_VPN" "$NET_VPN"
 ASSERT_EMPTY "NET_LG" "$NET_LG"
 ASSERT_EMPTY "NET_LG_ROUTER_IP" "$NET_LG_ROUTER_IP"

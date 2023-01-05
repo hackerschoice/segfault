@@ -227,6 +227,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		wpscan \
 		wrk \
 		xdg-utils \
+		xorg xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xrdp \
 		xmlstarlet \
 		xsltproc \
 		xvfb \

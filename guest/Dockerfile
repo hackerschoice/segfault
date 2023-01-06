@@ -3,7 +3,7 @@ FROM kalilinux/kali-rolling
 WORKDIR /root/
 
 # Valid options are:
-#   MINI BASE DEVEL NET WEB HACK LARGE HUGE ALL
+#   MINI BASE DEVEL NET WEB HACK LARGE HUGE GUI ALL
 #   SF_PACKAGES=ALL make
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
@@ -97,7 +97,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		wireguard-tools \
 		wget \
 		whois \
-	&& DEBIAN_FRONTEND=noninteractive /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+	&& /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		assetfinder \
 		dnsmap \
 		dnsx \
@@ -227,7 +227,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		wpscan \
 		wrk \
 		xdg-utils \
-		xorg xfce4 xfce4-goodies dbus-x11 x11-xserver-utils xrdp \
+		xfce4 xfce4-goodies dbus-x11 x11-xserver-utils \
 		xmlstarlet \
 		xsltproc \
 		xvfb \
@@ -251,6 +251,11 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		rubygems \
 		veil \
 		x11-apps \
+	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		fluxbox \
+		x11vnc \
+		xorg \
+		xrdp \
 	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
@@ -266,6 +271,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
 	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
+	&& /pkg-install.sh MINI ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
 	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
 	&&/ pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \

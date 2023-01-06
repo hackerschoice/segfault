@@ -1,5 +1,7 @@
 #! /bin/bash
 
+export DEBIAN_FRONTEND=noninteractive
+
 # Install latest Binary from GitHub and smear it into /usr/bin
 # [<user>/<repo>] [<regex-match>] [asset]
 # Examples:

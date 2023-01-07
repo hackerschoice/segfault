@@ -43,6 +43,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		supervisor \
 		tmux \
 		unzip \
+		wget \
 		xxd \
 	&& /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		automake \
@@ -50,6 +51,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		bison \
 		build-essential \
 		byacc \
+		cython \
 		dtach \
 		flex \
 		g++ \
@@ -95,7 +97,6 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		telnet \
 		traceroute \
 		wireguard-tools \
-		wget \
 		whois \
 	&& /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		assetfinder \
@@ -251,11 +252,49 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		rubygems \
 		veil \
 		x11-apps \
+	&& /pkg-install.sh GUI bash -c '{ cd /tmp \
+		&& curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
+		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
+		&& apt-get update; }' \
 	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		brave-browser \
+		eterm \
+		enlightenment-data \
 		fluxbox \
+		geany \
+		wireshark \
 		x11vnc \
+		x11-xserver-utils \
+		xterm \
 		xorg \
 		xrdp \
+	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		`### xpar ` \
+		libavformat59 \
+		libavif15 \
+		libjs-jquery-ui \
+		`### DISABLED. NO LONGER PART OF KALI libprocps8 ` \
+		libqrencode4 \
+		libxres1 \
+		libxtst6 \
+		libswscale6 \
+		libturbojpeg0 \
+		gir1.2-gtk-3.0 \
+		python3-cairo \
+		python3-gi \
+		python3-gi-cairo \
+		python3-opengl \
+		python3-pil \
+		python3-rencode \
+		xserver-xorg-video-dummy \
+		xvfb \
+	&& /pkg-install.sh GUI-DISABLED bash -c '{ cd /tmp \
+		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra_4.4.3-r0-1_amd64.deb \
+		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra-html5-6.2-r1-1.deb \
+		&& dpkg -i xpra*.deb \
+		&& rm -f /tmp/xpra*.deb; }' \
+	&& /pkg-install.sh GUI bash -c '{ rm -f /etc/apt/sources.list.d/brave-browser-release.list \
+		&& apt-update ; }' \
 	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \

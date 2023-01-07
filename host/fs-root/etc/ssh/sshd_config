@@ -88,6 +88,15 @@ AuthorizedKeysFile	.ssh/authorized_keys
 #AllowAgentForwarding yes
 # Feel free to re-enable these if your use case requires them.
 AllowTcpForwarding yes
+# SF-NOTE: AllowTcpForwards _also_ allows Unix Domain Socket forwards.
+# Use PermitOpen to restrict to TCP ONLY.
+# Otherwise an attacker can connect to dockerd on 127.0.0.1 or forward
+# Unix Sockets (-L/tmp/hack:/run/docker.sock or even create a file (.bashrc)
+# on the remote using -R.bashrc:/tmp/hack).
+# This is only relevant for users who do not have full shell access
+# such as restricted shells or where ssh is used to pull status informations
+# from a remote system.
+PermitOpen *:80 *:443 *:3389 *:5900 *:8080
 GatewayPorts yes
 #X11Forwarding no
 #X11DisplayOffset 10

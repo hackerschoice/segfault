@@ -461,6 +461,9 @@ load_limits()
 	# Then souce user specific limits
 	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(grep ^SF_ "${SF_USER_DB_DIR}/limits.conf")"
 
+	# Use MAX-MEMORY if no other limit is set.
+	[[ -z $SF_SHM_SIZE ]] && SF_SHM_SIZE=$SF_USER_MEMORY_LIMIT
+
 	[[ -n $SF_USER_ROOT_FS_SIZE ]] && {
 		SF_USER_ROOT_FS_SIZE_NUM="${SF_USER_ROOT_FS_SIZE//[^[:digit:]]/}"
 		[[ -z $SF_USER_ROOT_FS_SIZE_NUM ]] && ERREXIT 255 "no digit in SF_USER_ROOT_FS_SIZE="

@@ -169,6 +169,9 @@ _sfmax()
 	docker stats --no-stream --format "table {{.Name}}\t{{.Container}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}" | grep -E '(^lg-|^NAME)' | sort -k "$1" -h
 }
 
+lgsh() { docker exec -it "$1" bash -il; }
+echo -e "${CDC}lgsh [lg-LID]${CN}                          # Enter bash"
+
 lgcpu() { _sfmax 3; }
 lgmem() { _sfmax 4; }
 lgio() { _sfmax 7; }

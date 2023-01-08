@@ -147,6 +147,9 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	PROMPT= PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%F{%(#.yellow.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{yellow}#.%F{blue}$)%b%F{reset} '
 }
 
+[[ -d /sec/usr/bin ]] && PATH="/sec/usr/bin:$PATH"
+[[ -d /sec/usr/sbin ]] && PATH="/sec/usr/sbin:$PATH"
+
 _sf_info_non_perm()
 {
 	# On success show this...

@@ -107,6 +107,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		gobuster \
 		impacket-scripts \
 		irssi \
+		lshw \
 		nbtscan \
 		netdiscover \
 		ncrack \
@@ -160,6 +161,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		highlight \
 		htop \
 		libcurl4-openssl-dev \
+		libdbus-glib-1-dev \
 		libedit2 \
 		libgcc-12-dev \
 		libstdc++-12-dev \
@@ -254,14 +256,20 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		x11-apps \
 	&& /pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
+		&& wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/sublimehq-archive.gpg >/dev/null \
 		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
+		&& echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list \
 		&& apt-get update; }' \
 	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		awesome \
 		brave-browser \
 		eterm \
 		enlightenment-data \
 		fluxbox \
 		geany \
+		`### qterminal # needs RSS 80mb of memory` \
+		tigervnc-standalone-server \
+		sublime-text \
 		wireshark \
 		x11vnc \
 		x11-xserver-utils \
@@ -288,13 +296,18 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		python3-rencode \
 		xserver-xorg-video-dummy \
 		xvfb \
+	&& /pkg-install.sh GUI bash -c '{ cd /usr/lib \
+		&& curl  https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
+		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }' \
 	&& /pkg-install.sh GUI-DISABLED bash -c '{ cd /tmp \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra_4.4.3-r0-1_amd64.deb \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra-html5-6.2-r1-1.deb \
 		&& dpkg -i xpra*.deb \
 		&& rm -f /tmp/xpra*.deb; }' \
-	&& /pkg-install.sh GUI bash -c '{ rm -f /etc/apt/sources.list.d/brave-browser-release.list \
-		&& apt-update ; }' \
+	&& /pkg-install.sh GUI bash -c '{ true; \
+		rm -f /etc/apt/sources.list.d/brave-browser-release.list; \
+		rm -f /etc/apt/sources.list.d/sublime-text.list; \
+		apt-get update ; }' \
 	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
@@ -308,6 +321,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_amd64.tar.xz$' smap \
 	&& /pkg-install.sh LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-amd64.deb$' \
+	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-amd64-filebrowser.tar.gz$' filebrowser \
 	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
 	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
 	&& /pkg-install.sh MINI ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
@@ -316,6 +330,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
 	&& /pkg-install.sh LARGE bash -c '{ mkdir -p /usr/share/cheatsheets/community \
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
+	&& /pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \
+		&& git clone --depth 1 https://github.com/scipag/vulscan; } ' \
 	&& /pkg-install.sh HUGE bash -c '{ cd /tmp \
 		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
 		&& cd pwndbg \

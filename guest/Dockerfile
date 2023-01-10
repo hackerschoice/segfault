@@ -363,7 +363,9 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		arsenal-cli \
 		h8mail \
 		hashid \
+		pyTelegramBotAPI \
 		sqlmap \
+		tgcrypto \
 		webtech \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \

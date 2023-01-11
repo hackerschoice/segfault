@@ -361,7 +361,6 @@ spawn_shell_exit()
 	}
 
 	# Update current IP:
-	touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 	tofile "${YOUR_IP:?}" "/config/self-for-guest/lg-${LID}/ip"
 	## DEBUG BEGIN
 	# tofile "${YOUR_IP:?}" "/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log-ip"
@@ -894,17 +893,19 @@ setup_fs_ilimit || ERREXIT 244 "Could not set FS quota."
 echo_pty -n ".."
 
 # Set FW rules for this instance
-c_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "lg-${LID}")
-[[ -z $c_ip ]] && ERREXIT 249 "Could not get container's IP address."
+C_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "lg-${LID}")
+[[ -z $C_IP ]] && ERREXIT 249 "Could not get container's IP address."
 exec_devnull docker exec sf-router bash -c "source /dev/shm/net-devs.txt || exit
-iptables --new-chain 'SYN-LIMIT-${c_ip}' 2>/dev/null || exit 0
+iptables --new-chain 'SYN-LIMIT-${C_IP}' 2>/dev/null || exit 0
 # HERE: Chain did not exist yet.
-iptables -I FORWARD 1 -i \"\${DEV_LG}\" -o \"\${DEV_GW}\" -s '${c_ip}' -p tcp --syn -j 'SYN-LIMIT-${c_ip}' &&
-iptables -A 'SYN-LIMIT-${c_ip}' -m limit --limit \"1/sec\" --limit-burst 8196 -j RETURN &&
-iptables -A 'SYN-LIMIT-${c_ip}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
+iptables -I FORWARD 1 -i \"\${DEV_LG}\" -o \"\${DEV_GW}\" -s '${C_IP}' -p tcp --syn -j 'SYN-LIMIT-${C_IP}' &&
+iptables -A 'SYN-LIMIT-${C_IP}' -m limit --limit \"1/sec\" --limit-burst 8196 -j RETURN &&
+iptables -A 'SYN-LIMIT-${C_IP}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
 
 # Setup instance
 exec_devnull docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
+touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
+tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 
 echo_pty -e "....[${CG}OK${CN}]"
 

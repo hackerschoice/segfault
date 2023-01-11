@@ -33,6 +33,5 @@ echo -e "${CDY}Create Filesystem and link SF-hirachy. Skip if already exists.${C
 echo -e "${CDY}Available Devices:${CN}"
 lsblk -p | grep -v -F 'NAME'
 echo -e "${CDY}Add the devices. Typical Example:${CN}
-  ${CDC}aws_fs_add /dev/nvme1n1 /sf/docker${CN}    # Normally the faster (but smaller) device
-  ${CDC}aws_fs_add /dev/nvme2n1 /sf/data${CN}      # Normally the slower (but larger) device
-  ${CDC}aws_fs_add /dev/nvme3n1 /sf/config${CN}    # Normally a very small partition"
+  ${CDC}aws_fs_add /dev/nvme1n1 /sf${CN}           # Normally the faster device
+  ${CDC}aws_fs_add /dev/nvme2n1 /sf/config${CN}    # Normally a very small partition"

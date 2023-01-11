@@ -32,6 +32,7 @@ init_vars()
     ERREXIT 255 "Unknown Linux flavor: No apt-get and no yum."
   fi
 
+  # export DEBIAN_FRONTEND=noninteractive # Must e interactive so that we get warning if kernel got updated (needs reboot)
   [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set. Try \`export SF_SEED=\"\$(head -c 1024 /dev/urandom |base64| tr -dc '[:alpha:]' | head -c 32)\"\`"
 }
 
@@ -169,12 +170,14 @@ init_config_run()
   [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
 
+  grep -F funcs_admin.sh /root/.bashrc >/dev/null || echo ". ${SF_BASEDIR}/sfbin/funcs_admin.sh" >>/root/.bashrc
   # Configure BFQ module
   grep ^bfq /etc/modules &>/dev/null || echo "bfq" >>/etc/modules
   modprobe bfq || {
     "${PKG_INSTALL[@]}" linux-modules-extra-aws
-    # Does this need `GRUB_CMDLINE_LINUX="scsi_mod.use_blk_mq=1"` in /etc/default/grub on Ubunut?
-    modprobe bfq || ERREXIT 255 "Cant load BFQ module. Please install the BFQ kernel module."
+    # Does this need `GRUB_CMDLINE_LINUX="scsi_mod.use_blk_mq=1"` in /etc/default/grub on Ubuntu?
+    # It could be that the kernel got upgraded.
+    modprobe bfq || ERREXIT 255 "Cant load BFQ module. Please install the BFQ kernel module. Reboot may also work."
   }
 }
 
@@ -270,6 +273,7 @@ journalctl --vacuum-time=10d
 
 # SNAPSHOT #3 (2022-07-22)
 # exit
+"${PKG_UPDATE[@]}"
 init_config_run
 
 ### Create guest, encfs and other docker images.

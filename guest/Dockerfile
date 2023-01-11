@@ -280,7 +280,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		libavformat59 \
 		libavif15 \
 		libjs-jquery-ui \
-		`### DISABLED. NO LONGER PART OF KALI libprocps8 ` \
+		`### DISABLED. NO LONGER PART OF KALI: libprocps8 ` \
 		libqrencode4 \
 		libxres1 \
 		libxtst6 \
@@ -299,9 +299,11 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		&& curl  https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }' \
 	&& /pkg-install.sh GUI-DISABLED bash -c '{ cd /tmp \
+		`### Use the debian package (not ubuntu) because dpkg does not support .zst compression used in the ubuntu .deb file ` \
+		&& wget http://ftp.de.debian.org/debian/pool/main/p/procps/libprocps8_3.3.17-5_amd64.deb \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra_4.4.3-r0-1_amd64.deb \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra-html5-6.2-r1-1.deb \
-		&& dpkg -i xpra*.deb \
+		&& dpkg -i libprocps*.deb xpra*.deb \
 		&& rm -f /tmp/xpra*.deb; }' \
 	&& /pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/brave-browser-release.list; \
@@ -325,7 +327,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
 	&& /pkg-install.sh MINI ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
 	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
-	&&/ pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
+	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
 	&& /pkg-install.sh LARGE bash -c '{ mkdir -p /usr/share/cheatsheets/community \
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
@@ -371,7 +373,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		colorama \
 		cython \
 		dnspython \
-		dulwhich \
+		dulwich \
 		ipaddress \
 		names \
 		netaddr \

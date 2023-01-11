@@ -51,7 +51,6 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		bison \
 		build-essential \
 		byacc \
-		cython \
 		dtach \
 		flex \
 		g++ \
@@ -370,6 +369,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh DEVEL pip install \
 		cryptocode \
 		colorama \
+		cython \
 		dnspython \
 		dulwhich \
 		ipaddress \

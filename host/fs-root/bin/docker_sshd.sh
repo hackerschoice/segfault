@@ -127,7 +127,7 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 ff02::3 ip6-allhosts
 ${SF_TOR_IP}	tor
-${SF_RPC_IP}	ui" >"${SF_CFG_HOST_DIR}/etc/hosts"
+${SF_RPC_IP}	rpc" >"${SF_CFG_HOST_DIR}/etc/hosts"
 
 # segfaultsh needs to create directories in here..
 chown "$SF_USER" "/config/self-for-guest"

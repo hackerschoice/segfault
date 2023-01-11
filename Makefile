@@ -1,4 +1,4 @@
-VER := 0.3.9a2
+VER := 0.3.9a2fob
 
 all:
 	make -C cleaner/cg
@@ -47,10 +47,9 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/mydw.m
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/about.md"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/images"
 
-FILES_MASTER += "segfault-$(VER)/host/Dockerfile"
-FILES_MASTER += "segfault-$(VER)/host/Makefile"
-FILES_MASTER += "segfault-$(VER)/host/init-master.sh"
-FILES_MASTER += "segfault-$(VER)/host/fs-root/etc/nginx/nginx.conf"
+FILES_MASTER += "segfault-$(VER)/master/Dockerfile"
+FILES_MASTER += "segfault-$(VER)/master/Makefile"
+FILES_MASTER += "segfault-$(VER)/master/init-master.sh"
 
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"
@@ -95,10 +94,10 @@ FILES_GSNC += "segfault-$(VER)/gsnc/Dockerfile"
 FILES_GSNC += "segfault-$(VER)/gsnc/sf-gsnc.sh"
 
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
+FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx-rpc.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/redis/redis.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
-FILES_CONFIG += "segfault-$(VER)/config/etc/hosts"
 FILES_CONFIG += "segfault-$(VER)/config/etc/resolv.conf"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"

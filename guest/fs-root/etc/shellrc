@@ -17,6 +17,7 @@ CUL="\e[4m"
 
 alias l='ls -Alh'
 alias lt='ls -Alhrt'
+alias xterm='xterm -bg black -fg gray'
 
 [[ -e /usr/bin/nvim ]] && {
 	alias vi='nvim'

@@ -1,0 +1,3 @@
+#! /bin/bash
+
+SHELL=/bin/zsh exec xterm -bg black -fg gray -geometry 120x25 "$@"

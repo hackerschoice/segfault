@@ -59,6 +59,8 @@ sed 's/^TorAddress.*/TorAddress 172.20.0.111/' -i /etc/tor/torsocks.conf || WARN
 [[ -f /usr/bin/mosh-server ]] && mv /usr/bin/mosh-server /usr/bin/mosh-server.orig
 [[ -f /usr/bin/mosh-server.sh ]] && { mv /usr/bin/mosh-server.sh /usr/bin/mosh-server; chmod 755 /usr/bin/mosh-server; }
 
+[[ -f /usr/bin/xpra ]] && ( cd /usr/bin; mv xpra xpra.orig; ln -s xpra-hook xpra )
+
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {
 	while [[ $i -lt ${#WARNS[@]} ]]; do

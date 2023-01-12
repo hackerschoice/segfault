@@ -24,8 +24,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		vim \
 		zsh \
 		zsh-autosuggestions \
-		zsh-syntax-highlighting \
-	&& /pkg-install.sh BASE apt-get install -y --no-install-recommends \
+		zsh-syntax-highlighting
+RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		apt-src \
 		bc \
 		bsdmainutils \
@@ -44,8 +44,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		tmux \
 		unzip \
 		wget \
-		xxd \
-	&& /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
+		xxd
+RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		automake \
 		binutils \
 		bison \
@@ -75,8 +75,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		strace \
 		wdiff \
 		whiptail \
-		xterm \
-	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
+		xterm
+RUN /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
 		ftp \
 		iftop \
@@ -96,8 +96,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		telnet \
 		traceroute \
 		wireguard-tools \
-		whois \
-	&& /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		whois
+RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		assetfinder \
 		dnsmap \
 		dnsx \
@@ -124,8 +124,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		tshark \
 		upx \
 		webshells \
-		weevely \
-	&& /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		weevely
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		aha \
 		altdns \
 		amass \
@@ -235,8 +235,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		xsltproc \
 		xvfb \
 		zlib1g-dev \
-		zoxide \
-	&& /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		zoxide
+RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		bloodhound \
 		chromium \
 		cutycapt \
@@ -253,8 +253,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		ruby \
 		rubygems \
 		veil \
-		x11-apps \
-	&& /pkg-install.sh GUI bash -c '{ cd /tmp \
+		x11-apps
+RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
 		&& wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/sublimehq-archive.gpg >/dev/null \
 		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
@@ -309,8 +309,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/brave-browser-release.list; \
 		rm -f /etc/apt/sources.list.d/sublime-text.list; \
-		apt-get update ; }' \
-	&& /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
+		apt-get update ; }'
+RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_amd64.zip$' httpx \
@@ -326,7 +326,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-amd64-filebrowser.tar.gz$' filebrowser \
 	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
 	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
-	&& /pkg-install.sh MINI ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
+	&& /pkg-install.sh LARGE ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
 	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
 	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
@@ -351,8 +351,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		&& cd /usr/src/glibc \
 		&& apt-src install glibc \
 		&& echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
-		&& echo DONE; }' \
-	&& /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
+		&& echo DONE; }'
+RUN /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \
 	&& /pkg-install.sh LARGE pip install \
@@ -381,8 +381,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		PyCryptodome \
 		tgcrypto \
 		tldextract \
-		urllib3 \
-	&& /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
+		urllib3
+RUN /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
 		&& dpkg -i /tmp/geonet.deb; }" \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c '{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }' \

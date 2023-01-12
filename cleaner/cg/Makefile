@@ -7,7 +7,7 @@ GOLDFLAGS += -X main.Buildtime=$(BUILDTIME)
 GOFLAGS = -ldflags "$(GOLDFLAGS)"
 
 all:
-	docker build -t sf-containerguard .
+	docker build --network host -t sf-containerguard .
 
 build: pre
 	GOOS=linux GOARCH=amd64 go build $(GOFLAGS)

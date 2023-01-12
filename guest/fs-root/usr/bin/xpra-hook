@@ -1,0 +1,16 @@
+#! /bin/bash
+
+# Force different default parameters for XPRA unless set by the client:
+# --resize-display => Saves us memory on SF server
+# --exit-with-client => Stop zombie sessions that would keep a server
+# alive forever (e.g. when a user does `xpra ssh://root@segfault.net` and
+# then disconnects.
+
+
+arr=("$@")
+
+[[ "${arr[*]}" != *"--resize-display="* ]] && arr+=("--resize-display=1280x1024")
+[[ "${arr[*]}" != *"--exit-with-client="* ]] && arr+=("--exit-with-client=yes")
+[[ "${arr[*]}" != *"--exit-with-children="* ]] && [[ "${arr[*]}" == *"--start-child="* ]] && arr+=("--exit-with-children=yes")
+
+exec /usr/bin/xpra.orig "${arr[@]}"

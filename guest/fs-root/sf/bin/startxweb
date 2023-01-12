@@ -1,0 +1,44 @@
+#! /bin/bash
+
+CDY="\e[0;33m"
+CDC="\e[0;36m"
+CN="\e[0m"
+
+
+str=$(echo -n "VNC-$USERNAME-${SF_SEC}" | sha512sum | base64 -w0)
+str="${str//[^[:alpha:]]/}"
+str="${str//[1lIi0ODG8B5S2Zmn]/}"
+VNC_PASS="${str:0:16}"
+
+
+cleanup()
+{
+	kill -SIGTERM $PID_V
+	pkill -f 'dbus-daemon --syslog-only --fork --print-pid'
+}
+
+sv_startx()
+{
+	local ppid=$1
+
+	XPRA_PASSWORD="${VNC_PASS}" xpra.orig start --resize-display=1280x1024 --bind-tcp=0.0.0.0:2000,auth=env --html=on --start=xterm-dark --daemon=no &>/dev/null &
+	PID_V=$!
+
+	while [[ -d /proc/$PPID && -d /proc/$PID_V ]]; do
+		sleep 5
+	done
+	cleanup
+}
+
+C_IP=$(</config/self/c_ip)
+
+sv_startx $PPID &
+
+echo -e "Log in using:
+
+    ${CDC}ssh -L2000:${C_IP:-<THIS IP>}:2000 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
+
+Then use your web browser and go to http://127.0.0.1:2000.
+PASSWORD: ${CDY}${VNC_PASS}${CN}
+
+Exiting this shell will also terminate the GUI session."

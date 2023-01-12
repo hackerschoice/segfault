@@ -179,6 +179,7 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		mercurial \
 		mg \
 		mtr \
+		mongodb-server-core \
 		mono-mcs \
 		mono-devel \
 		most \

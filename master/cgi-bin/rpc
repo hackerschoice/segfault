@@ -4,17 +4,16 @@
 
 WG_PORT_MIN=32768
 WG_PORT_MAX=65535
+COLOR="always"
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_redis.sh
 
 [[ ! -d "/config/db" ]] && ERREXIT 255 "Not found: /config/db"
-[[ ! -d "/config/db/wg-port" ]] && mkdir -p "/config/db/wg-port"
+[[ ! -d "/config/db/wg" ]] && mkdir -p "/config/db/wg"
 [[ -z $SF_FQDN ]] && SF_FQDN="SF_FQDN-NOT-SET.hack.segfault.net"
 
 
 echo -en "Content-Type: text/plain\r\n\r\n"
-DEBUGF "FCGI_CMD=$FCGI_CMD"
-
 
 # BAIL <STDOUT-MSG> <STDERR-MSG> <INFO MSG>
 # STDOUT goes to user.
@@ -22,17 +21,53 @@ DEBUGF "FCGI_CMD=$FCGI_CMD"
 BAIL()
 {
 	echo -e "$1"
-	[[ -n $2 ]] && echo -e >&2 "[${CB}${REMOTE_ADDR}${CN}] ${CR}$2${CN}$3"
+	[[ -n $2 ]] && echo -e >&2 "[${CB}${LID:-$REMOTE_ADDR}${CN}] ${CR}$2${CN}$3"
 
 	exit 255
 }
+
+Sanitize()
+{
+	REQUEST_BODY="${REQUEST_BODY//[^[:alnum:]_+=/&]}"
+	REQUEST_URI="${REQUEST_URI//[^[:alnum:]_+=\/]}"
+	[[ "${#REQUEST_BODY}" -gt 512 ]] && BAIL "To long" "To Long" ": REQUEST_BODY(${#REQUEST_BODY})=${REQUEST_BODY:0:32}..."
+	[[ "${#REQUEST_URI}" -gt 512 ]] && BAIL "To long!" "ATTACK" ": REQUEST_URI(${#REQUEST_URI})=${REQUEST_URI:0:32}..."
+}
+
+GetFormVars()
+{
+	local ifs
+	ifs=$IFS
+
+	IFS=\& arr=(${REQUEST_BODY})
+
+	local i
+	local str
+	while [[ $i -lt ${#arr[@]} ]]; do
+		str="${arr[$i]}"
+		((i++))
+		key=${str%%=*}
+		[[ ${#key} -le 0 ]] && BAIL "Bad Request" "ERROR: " "Body contains bad variable: '$str'"
+		val=${str#*=}
+
+		[[ ${key} == "nocolor" ]] && unset COLOR
+		[[ ${key} == "verbose" ]] && IS_VERBOSE=1
+		[[ ${key} == "port" ]] && { val=$((${val//[^0-9]})); [[ $val -ge 32768 && $val -le 65535 ]] && R_PORT="$val"; }
+		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
+		[[ ${key} == "peerprivate" ]] && R_WT_PRIVATE="${val//[^[:alnum:]+\/]}="
+		[[ ${key} == "private" ]] && R_WG_PRIVATE="${val//[^[:alnum:]+\/]}="
+		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:14}"; }
+	done
+	IFS=$ifs
+}
+
 
 # Load PID of WireGuard container
 load_config()
 {
 	source /dev/shm/config.txt && return
 
-	BAIL "Not ready" "Failed to load: " "/dev/shm/config.txt"
+	BAIL "${R}ERROR${N}: Not ready. SF is still booting up..." "Failed to load: " "/dev/shm/config.txt"
 }
 
 GenSecret()
@@ -48,93 +83,127 @@ GenSecret()
 	echo $str
 }
 
-cmd_net_print_info()
+cmd_net_list()
+{
+	local fn
+	local str
+	local name
+	local upstr
+
+	load_port
+	echo -en "\
+Port      : ${Y}$WG_PORT${N}
+Portsecret: ${Y}$PORTSECRET${N}
+"
+	ifaces=$(nsenter -t "$PID" -n wg show interfaces)
+	# List all configured names
+	echo -e "\
+
+Name           | Private (Peer)                               | Public
+---------------+----------------------------------------------+---------------------------------------------"
+
+	for fn in "/config/db/db-${LID}/wg/wg-"*; do
+		[[ ! -f "$fn" ]] && break
+		str=$(basename "$fn")
+		name="${str#*-}"
+		[[ $fn != "/config/db/db-${LID}/wg/wg-${name}" ]] && continue # BAD
+		load_wt "$name"
+		load_wg "$name"
+		str="${name}                                      "
+		unset upstr
+		[[ $ifaces == *"wg${name}"* ]] && {
+			upstr="${G}"
+		}
+		echo -e "${upstr}${str:0:14}${N} | $WT_PRIVATE | $WG_PUBLIC"
+	done
+
+	exit
+}
+
+cmd_net_init_print_info()
 {
 	echo -en "\
-WireGuard has been configured:
-  Port   : ${CY}$WG_PORT${CN}
-  Private: ${CY}$WG_PRIVATE${CN}
-To delete:
-    ${CDC}curl rpc/net/del/${CN}
-To move to a new server (on the new server):
-    ${CDC}curl rpc/net/init/${PORTSECRET}/${WG_PRIVATE}/${CN}
-To connect a WireGuard peer:
-    ${CDC}curl rpc/net/up/<PEERS PUBLIC KEY>/${CN}
-To show WireGuard peers:
-    ${CDC}curl rpc/net/show${CN}
+  Port      : ${Y}$WG_PORT${N}
+  Portsecret: ${Y}$PORTSECRET${N}
+  Private   : ${Y}$WG_PRIVATE${N}
+  Name      : ${Y}$WT_NAME${N}
+Bring up the Interface:
+    ${C}curl rpc/net/up -X POST -d name=${WT_NAME}${N}
+Show status:
+    ${C}curl rpc/net/show${N}
 
-To connect with WireGuard use either one of these two commands (on the remote host):
-    ${CDC}X=${WG_PUBLIC//=}:de:${WG_PORT} bash -c \"\$(curl -fsSL thc.org/segfault/x)\"
-    ${CDC}X=${WG_PUBLIC//=}:de:${WG_PORT} bash -c \"\$(wget --no-verbose -O- thc.org/segfault/x)\"${CN}
+To connect with wiretap use this command on the remote host:
+    ${C}wiretap serve --private  ${WT_PRIVATE} \\
+                  --public   ${WG_PUBLIC} \\
+                  --endpoint ${SF_FQDN}:${WG_PORT}${N}
+To connect with WireGuard use this on the remote host:${F}
+[Interface]
+PrivateKey = ${WT_PRIVATE}
+Address = 192.168.0.2/32
+Address = fd::2/128
+
+[Peer]
+PublicKey = ${WG_PUBLIC}
+AllowedIPs = 0.0.0.0/0, ::/0
+EndPoint = ${SF_FQDN}:${WG_PORT}
+PersistentKeepalive = 25${N}
 "
 }
 
 write_portfile()
 {
-	echo "\
-WG_PORT=${WG_PORT}
-WG_PRIVATE=${WG_PRIVATE}
-WG_PUBLIC=${WG_PUBLIC}
-ASSIGNED_LID=${LID}
-PORTSECRET=${PORTSECRET}" >"/config/db/wg-port/port-${WG_PORT}" || BAIL "Failed to store WireGuard Port."
-	echo "WG_PORT=${WG_PORT}" >"/config/db/wg-port/sec2port-${PORTSECRET}"
-	# Link to LID:
-	ln -sf "/config/db/wg-port/port-${WG_PORT}" "/config/db/db-${LID}/wg-port"
+	echo -n "\
+WG_PORT=\"${WG_PORT}\"
+ASSIGNED_LID=\"${LID}\"
+PORTSECRET=\"${PORTSECRET}\"
+" >"/config/db/db-${LID}/wg/port" || BAIL "Failed to store WireGuard Port."
 
-	cmd_net_print_info
+	echo "WG_PORT=${WG_PORT}" >"/config/db/wg/sec2port-${PORTSECRET}"
+	# Link to LID:
+	ln -sf "../db-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
 }
 
-wgkey_from_user()
+# [WT_NAME]
+write_wgfile()
 {
-	local priv
-	[[ ${#ARGS[@]} -le 3 ]] && return 255  # No key supplied by user
-	priv=$(printf "%s/" "${ARGS[@]:3}")
+	local name
+	name="$1"
 
-	priv="${priv%\/*}"
-	[[ ${#priv} -ne 44 ]] && BAIL "PrivateKey of wrong length (is ${#priv}, must be 44)" "Bad PrivateKey: " "(len=${#priv})"
-	WG_PRIVATE="$priv"
-	WG_PUBLIC=$(echo "$WG_PRIVATE" | wg pubkey)
+	echo -n "\
+WG_PRIVATE=\"${WG_PRIVATE}\"
+WG_PUBLIC=\"${WG_PUBLIC}\"
+WG_PORT=\"${WG_PORT}\"
+" >"/config/db/db-${LID}/wg/wg-${name}" || BAIL "Failed to store WG information."
+
+	ln -sf "../db-${LID}/wg/wg-${name}" "/config/db/wg/wg-${name}"
+}
+
+# [WT_NAME]
+write_wtfile()
+{
+	local name
+	name="$1"
+
+	echo -n "\
+WT_PRIVATE=\"${WT_PRIVATE}\"
+WT_PUBLIC=\"${WT_PUBLIC}\"
+WG_PORT=\"${WG_PORT}\"
+" >"/config/db/db-${LID}/wg/wt-${name}" || BAIL "Failed to store WT information."
+
+	ln -sf "../db-${LID}/wg/wt-${name}" "/config/db/wg/wt-${name}"
 }
 
 # Assign port to _this_ LID
+# [portsecret]
 cmd_net_init_move()
 {
-	PORTSECRET="${ARGS[2]}"
+	local sec
+	local psec
+	psec="$1"
 
-	source "/config/db/wg-port/sec2port-${PORTSECRET}" 2>/dev/null && {
-		# HERE already exists (correct PORT + SECRET)
-		source "/config/db/wg-port/port-${WG_PORT}" || BAIL "Oops. port file missing"
-
-		wgkey_from_user # Will overwrite WG_PRIVATE if supplied by user.
-
-		[[ ${ASSIGNED_LID} == $LID ]] && BAIL "Already assigned to this LID"
-		rm -f "/config/db/db-${ASSIGNED_LID}/wg-port"
-		# Update LID entry:
-		write_portfile
-		exit
-	}
-
-	# All of below no longer legit if we have unique private keys per server.
-	WG_PORT=${PORTSECRET%%_*}
-	[[ -z $WG_PORT || ${WG_PORT} =~ [^0-9] ]] && BAIL "Not a valid port number."
-	[[ $WG_PORT -lt 32768 || $WG_PORT -gt 65535 ]] && BAIL "Port must be in the range of 32768-65535."
-	source "/config/db/wg-port/port-${WG_PORT}" 2>/dev/null && {
-		# HERE: Port already in use by another LID.
-		[[ ${ASSIGNED_LID} != $LID ]] && BAIL "The port ${CY}${WG_PORT}${CN} is already in use by another server.\nThe supplied SECRET is wrong or missing.\nUse ${CDC}curl rpc/net/init/${WG_PORT}_<SECRET>/${CN} to move it to this server."
-		# HERE: Already assigned to this LID.
-		cmd_net_print_info
-		exit
-	}
-
-	# HERE: Port not yet assigned.
-	# rpc/net/init/31337/ (port without password or unused password)
-	wgkey_from_user || BAIL "No key supplied. Call ${CDC}curl rpc/net/init/${PORTSECRET}/<WG PRIVATE KEY>/"
-	sec=${PORTSECRET##*_}
-	sec="${sec//[^[:alnum:]]}"
-	[[ ${#sec} -ne 16 ]] && sec=$(GenSecret)
-	PORTSECRET="${WG_PORT}_${sec}"
-	write_portfile
-	exit
+	source "/config/db/wg/sec2port-${psec}" 2>/dev/null || BAIL "Portsecret ${psec} is not known."
+	[[ ${ASSIGNED_LID} == $LID ]] && return # Already assigned to this LID
+	ln -sf "../db-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
 }
 
 # rpc/net/init
@@ -142,59 +211,143 @@ cmd_net_init_move()
 cmd_net_init()
 {
 	local n
+	local err
+	local arr
 
-	[[ -n ${ARGS[2]} ]] && cmd_net_init_move
-	source "/config/db/db-${LID}/wg-port" 2>/dev/null && {
-		cmd_net_print_info
+	arr=($(echo /config/db/db-${LID}/wg/wt-*))
+	[[ ${#arr[@]} -gt 10 ]] && BAIL "${R}ERROR${N}: To many Peers. Delete some first." "${R}PEERS-MAX${N} " "Limit: ${#arr[@]}"
+
+	[[ -n ${R_PORTSECRET} ]] && cmd_net_init_move "${R_PORTSECRET}"
+	if source "/config/db/db-${LID}/wg/port" 2>/dev/null; then
+		# HERE: Port already assigned to this LID,
+		[[ -n ${R_PORT} ]] && [[ $R_PORT -ne $WG_PORT ]] && echo -e "${Y}WARNING:${N} Ignoring request for Port ${R_PORT}. Port already set to ${WG_PORT}."
+	else
+		# HERE: No Port yet assigned to this LID.
+
+		# Allow user to pick a port.
+		if [[ -n ${R_PORT} ]]; then
+			[[ -e "/config/db/wg/port-${R_PORT}" ]] && BAIL "\
+Port ${R_PORT} is already in use. You can assign it to this server like so:\
+    ${C}curl rpc/net/init -X POST -d portsecret=<SECRET>${N}"
+    		WG_PORT=${R_PORT}
+    	else
+			# Assign random port 32768...65535
+			n=0
+			while :; do
+				WG_PORT="$((WG_PORT_MIN + RANDOM % (WG_PORT_MAX - WG_PORT_MIN + 1)))"
+				[[ ! -e "/config/db/wg/port-${WG_PORT}" ]] && break
+				((n++))
+				[[ $n -gt 5 ]] && BAIL "Failed to find free WireGuard Port."
+			done
+		fi
+	fi
+
+	PORTSECRET="${WG_PORT}_$(GenSecret)"
+	write_portfile
+
+	[[ -e "/config/db/wg/wt-${R_WT_NAME}" ]] && {
+		WT_NAME=${R_WT_NAME}
+		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl rpc/net/del -X POST -d name=${R_WT_NAME}${N}"
+		load_wt "${R_WT_NAME}"
+		load_wg "${R_WT_NAME}"
+		cmd_net_init_print_info
 		exit
 	}
 
-	# Assign random port 32768...65535
-	n=0
-	while :; do
-		WG_PORT="$((WG_PORT_MIN + RANDOM % (WG_PORT_MAX - WG_PORT_MIN + 1)))"
-		[[ ! -e "/config/db/wg-port/port-${WG_PORT}" ]] && break
-		((n++))
-		[[ $n -gt 5 ]] && BAIL "Failed to find free WireGuard Port."
-	done
+	[[ -n $R_WT_PRIVATE ]] && WT_PRIVATE=$R_WT_PRIVATE || WT_PRIVATE=$(wg genkey)
+	WT_PUBLIC=$(echo "$WT_PRIVATE" | wg pubkey)
+	[[ -n $R_WT_NAME ]] && WT_NAME="${R_WT_NAME}" || { val="${WT_PUBLIC//[^[:alnum:]]}"; WT_NAME="${val:0:14}"; }
+	write_wtfile "${WT_NAME}"
 
 	WG_PRIVATE=$(wg genkey)
 	WG_PUBLIC=$(echo "$WG_PRIVATE" | wg pubkey)
-	PORTSECRET="${WG_PORT}_$(GenSecret)"
-	write_portfile
-	exit
-}
+	write_wgfile "${WT_NAME}"
 
-print_err_exit()
-{
-	echo "ERROR: No port found."
-	echo -e "Call ${CDC}curl rpc/net/init${CN} first."
+	cmd_net_init_print_info
+
 	exit
 }
 
 load_port()
 {
-	source "/config/db/db-${LID}/wg-port" 2>/dev/null || print_err_exit
-	WG_DEV="wg${WG_PORT}"
+	source "/config/db/db-${LID}/wg/port" 2>/dev/null || BAIL "${R}ERROR${N}: No port found. Use ${C}curl rpc/net/init${N} first."
+}
+
+load_wt()
+{
+	source "/config/db/db-${LID}/wg/wt-${1}" || BAIL "Not found: ${1}. Try ${C}curl rpc/net/init -X POST -d name=${1}${N}" "ERROR: " "Not found: db-${LID}/wg/wt-${1}"
+}
+
+load_wg()
+{
+	source "/config/db/db-${LID}/wg/wg-${1}" || BAIL "Not found." "ERROR: " "Not found: db-${LID}/wg/wg-${1}"
+}
+
+
+xrm()
+{
+	local fn
+	local err
+	err=0
+
+	for fn in "$@"; do
+		[[ ! -f "$fn" ]] && { err=255; continue; }
+		rm -f "$fn"
+	done
+
+	return $err
+}
+
+net_down()
+{
+	local name
+	name="$1"
+
+	# Shut down WG interface
+	if [[ -z $name || $name == "all" ]]; then
+		nsenter -t "${PID}" -n ip link delete group 31337
+	else
+		# Return early if device did not exist.
+		nsenter -t "${PID}" -n ip link delete "wg${name}" || return
+	fi
+	# Restore default routing
+	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
+	nsenter -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}"
 }
 
 cmd_net_del()
 {
 	load_port
+	local fn
 
-	# Shut down all WG interfaces
-	nsenter -t "${PID}" -n ip link delete dev "${WG_DEV}"
-	# Restore default routing
-	nsenter -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}"
+	[[ -z $R_WT_NAME ]] && BAIL "Use ${C}-X POST -d name=<name>${N}"
 
-	rm -f "/config/db/wg-port/sec2port-${PORTSECRET}"
-	rm -f "/config/db/db-${LID}/wg-port"
-	rm -f "/config/db/wg-port/port-${WG_PORT:?}"
+	net_down "$R_WT_NAME"
+	if [[ "$R_WT_NAME" == "all" ]]; then
+		# Delete PORT assignment
+		xrm "/config/db/wg/sec2port-${PORTSECRET}" "/config/db/wg/port-${WG_PORT}" "/config/db/db-${LID}/wg/port"
 
-	echo -e "\
-Private key deleted.
-To restore:
-    ${CDC}curl rpc/net/init/${PORTSECRET}/${WG_PRIVATE}/${CN}"
+		# Delete all private keys
+		for fn in "/config/db/db-${LID}/wg/wg-"*; do
+			[[ ! -f "$fn" ]] && break
+			str=$(basename "$fn")
+			name="${str#*-}"
+			[[ $fn != "/config/db/db-${LID}/wg/wg-${name}" ]] && continue # BAD
+			# Delete all links
+			xrm "/config/db/wg/wg-${name}" "/config/db/wg/wt-${name}"
+		done
+		rm -rf "/config/db/db-${LID}/wg"
+		echo -en "All private keys deleted."
+		exit
+	fi
+
+	[[ ! -f "/config/db/db-${LID}/wg/wg-${R_WT_NAME}" ]] && BAIL "${R}Not found${N}: ${R_WT_NAME}"
+	xrm "/config/db/wg/wg-${R_WT_NAME}" "/config/db/db-${LID}/wg/wg-${R_WT_NAME}"
+	xrm "/config/db/wg/wt-${R_WT_NAME}" "/config/db/db-${LID}/wg/wt-${R_WT_NAME}"
+
+	echo -en "\
+${G}Private key deleted${N} ($R_WT_NAME).
+"
 	exit
 }
 
@@ -209,13 +362,19 @@ cmd_net()
 cmd_net_show()
 {
 	local str
-	# Use 'script' to force color output
-	IFS= str=$(script -q -c "nsenter -t \"${PID}\" -n wg show" /dev/null)
+
+	unset IFS
+	if [[ -z $COLOR ]]; then
+		str=$(nsenter -t "${PID}" -n wg show)
+	else
+		# Use 'script' to force color output
+		str=$(script -q -c "nsenter -t \"${PID}\" -n wg show" /dev/null </dev/null)
+	fi
 	[[ -n $str ]] && { echo "$str"; exit; }
 
 	echo -e "\
 No Peer connected. To connect a peer:
-    ${CDC}curl rpc/net/up/<PEERS PUBLIC KEY>${CN}"
+    ${C}curl rpc/net/up -X POST -d name=<NAME>${N}"
 
 	exit
 }
@@ -224,65 +383,98 @@ cmd_net_down()
 {
 	local dev
 
-	dev="${ARGS[2]}"
-	dev="${dev//[^wg0-9]}"
-	[[ -z $dev ]] && BAIL "Please specify device."
-
-	nsenter -t "${PID}" -n ip link delete dev "${dev}" 2>&1 || exit
-	echo -e "Device ${CDY}${dev}${CN} is now down."
+	net_down "${R_WT_NAME}"
 	exit
 }
 
+cmd_net_help()
+{
+	echo -en "\
+List peers      : ${C}curl rpc/net/list${N}
+Delete peer     : ${C}curl rpc/net/del -X POST -d name=<NAME>${N}
+Show connections: ${C}curl rpc/net/show${N}
+Move port to a new server:
+    ${C}curl rpc/net/init -X POST -d portsecret=<portsecert>${N}
+Connect a peer:
+    ${C}curl rpc/net/up -X POST -d name=<NAME>${N}
+"
+
+	exit
+}
+
+
+0<&- # Close STDIN
+Sanitize
+GetFormVars
+[[ -n $COLOR ]] && {
+	# COLOR is set (to 'always')
+	Y=$CDY
+	C=$CDC
+	R=$CR
+	G=$CDG
+	N=$CN
+	F=$CF
+}
+
 # Split into arguments
-str="${REQUEST_URI//[^[:alnum:]_+=\/]}"
 _IFS=$IFS
-IFS=/ ARGS=(${str:1})  # Ignore first '/'. Split into arguements.
+IFS=/ ARGS=(${REQUEST_URI:1})  # Ignore first '/'. Split into arguements.
 IFS=$_IFS
 
 [[ "${FCGI_CMD}" == "dmesg" ]] && {
-	color="always"
-	[[ "$REQUEST_URI" == *"nocolor"* ]] && color="never"
 	# dmesg --color=always -f kern --level err,warn -e | tail -n100
-	dmesg --color="${color}" -f kern --level err -e | tail -n20
+	dmesg --color="${COLOR:-never}" -f kern --level err -e | tail -n20
 	exit
 }
 
 [[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
 
+# /net/init
+# INPUT : <port|portsecret> <WT PRIVATE> <Name>
+# OUTPUT: WG-Config & WT-Line
+#
+# /net/up <Name>
+# - Do everything fromo INIT.
+# - 
 
 # /net       -> Show port assignment
 # /net/init  -> Assigned port to this LID or create new port.
 # /net/up    -> Create WireGuard interface
 # /net/show  -> Show WireGuard peers
-
+# /net/down
+# /net/del
+# /net/list
 [[ "${FCGI_CMD}" == "net" ]] && {
 	# Retrieve (LID CID PID)
 	arr=($(redr GET "ip:${REMOTE_ADDR}")) || BAIL "Bad Value" "Bad Value: " "ret=$?, ${#arr[@]}"
 	[[ ${#arr[@]} -ne 3 ]] && BAIL "Value != 3" "Value != 3: " "${#arr[@]}"
 	LID="${arr[0]}"
+	[[ ! -d "/config/db/db-${LID}/wg" ]] && mkdir "/config/db/db-${LID}/wg"
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
 
+	DEBUGF "LID=$LID PID=$PID"
+
 	# Show current port configuration
-	[[ ${ARGS[0]} == 'net' && ${#ARGS[@]} -eq 1 ]] && cmd_net
 	[[ ${ARGS[0]} == 'net' && ${ARGS[1]} == 'show' ]] && cmd_net_show
 
 	# Initialize or set port
 	[[ ${ARGS[1]} == 'init' ]] && cmd_net_init
 	[[ ${ARGS[1]} == 'del' ]] && cmd_net_del
 	[[ ${ARGS[1]} == 'down' ]] && cmd_net_down
+	[[ ${ARGS[1]} == 'help' ]] && cmd_net_help
+	[[ ${ARGS[1]} == 'list' ]] && cmd_net_list
 
 	# NOT 'up' -> EXIT
-	[[ ${ARGS[1]} != 'up' ]] && print_err_exit
+	[[ ${ARGS[1]} != 'up' ]] && { echo -e "${R}ERROR${N}: Unknown command."; cmd_net_help; }
 
-	[[ ${ARGS[1]} == 'up' && ${#ARGS[@]} -lt 3 ]] && BAIL "No public key specified. Use ${CDC}curl rpc/net/up/<PEER PUBLIC KEY>${CN}."
+	[[ -z $R_WT_NAME ]] && BAIL "${R}ERROR:${N} Use ${C}curl rpc/net/up -X POST -d name=<Name>${N}."
+	WT_NAME="$R_WT_NAME"
 	load_port
-	dev="wg${WG_PORT}"
+	load_wt "${WT_NAME}"
+	load_wg "${WT_NAME}"
 
-	opt="${REQUEST_URI#/net/up/}"
-	# Remove trailing rubbish such as / or any further characters after '='
-	wg_peer_public="${opt%=*}="
-	[[ ${#wg_peer_public} -ne 44 ]] && BAIL "PublicKey of wrong length (is ${#wg_peer_public}, must be 44)" "Bad PublicKey: " "(len=${#wg_peer_public})"
+	dev="wg${WT_NAME}"
 
 	load_config
 
@@ -291,8 +483,9 @@ IFS=$_IFS
 	nsenter -t "${PID}" -n ip link del "${dev}" 2>/dev/null
 
 	err=$(nsenter -t "${WG_PID}" -n ip link add "${dev}" type wireguard 2>&1) || BAIL "Failed: ip link add $dev ($err)." "Failed $dev" ": $err"
+	nsenter -t "${WG_PID}" -n ip link set "${dev}" group 31337 || BAIL "FAIL"
 	echo "$WG_PRIVATE" >/dev/shm/private.$$
-	nsenter -t "${WG_PID}" -n wg set "${dev}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${wg_peer_public}" allowed-ips 0.0.0.0/0 || BAIL "Failed: wg set"
+	nsenter -t "${WG_PID}" -n wg set "${dev}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0 || BAIL "Failed: wg set"
 	rm -f /dev/shm/private.$$
 	# Move Interface to user's container:
 	err=$(nsenter -t "${WG_PID}" -n ip link set "${dev}" netns "${PID}" 2>&1) || BAIL "Failed to move $dev." "Failed $dev netns $PID" ": $err"
@@ -304,18 +497,13 @@ IFS=$_IFS
 
 	# Add static routes for RPC
 	# nsenter -t "${PID}" -n ip route add "${RPC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
-	nsenter -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}"
+	nsenter -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 	nsenter -t "${PID}" -n ip route del default 2>/dev/null
 	nsenter -t "${PID}" -n ip route add default dev "${dev}"
 
-	nsenter -t "${PID}" -n ip --color=always addr show "${WG_DEV}"
+	# nsenter -t "${PID}" -n ip --color=${COLOR:-never} addr show "${dev}"
 
-	echo -e "\
-====================================================
-To take the device down:
-    ${CDC}curl rpc/net/down/${WG_DEV}/${CN}
-To take all down and destroy the private key:
-    ${CDC}curl rpc/net/del${CN}"
+	echo -e "${G}SUCCESS${N}: All traffic is now routed via ${WT_NAME}."
 
 	exit
 }

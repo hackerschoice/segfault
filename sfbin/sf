@@ -98,6 +98,13 @@ blockio_init()
 	docker run --rm --blkio-weight=100 alpine  true 2>&1 | grep "does not support Block" >/dev/null && { WARN "DOCKER: Your kernel does not support Block I/O weight."; return; }
 }
 
+warn_file()
+{
+	[[ -f "$1" ]] && return
+
+	WARN "Not found: $1"
+}
+
 load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 
@@ -143,6 +150,10 @@ blockio_init
 sysctl -q -w net.ipv4.neigh.default.gc_thresh3=65536 || WARN "Could not set /proc/.../gc_thresh3"
 sysctl -q -w net.netfilter.nf_conntrack_buckets=16384 || WARN "Could not set /proc/.../nf_conntrack_buckets"
 sysctl -q -w net.netfilter.nf_conntrack_max=131072 || WARN "Could not set /proc/.../nf_conntrack_max"
+
+warn_file "${SF_BASEDIR}/config/etc/nginx/nginx-rpc.conf"
+warn_file "${SF_BASEDIR}/config/etc/nginx/nginx.conf"
+warn_file "${SF_BASEDIR}/config/etc/sf/sf.conf"
 
 # Make sure /dev/shm is 'shared'
 [[ "$(findmnt -no TARGET,PROPAGATION /dev/shm)" != *"shared"* ]] && {

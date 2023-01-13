@@ -22,7 +22,16 @@ RUN    apt-get update \
               wget \
               wireguard-tools \
               vim
+COPY init-master.sh /
+COPY /cgi-bin/ /cgi-bin
 
+RUN bash -c '{ true \
+              && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+              && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+              && apt-get update \
+              && apt-get install -y --no-install-recommends docker-ce-cli \
+              && rm -f /etc/apt/sources.list.d/docker.list; }' \
+       && chmod 755 /cgi-bin/rpc
 # Alpine's fcgiwrap does not support '-p' :/
 # FROM alpine
 # RUN    apk add --no-cache --upgrade \
@@ -43,9 +52,5 @@ RUN    apt-get update \
 #               wireguard-tools \
 #               vim
 
-
-COPY setup.sh init-master.sh /
-COPY /cgi-bin /cgi-bin
-RUN /setup.sh
 CMD ["bash", "-il"]
 

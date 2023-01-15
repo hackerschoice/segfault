@@ -123,14 +123,10 @@ Name           | Private (Peer)                               | Public
 cmd_net_init_print_info()
 {
 	echo -en "\
-  Port      : ${Y}$WG_PORT${N}
-  Portsecret: ${Y}$PORTSECRET${N}
-  Private   : ${Y}$WG_PRIVATE${N}
-  Name      : ${Y}$WT_NAME${N}
-Bring up the Interface:
-    ${C}curl rpc/net/up -d name=${WT_NAME}${N}
-Show status:
-    ${C}curl rpc/net/show${N}
+Port      : ${Y}$WG_PORT${N}
+Portsecret: ${Y}$PORTSECRET${N}
+Private   : ${Y}$WG_PRIVATE${N}
+Name      : ${Y}$WT_NAME${N}
 
 To connect with ${M}Wiretap${N} use this command on the remote host:
     ${C}wiretap serve --private  ${WT_PRIVATE} \\
@@ -147,6 +143,8 @@ PublicKey = ${WG_PUBLIC}
 AllowedIPs = 0.0.0.0/0, ::/0
 EndPoint = ${SF_FQDN}:${WG_PORT}
 PersistentKeepalive = 25${N}
+
+Thereafter execute ${C}curl rpc/net/up -d name=${WT_NAME}${N} to exit via this peer.
 "
 }
 

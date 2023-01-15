@@ -11,6 +11,18 @@ source "/sf/bin/funcs_net.sh"
 # See also
 # - https://stackoverflow.com/questions/31265993/docker-networking-namespace-not-visible-in-ip-netns-list
 
+# Once
+ipt()
+{
+	local first
+	first="$1"
+
+	shift 1
+	iptables -C "$@" 2>/dev/null && return # Rule already exists
+
+	iptables "$first" "$@"
+}
+
 # We need to use our own forwarding rules. Docker-compose otherwise spawns a separate process
 # for _every_ port - which exceeds Docker's own startup timer if to many ports are forwarded
 # and thus docker-compose will fail to start.
@@ -26,15 +38,15 @@ fw2docker()
 	range="$2"
 	dstip="$3"
 
-	iptables -t nat -I PREROUTING -i "${dev}" -d "${mainip}" -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
+	ipt -I PREROUTING -t nat -i "${dev:?}" -d "${mainip}" -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
 
 	[[ -z $SF_DEBUG ]] && return
 
 	# #1 - Special hack when connecting from localhost to 10.0.2.15
-	iptables -t nat -I OUTPUT -o lo -d "${mainip}" -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
+	ipt -I OUTPUT -t nat -o lo -d "${mainip}" -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
 	# #2 - When connecting from localhost to 127.0.0.1 (#1 is also required)
-	iptables -t nat -I OUTPUT -o lo -s 127.0.0.1 -d 127.0.0.1  -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
-	iptables -t nat -A POSTROUTING  -s 127.0.0.1 -d "${dstip}" -p "${proto}" --dport "${range}" -j SNAT --to "${NET_DIRECT_BRIDGE_IP:?}"
+	ipt -I OUTPUT -t nat -o lo -s 127.0.0.1 -d 127.0.0.1  -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
+	ipt -A POSTROUTING -t nat -s 127.0.0.1 -d "${dstip}" -p "${proto}" --dport "${range}" -j SNAT --to "${NET_DIRECT_BRIDGE_IP:?}"
 }
 
 # This is a hack.
@@ -60,14 +72,16 @@ dev=$(DevByIP "${mainip:?}")
 # NET_DIRECT_WG_IP=172.28.0.3
 # NET_DIRECT_BRIDGE_IP=172.28.0.1
 # WireGuard forwards to sf-wg
-iptables -t nat -F PREROUTING
-iptables -t nat -F OUTPUT
-iptables -t nat -F POSTROUTING
-fw2docker "udp" "32768:65535" "${NET_DIRECT_WG_IP}"
+
+## NOTE: Flushing POSTROUTING may screw up dns-doh (when dns-doh tries to reconnect)
+# iptables -t nat -F PREROUTING
+# iptables -t nat -F OUTPUT
+# iptables -t nat -F POSTROUTING
+fw2docker "udp" "32768:65535" "${NET_DIRECT_WG_IP:?}"
 # MOSH forwards to sf-router (for traffic control)
-fw2docker "udp" "25002:26023" "${NET_DIRECT_ROUTER_IP}"
+fw2docker "udp" "25002:26023" "${NET_DIRECT_ROUTER_IP:?}"
 
 [[ -n $SF_DEBUG ]] && sysctl -w "net.ipv4.conf.$(DevByIP "${NET_DIRECT_BRIDGE_IP:?}").route_localnet=1"
 
 # Keep this running so we can inspect iptables rules (really mostly for debugging only)
-exec -a '[network-fix]' sleep infinity
+exec -a '[network-fix] sleep' sleep infinity

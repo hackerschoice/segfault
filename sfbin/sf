@@ -155,6 +155,8 @@ warn_file "${SF_BASEDIR}/config/etc/nginx/nginx-rpc.conf"
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx.conf"
 warn_file "${SF_BASEDIR}/config/etc/sf/sf.conf"
 
+# STOP HERE: Check if there are any fils in /sf/sfbin that are not equal to ./sfbin
+
 # Make sure /dev/shm is 'shared'
 [[ "$(findmnt -no TARGET,PROPAGATION /dev/shm)" != *"shared"* ]] && {
 	mount --make-shared /dev/shm/ || ERREXIT 252

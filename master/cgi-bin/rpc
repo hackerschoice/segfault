@@ -56,7 +56,7 @@ GetFormVars()
 		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
 		[[ ${key} == "peerprivate" ]] && R_WT_PRIVATE="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "private" ]] && R_WG_PRIVATE="${val//[^[:alnum:]+\/]}="
-		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:14}"; }
+		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:13}"; }
 	done
 	IFS=$ifs
 }
@@ -128,15 +128,15 @@ cmd_net_init_print_info()
   Private   : ${Y}$WG_PRIVATE${N}
   Name      : ${Y}$WT_NAME${N}
 Bring up the Interface:
-    ${C}curl rpc/net/up -X POST -d name=${WT_NAME}${N}
+    ${C}curl rpc/net/up -d name=${WT_NAME}${N}
 Show status:
     ${C}curl rpc/net/show${N}
 
-To connect with wiretap use this command on the remote host:
+To connect with ${M}Wiretap${N} use this command on the remote host:
     ${C}wiretap serve --private  ${WT_PRIVATE} \\
                   --public   ${WG_PUBLIC} \\
                   --endpoint ${SF_FQDN}:${WG_PORT}${N}
-To connect with WireGuard use this on the remote host:${F}
+To connect with ${M}WireGuard${N} use this configuration on the remote host:${F}
 [Interface]
 PrivateKey = ${WT_PRIVATE}
 Address = 192.168.0.2/32
@@ -228,7 +228,7 @@ cmd_net_init()
 		if [[ -n ${R_PORT} ]]; then
 			[[ -e "/config/db/wg/port-${R_PORT}" ]] && BAIL "\
 Port ${R_PORT} is already in use. You can assign it to this server like so:\
-    ${C}curl rpc/net/init -X POST -d portsecret=<SECRET>${N}"
+    ${C}curl rpc/net/init -d portsecret=<SECRET>${N}"
     		WG_PORT=${R_PORT}
     	else
 			# Assign random port 32768...65535
@@ -247,7 +247,7 @@ Port ${R_PORT} is already in use. You can assign it to this server like so:\
 
 	[[ -e "/config/db/wg/wt-${R_WT_NAME}" ]] && {
 		WT_NAME=${R_WT_NAME}
-		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl rpc/net/del -X POST -d name=${R_WT_NAME}${N}"
+		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl rpc/net/del -d name=${R_WT_NAME}${N}"
 		load_wt "${R_WT_NAME}"
 		load_wg "${R_WT_NAME}"
 		cmd_net_init_print_info
@@ -256,7 +256,7 @@ Port ${R_PORT} is already in use. You can assign it to this server like so:\
 
 	[[ -n $R_WT_PRIVATE ]] && WT_PRIVATE=$R_WT_PRIVATE || WT_PRIVATE=$(wg genkey)
 	WT_PUBLIC=$(echo "$WT_PRIVATE" | wg pubkey)
-	[[ -n $R_WT_NAME ]] && WT_NAME="${R_WT_NAME}" || { val="${WT_PUBLIC//[^[:alnum:]]}"; WT_NAME="${val:0:14}"; }
+	[[ -n $R_WT_NAME ]] && WT_NAME="${R_WT_NAME}" || { val="${WT_PUBLIC//[^[:alnum:]]}"; WT_NAME="${val:0:4}"; }
 	write_wtfile "${WT_NAME}"
 
 	WG_PRIVATE=$(wg genkey)
@@ -275,7 +275,7 @@ load_port()
 
 load_wt()
 {
-	source "/config/db/db-${LID}/wg/wt-${1}" || BAIL "Not found: ${1}. Try ${C}curl rpc/net/init -X POST -d name=${1}${N}" "ERROR: " "Not found: db-${LID}/wg/wt-${1}"
+	source "/config/db/db-${LID}/wg/wt-${1}" || BAIL "Not found: ${1}. Try ${C}curl rpc/net/init -d name=${1}${N}" "ERROR: " "Not found: db-${LID}/wg/wt-${1}"
 }
 
 load_wg()
@@ -320,7 +320,7 @@ cmd_net_del()
 	load_port
 	local fn
 
-	[[ -z $R_WT_NAME ]] && BAIL "Use ${C}-X POST -d name=<name>${N}"
+	[[ -z $R_WT_NAME ]] && BAIL "Use ${C}-d name=<name>${N}"
 
 	net_down "$R_WT_NAME"
 	if [[ "$R_WT_NAME" == "all" ]]; then
@@ -374,7 +374,7 @@ cmd_net_show()
 
 	echo -e "\
 No Peer connected. To connect a peer:
-    ${C}curl rpc/net/up -X POST -d name=<NAME>${N}"
+    ${C}curl rpc/net/up -d name=<NAME>${N}"
 
 	exit
 }
@@ -390,13 +390,16 @@ cmd_net_down()
 cmd_net_help()
 {
 	echo -en "\
+Create new peer : ${C}curl rpc/net/init -d name=<NAME>${N}
+Delete peer     : ${C}curl rpc/net/del  -d name=<NAME>${N}
 List peers      : ${C}curl rpc/net/list${N}
-Delete peer     : ${C}curl rpc/net/del -X POST -d name=<NAME>${N}
 Show connections: ${C}curl rpc/net/show${N}
 Move port to a new server:
-    ${C}curl rpc/net/init -X POST -d portsecret=<portsecert>${N}
+    ${C}curl rpc/net/init -d portsecret=<portsecret>${N}
 Connect a peer:
-    ${C}curl rpc/net/up -X POST -d name=<NAME>${N}
+    ${C}curl rpc/net/up -d name=<NAME>${N}
+Disconnect a peer:
+    ${C}curl rpc/net/down -d name=<NAME>${N}
 "
 
 	exit
@@ -412,6 +415,7 @@ GetFormVars
 	C=$CDC
 	R=$CR
 	G=$CDG
+	M=$CDM
 	N=$CN
 	F=$CF
 }
@@ -468,7 +472,7 @@ IFS=$_IFS
 	# NOT 'up' -> EXIT
 	[[ ${ARGS[1]} != 'up' ]] && { echo -e "${R}ERROR${N}: Unknown command."; cmd_net_help; }
 
-	[[ -z $R_WT_NAME ]] && BAIL "${R}ERROR:${N} Use ${C}curl rpc/net/up -X POST -d name=<Name>${N}."
+	[[ -z $R_WT_NAME ]] && BAIL "${R}ERROR:${N} Use ${C}curl rpc/net/up -d name=<Name>${N}."
 	WT_NAME="$R_WT_NAME"
 	load_port
 	load_wt "${WT_NAME}"

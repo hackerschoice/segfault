@@ -338,7 +338,7 @@ services:
       # - "${SF_SHMDIR:-/dev/shm/sf}/redis:/dev/shm/redis"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-      - "/research/fob/master/cgi-bin:/cgi-bin:ro" # FIXME-2022: Remove in production
+      # - "/research/fob/master/cgi-bin:/cgi-bin:ro" # FIXME-2022: Remove in production
       - "/var/run/docker.sock:/var/run/docker.sock"
     entrypoint: ["/init-master.sh"]
 
@@ -353,8 +353,6 @@ services:
       guest-net:
         ipv4_address: ${SF_RPC_IP}
     dns: 255.255.255.255
-    # ports:
-      # - 80:80 # FIXME-2022: remove i production
     entrypoint: ["nginx", "-g", "daemon off;"]
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/master:/dev/shm/master"
@@ -570,7 +568,7 @@ networks:
   master-net:
     name: sf-master-net
     driver: bridge
-    # internal: true # FIXME-2022, enable in production
+    internal: true
     ipam:
       config:
         - subnet: ${SF_NET_MASTER}

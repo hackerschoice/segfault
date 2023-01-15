@@ -70,6 +70,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 
 		# curl otherwise shows Progress Meter if stdout is piped to | grcat
 		function curl {
+			[[ "$1" == "rpc"* ]] && { command curl "$@"; return; }
 			[[ ! -t 1 ]] && { command curl "$@"; return; }
 			/usr/bin/grc --colour=auto curl "$@"
 		}

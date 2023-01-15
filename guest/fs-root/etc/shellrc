@@ -57,7 +57,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 
 	# Be gay and color it all. #OneLove
 	[[ -e /usr/bin/grc ]] && {
-		cmds+=(./configure curl df dig du env findmnt free id ifconfig)
+		cmds+=(./configure df dig du env findmnt free id ifconfig)
 		cmds+=(lsattr lsblk lsof lspci make mount netstat nmap ntpdate)
 		cmds+=(ping ps pv ss sockstat stat sysctl traceroute traceroute6 uptime vmstat wdiff whois)
 		for c in "${cmds[@]}"; do
@@ -67,6 +67,12 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 
 		# Currently broken:
 		# - mtr (no output) 
+
+		# curl otherwise shows Progress Meter if stdout is piped to | grcat
+		function curl {
+			[[ ! -t 1 ]] && { command curl "$@"; return; }
+			/usr/bin/grc --colour=auto curl "$@"
+		}
 
 		# These need stdout buffer disabled:
 		cmds+=(tcpdump)

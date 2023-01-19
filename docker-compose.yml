@@ -52,6 +52,8 @@ services:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_OVERLAYDIR:-/var/lib/docker/overlay2}:/var/lib/docker/overlay2:ro"
 
+  # Note: If this one fails to start then most likelly bad ENCFS password.
+  # level=fatal msg="no such file or directory": unknown
   sf-destructor:
     build: encfsd
     image: sf-encfsd

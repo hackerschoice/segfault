@@ -60,6 +60,7 @@ chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
 fixr /usr/share/www
 fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat
+ln -s crackmapexec /usr/bin/cme
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
 ln -s /sf/bin/sf-motd.sh /usr/bin/help
 set +e

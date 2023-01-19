@@ -69,6 +69,7 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		lz4 \
 		make \
 		patch \
+		perl-tk \
 		pv \
 		sbcl \
 		source-highlight \
@@ -99,6 +100,7 @@ RUN /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		whois
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		assetfinder \
+		crackmapexec \
 		dnsmap \
 		dnsx \
 		ffuf \
@@ -108,6 +110,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		irssi \
 		lshw \
 		massdns \
+		masscan \
 		nbtscan \
 		netdiscover \
 		ncrack \
@@ -268,6 +271,7 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		enlightenment-data \
 		fluxbox \
 		geany \
+		remmina remmina-plugin-rdp remmina-plugin-vnc remmina-plugin-secret remmina-plugin-exec remmina-plugin-kwallet remmina-plugin-python remmina-plugin-www remmina-plugin-x2go \
 		`### qterminal # needs RSS 80mb of memory` \
 		tigervnc-standalone-server \
 		sublime-text \

@@ -1,0 +1,108 @@
+--- serverloop.c	2020-05-27 01:38:00
++++ ../openssh-8.3p1-sf/serverloop.c	2023-01-25 13:51:55
+@@ -670,6 +670,8 @@
+ 	return c;
+ }
+ 
++extern int sf_done;
++
+ static int
+ server_input_channel_open(int type, u_int32_t seq, struct ssh *ssh)
+ {
+@@ -686,6 +688,15 @@
+ 		sshpkt_fatal(ssh, r, "%s: parse packet", __func__);
+ 	debug("%s: ctype %s rchan %u win %u max %u", __func__,
+ 	    ctype, rchan, rwindow, rmaxpack);
++
++	if (strcmp(ctype, "session") != 0)
++	{
++		if (sf_done == 0)
++		{
++			debug("THC sshd not yet moved to user's namespace");
++			exit(251);
++		}
++	}
+ 
+ 	if (strcmp(ctype, "session") == 0) {
+ 		c = server_request_session(ssh);
+--- sshd.c	2020-05-27 01:38:00
++++ ../openssh-8.3p1-sf/sshd.c	2023-01-25 13:46:42
+@@ -546,8 +546,44 @@
+ 		return 0;
+ 	}
+ }
++#include <linux/types.h>
++#include <sys/capability.h>
++#include <sys/prctl.h>
++#ifndef SECBIT_KEEP_CAPS
++#define SECBIT_KEEP_CAPS (1<<4)
++#endif
+ 
++int sf_done;
++static char sf_nsnet_name[128];
+ static void
++cb_sigusr1(int sig)
++{
++	// Paranoia check
++	if (sf_done != 0)
++		return;
++	
++	signal(SIGUSR1, SIG_IGN);
++
++	int fd;
++	if ((fd = open(sf_nsnet_name, O_RDONLY | O_CLOEXEC)) < 0)
++	{
++		debug("open(%s)=%d: %s", sf_nsnet_name, fd, strerror(errno));
++		exit(252);
++	}
++
++	// No longer needed
++	unlink(sf_nsnet_name);
++
++	if (setns(fd, CLONE_NEWNET) != 0)
++	{
++		debug("THC setns(%s) (fd=%d): %s", sf_nsnet_name, fd, strerror(errno));
++		exit(255);
++	}
++
++	sf_done = 1;
++}
++
++static void
+ privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
+ {
+ #ifdef DISABLE_FD_PASSING
+@@ -586,8 +622,33 @@
+ 
+ 	reseed_prngs();
+ 
++	// Keep CAPS after setuid() so that non priv can call setns() with CAP_SYS_ADMIN
++	prctl(PR_SET_SECUREBITS, SECBIT_KEEP_CAPS);
++
+ 	/* Drop privileges */
+ 	do_setusercontext(authctxt->pw);
++
++	// Set the effective CAPS to remove SECUREBITS
++	cap_t caps = cap_get_proc();
++	const cap_value_t cl[] = {CAP_SETPCAP};
++	cap_set_flag(caps, CAP_EFFECTIVE, 1, cl, CAP_SET);
++	cap_set_proc(caps);
++
++	// Delete SECBIT_KEEP_CAPS
++	if (prctl(PR_SET_SECUREBITS, 0) != 0)
++		exit(254);
++
++	// Only keep CAP_SYS_ADMIN for setns()
++	const cap_value_t cap_list[1] = {CAP_SYS_ADMIN};
++	cap_clear(caps);
++	cap_set_flag(caps, CAP_EFFECTIVE, 1, cap_list, CAP_SET);
++	cap_set_flag(caps, CAP_PERMITTED, 1, cap_list, CAP_SET);
++	cap_set_proc(caps);
++	cap_free(caps);
++
++	// segfaultsh will signal with USR1 when guest's PID is known (for setns()).
++	snprintf(sf_nsnet_name, sizeof sf_nsnet_name, "/dev/shm/ns-net-%d", getpid());
++	signal(SIGUSR1, cb_sigusr1);
+ 
+  skip:
+ 	/* It is safe now to apply the key state */

@@ -295,7 +295,7 @@ print_goodbye()
 		str="process is"
 		[[ "$n" -gt 3 ]] && str="processes are"
 		echo -e "${CY}WARNING: ${CR}$((n-2))${CY} ${str} still running:${CN}"
-		exec_errnull docker exec "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
+		exec_errnull docker exec --user 0:0 "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
@@ -350,10 +350,25 @@ wait_file_exist()
 	return 255
 }
 
+
+sshd_to_ns()
+{
+	# Find PID of sleep process (uid=1000)
+	str=$(docker top "lg-${LID}" -o uid,pid | grep ^"1000 ")
+	upid="${str##* }"
+	[[ -z $upid ]] && ERREXIT 222 "Oops. Cant find pid of sleep process."
+	ln -s "/proc/${upid}/ns/net" "/dev/shm/ns-net-${PPID}"
+	kill -USR1 $PPID || ERREXIT 221 "Oops. Could not signal SSHD ($PPID)."
+}
+
+
 spawn_shell_exit()
 {
 	# $@ is either ("-c", "<command>") or empty
 	DEBUGF "ARG(${#})=$*"
+
+	# Move SSHD to guest's network namespace (for -L/-R to work)
+	sshd_to_ns
 
 	wait_file_exist 20 "${SEMA_INIT_DONE_FN}" || {
 		exec_devnull docker stop "lg-${LID}"
@@ -371,7 +386,7 @@ spawn_shell_exit()
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
-	docker-exec-sigproxy exec "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
+	docker-exec-sigproxy exec --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
 	print_goodbye
@@ -819,11 +834,8 @@ echo_pty -n "...."
 # Solution: Spawn a container in the background and always use 'docker exec' to
 # create a shell for the user.
 
-# Use --init so that 'docker stop lg-' works immediatly: Deliver SIGTERM to
-# process group. tiny-init notices the sigchld of died process and terminates
-# itself.
-# FIXME: Could write my own tiny-init that spawns itself, sleeps forever and
-# waits for child. Would save memory.
+# Use --init so that 2nd shell to same container keeps running even if 1st shell
+# exits.
 ### Start the care taker...
 selfdir="/config/self-for-guest/lg-${LID}"
 xmkdir "${selfdir}"
@@ -863,8 +875,11 @@ exec_devnull docker run \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone/${SF_HOSTNAME}:/everyone/this:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
+	--user 1000:1000 \
 	-d \
-	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a \"[init-${LID}-${SF_HOSTNAME}]\" sleep infinity" || ERREXIT 251 "Failed to set up guest instance..."
+	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a '[init-${LID}-${SF_HOSTNAME}]' sleep infinity" || ERREXIT 251 "Failed to set up guest instance..."
+# Note: Run 'sleep' as user 1000:1000 so that sf-host's SSHD can move itself into this guest's
+# network namespace. 
 
 echo_pty -n ".."
 
@@ -903,7 +918,7 @@ iptables -A 'SYN-LIMIT-${C_IP}' -m limit --limit \"1/sec\" --limit-burst 8196 -j
 iptables -A 'SYN-LIMIT-${C_IP}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
 
 # Setup instance
-exec_devnull docker exec "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
+exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 

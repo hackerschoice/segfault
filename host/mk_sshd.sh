@@ -1,23 +1,38 @@
 #! /bin/bash
 
 # Executed inside alpine-gcc context to build patched sshd
+# diff -u openssh-9.1p1-orig/ openssh-9.1p1-sf/
 
+DSTDIR="/src/fs-root/usr/sbin"
+DSTBIN="${DSTDIR}/sshd"
 set -e
-SRCDIR="/src/openssh-9.1p1-sf"
+SRCDIR="/tmp/openssh-9.1p1"
 [[ ! -d "$SRCDIR" ]] && {
-	cd /src
 	wget -O - https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.1p1.tar.gz | tar xfz -
-	mv /src/openssh-9.1p1 "$SRCDIR"
+
+	# mv openssh-9.1p1 "$SRCDIR"
+	# sleep 0.1 # Silly vmbox bug if source is on vmbox-mount point. Needs sleep here or on fast system sshd.c is not found after 'mv'
 	cd "$SRCDIR"
-	patch -p1 <../sf-sshd.patch
+
+	patch -p1 </src/sf-sshd.patch
 }
 cd "$SRCDIR"
+# sleep 0.1
+./configure --prefix=/usr --sysconfdir=/etc/ssh --with-libs=-lcap \
+		--disable-utmp \
+		--disable-wtmp \
+		--disable-utmpx \
+		--disable-wtmpx \
+		--disable-security-key \
+		--disable-lastlog \
+		--with-privsep-path=/var/empty \
+		--with-privsep-user=sshd \
+		--with-ssl-engine
 
-./configure --prefix=/usr --sysconfdir=/etc/ssh --with-libs=-lcap
-make
+make sshd
 strip sshd
-[[ ! -d /src/fs-root/usr/sbin ]] && mkdir -p /src/fs-root/usr/sbin
-cp sshd /src/fs-root/usr/sbin/sshd
-chmod 755 /src/fs-root/usr/sbin/sshd
+[[ ! -d "${DSTDIR}" ]] && mkdir -p "${DSTDIR}"
+cp sshd "${DSTBIN}"
+chmod 755 "${DSTBIN}"
 rm -rf "${SRCDIR:?}"
 

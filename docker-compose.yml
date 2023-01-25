@@ -352,6 +352,8 @@ services:
     dns: 172.22.0.53
     cap_add:
       - NET_ADMIN # need to set default route
+      - SYS_ADMIN # Move non-priv sshd to guest's network Namespace (setns())
+    pid: host # Move non-priv sshd to guest's network NameSpace.
     depends_on:
       - dnsmasq
       - router

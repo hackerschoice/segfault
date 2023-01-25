@@ -34,7 +34,10 @@ setup_sshd()
 		sed -i 's/^root/toor/' /etc/shadow
 	fi
 
-	adduser -D "${SF_USER}" -G nobody -s /bin/segfaultsh && \
+	# The uid/gid must match the 'sleep' process in guest's container
+	# so that sshd can be moved (setns()) to the guest's network namespace.
+	addgroup -g 1000 user && \
+	adduser -D "${SF_USER}" -G user -s /bin/segfaultsh && \
 	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd
 }
 

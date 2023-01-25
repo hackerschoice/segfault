@@ -1,6 +1,6 @@
---- serverloop.c	2020-05-27 01:38:00
-+++ ../openssh-8.3p1-sf/serverloop.c	2023-01-25 13:51:55
-@@ -670,6 +670,8 @@
+--- openssh-9.1p1-orig/serverloop.c
++++ openssh-9.1p1-sf/serverloop.c
+@@ -618,6 +618,8 @@
  	return c;
  }
  
@@ -9,9 +9,9 @@
  static int
  server_input_channel_open(int type, u_int32_t seq, struct ssh *ssh)
  {
-@@ -686,6 +688,15 @@
+@@ -634,6 +636,15 @@
  		sshpkt_fatal(ssh, r, "%s: parse packet", __func__);
- 	debug("%s: ctype %s rchan %u win %u max %u", __func__,
+ 	debug_f("ctype %s rchan %u win %u max %u",
  	    ctype, rchan, rwindow, rmaxpack);
 +
 +	if (strcmp(ctype, "session") != 0)
@@ -25,9 +25,9 @@
  
  	if (strcmp(ctype, "session") == 0) {
  		c = server_request_session(ssh);
---- sshd.c	2020-05-27 01:38:00
-+++ ../openssh-8.3p1-sf/sshd.c	2023-01-25 13:46:42
-@@ -546,8 +546,44 @@
+--- openssh-9.1p1-orig/sshd.c
++++ openssh-9.1p1-sf/sshd.c
+@@ -536,8 +536,44 @@
  		return 0;
  	}
  }
@@ -72,7 +72,7 @@
  privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
  {
  #ifdef DISABLE_FD_PASSING
-@@ -586,8 +622,33 @@
+@@ -576,8 +612,33 @@
  
  	reseed_prngs();
  

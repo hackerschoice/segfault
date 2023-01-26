@@ -10,14 +10,11 @@ SRCDIR="/tmp/openssh-9.1p1"
 [[ ! -d "$SRCDIR" ]] && {
 	wget -O - https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.1p1.tar.gz | tar xfz -
 
-	# mv openssh-9.1p1 "$SRCDIR"
-	# sleep 0.1 # Silly vmbox bug if source is on vmbox-mount point. Needs sleep here or on fast system sshd.c is not found after 'mv'
 	cd "$SRCDIR"
 
 	patch -p1 </src/sf-sshd.patch
 }
 cd "$SRCDIR"
-# sleep 0.1
 ./configure --prefix=/usr --sysconfdir=/etc/ssh --with-libs=-lcap \
 		--disable-utmp \
 		--disable-wtmp \

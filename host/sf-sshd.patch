@@ -1,19 +1,41 @@
---- openssh-9.1p1-orig/serverloop.c
-+++ openssh-9.1p1-sf/serverloop.c
-@@ -618,6 +618,8 @@
+diff -x !*.[ch] -u openssh-9.1p1-orig/channels.c openssh-9.1p1-sf/channels.c
+--- openssh-9.1p1-orig/channels.c	2022-10-03 15:51:42
++++ openssh-9.1p1-sf/channels.c	2023-01-26 12:27:13
+@@ -3510,7 +3510,7 @@
+ 	ssh->chanctxt->IPv4or6 = af;
+ }
+ 
+-
++extern int sf_by_signal;
+ /*
+  * Determine whether or not a port forward listens to loopback, the
+  * specified address or wildcard. On the client, a specified bind
+@@ -3548,6 +3548,7 @@
+ 			 * address and it was overridden.
+ 			 */
+ 			if (*listen_addr != '\0' &&
++				sf_by_signal == 0 &&
+ 			    strcmp(listen_addr, "0.0.0.0") != 0 &&
+ 			    strcmp(listen_addr, "*") != 0) {
+ 				ssh_packet_send_debug(ssh,
+diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
+--- openssh-9.1p1-orig/serverloop.c	2022-10-03 15:51:42
++++ openssh-9.1p1-sf/serverloop.c	2023-01-26 12:26:24
+@@ -618,6 +618,10 @@
  	return c;
  }
  
 +extern int sf_done;
++extern size_t sf_ports_n;
++extern int sf_ports[64];
 +
  static int
  server_input_channel_open(int type, u_int32_t seq, struct ssh *ssh)
  {
-@@ -634,6 +636,15 @@
- 		sshpkt_fatal(ssh, r, "%s: parse packet", __func__);
+@@ -635,6 +639,15 @@
  	debug_f("ctype %s rchan %u win %u max %u",
  	    ctype, rchan, rwindow, rmaxpack);
-+
+ 
 +	if (strcmp(ctype, "session") != 0)
 +	{
 +		if (sf_done == 0)
@@ -22,12 +44,37 @@
 +			exit(251);
 +		}
 +	}
- 
++
  	if (strcmp(ctype, "session") == 0) {
  		c = server_request_session(ssh);
---- openssh-9.1p1-orig/sshd.c
-+++ openssh-9.1p1-sf/sshd.c
-@@ -536,8 +536,44 @@
+ 	} else if (strcmp(ctype, "direct-tcpip") == 0) {
+@@ -802,8 +815,20 @@
+ 			ssh_packet_send_debug(ssh, "Server has disabled port forwarding.");
+ 		} else {
+ 			/* Start listening on the port */
+-			success = channel_setup_remote_fwd_listener(ssh, &fwd,
+-			    &allocated_listen_port, &options.fwd_opts);
++			if (sf_done == 0)
++			{
++				// HERE: sshd has not yet been moved to guest's network namespace.
++				// Fake the -R request and complete in cb_sigusr1().
++				allocated_listen_port = fwd.listen_port;
++				if (sf_ports_n < sizeof sf_ports / sizeof *sf_ports)
++				{
++					success = 1;
++					sf_ports[sf_ports_n++] = fwd.listen_port;
++				}
++			} else {
++				success = channel_setup_remote_fwd_listener(ssh, &fwd,
++				    &allocated_listen_port, &options.fwd_opts);
++			}
+ 		}
+ 		if ((resp = sshbuf_new()) == NULL)
+ 			fatal_f("sshbuf_new");
+diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
+--- openssh-9.1p1-orig/sshd.c	2022-10-03 15:51:42
++++ openssh-9.1p1-sf/sshd.c	2023-01-26 11:55:40
+@@ -536,8 +536,65 @@
  		return 0;
  	}
  }
@@ -39,10 +86,15 @@
 +#endif
  
 +int sf_done;
++int sf_by_signal;
++int sf_ports[64];
++size_t sf_ports_n;
 +static char sf_nsnet_name[128];
++static struct ssh *sf_ssh;
  static void
 +cb_sigusr1(int sig)
 +{
++	debug("SIGUSR1 RECEIVED");
 +	// Paranoia check
 +	if (sf_done != 0)
 +		return;
@@ -65,6 +117,22 @@
 +		exit(255);
 +	}
 +
++	// Continue -R forwards
++	if (sf_ssh == NULL)
++		return;
++	sf_by_signal = 1;
++	struct Forward fwd;
++	memset(&fwd, 0, sizeof fwd);
++	fwd.listen_host = "localhost";
++	size_t i;
++	for (i = 0; i < sf_ports_n; i++)
++	{
++		fwd.listen_port = sf_ports[i];
++		channel_setup_remote_fwd_listener(sf_ssh, &fwd, NULL /* allocated_listen_port */, &options.fwd_opts);
++	}
++	sf_ports_n = 0;
++	sf_by_signal = 0;
++
 +	sf_done = 1;
 +}
 +
@@ -72,7 +140,7 @@
  privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
  {
  #ifdef DISABLE_FD_PASSING
-@@ -576,8 +612,33 @@
+@@ -576,8 +633,34 @@
  
  	reseed_prngs();
  
@@ -102,6 +170,7 @@
 +
 +	// segfaultsh will signal with USR1 when guest's PID is known (for setns()).
 +	snprintf(sf_nsnet_name, sizeof sf_nsnet_name, "/dev/shm/ns-net-%d", getpid());
++	sf_ssh = ssh;
 +	signal(SIGUSR1, cb_sigusr1);
  
   skip:

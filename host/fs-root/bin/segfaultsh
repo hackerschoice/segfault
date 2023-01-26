@@ -353,11 +353,15 @@ wait_file_exist()
 
 sshd_to_ns()
 {
+	local upid
+	local str
+
 	# Find PID of sleep process (uid=1000)
 	str=$(docker top "lg-${LID}" -o uid,pid | grep ^"1000 ")
 	upid="${str##* }"
 	[[ -z $upid ]] && ERREXIT 222 "Oops. Cant find pid of sleep process."
 	ln -s "/proc/${upid}/ns/net" "/dev/shm/ns-net-${PPID}"
+	DEBUGF "Moving SSHD(=$PPID) to net-NS(=$upid)"
 	kill -USR1 $PPID || ERREXIT 221 "Oops. Could not signal SSHD ($PPID)."
 }
 
@@ -686,10 +690,14 @@ mk_geoip()
 	fi
 }
 
+
 # Find out if SSHD spawns a shell or a command.
 # and if SSHD insists on a TTY (ssh -t <user@host> <command>)
 # - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
 if bash -c "tty >/dev/null"; then
+	# Disable SIGINT and SIGSTP. Use 'trap' first as 'stty' can be interrupted itself!
+	trap "" SIGINT
+	stty -isig
 	ARG="-it"
 else
 	ARG="-i"
@@ -720,7 +728,6 @@ fi
 [[ -n $SF_DEBUG ]] && SF_DEBUG=1
 ### ----END SANITIZE----
 
-# LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 | tr -dc '[:alpha:]' | head -c 10)
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)
 LID="${LID//[^[:alpha:]]}"
 LID="${LID:0:10}"

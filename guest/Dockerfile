@@ -107,6 +107,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		impacket-scripts \
 		irssi \
 		lshw \
+		massdns \
 		nbtscan \
 		netdiscover \
 		ncrack \
@@ -330,6 +331,7 @@ RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
 	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
+	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/d3mondev/puredns/v2@latest; }' \
 	&& /pkg-install.sh LARGE bash -c '{ mkdir -p /usr/share/cheatsheets/community \
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
 	&& /pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \

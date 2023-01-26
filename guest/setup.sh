@@ -41,14 +41,24 @@ echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt
 
 # Need to set correct permission which may have gotten skewed when building
 # docker inside vmbox from shared host drive. On VMBOX share all
-# source files are set to "rwxrwx--- root:vobxsf" :/
+# source files and directories are set to "rwxrwx--- root:vobxsf" :/
+fixr()
+{
+	local dir
+	dir=$1
+	[[ ! -d "$dir" ]] && return
+
+	find "$dir" -type f -exec chmod 644 {} \;
+	find "$dir" -type d -exec chmod 755 {} \;
+}
 ln -sf /sec/usr/etc/rc.local /etc/rc.local
 chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh
-chmod 755 /usr /etc /etc/profile.d
+chmod 755 /usr /usr/bin /usr/sbin /etc /etc/profile.d
+chmod 755 /usr/bin/mosh-server.sh /usr/bin/xpra-hook /usr/bin/xterm-dark /usr/sbin/halt
 chmod 644 /etc/profile.d/segfault.sh
 chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
-find /usr/share/www -type f -exec chmod 644 {} \;
-find /usr/share/www -type d -exec chmod 755 {} \;
+fixr /usr/share/www
+fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
 ln -s /sf/bin/sf-motd.sh /usr/bin/help

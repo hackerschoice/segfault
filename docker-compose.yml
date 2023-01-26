@@ -352,12 +352,16 @@ services:
     dns: 172.22.0.53
     cap_add:
       - NET_ADMIN # need to set default route
+      - SYS_ADMIN # Move non-priv sshd to guest's network Namespace (setns())
+    pid: host # Move non-priv sshd to guest's network NameSpace.
     depends_on:
       - dnsmasq
       - router
       - sf-encfsd
     restart: ${SF_RESTART:-on-failure}
     init: true
+    # ports:
+      # - 31337:31337 # FIXME-2022 disable in production
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
     # Add any variables to docker_sshd.sh as well.
     environment:
@@ -379,6 +383,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
       - "/var/run/docker.sock:/var/run/docker.sock"
+      # - "/research:/r"  # FIXME-2022 disable in production
 
   nginx:
     image: nginx

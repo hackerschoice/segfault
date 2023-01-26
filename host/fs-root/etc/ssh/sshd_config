@@ -96,7 +96,8 @@ AllowTcpForwarding yes
 # This is only relevant for users who do not have full shell access
 # such as restricted shells or where ssh is used to pull status informations
 # from a remote system.
-PermitOpen *:80 *:443 *:2000 *:3389 *:5900 *:5901 *:5910 *:8080 *:8081 *:31337 *:31338
+# PermitOpen *:80 *:443 *:2000 *:3389 *:5900 *:5901 *:5910 *:8080 *:8081 *:31337 *:31338
+AllowStreamLocalForwarding no
 GatewayPorts yes
 #X11Forwarding no
 #X11DisplayOffset 10

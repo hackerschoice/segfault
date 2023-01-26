@@ -16,7 +16,7 @@ stop_lg()
 
 	LOG "$lid" "Stopping"
 
-	red portd:cmd "remport ${lid}"
+	red RPUSH portd:cmd "remport ${lid}"
 
 	# Tear down container
 	[[ ! -z $is_container ]] && docker stop "lg-$lid" &>/dev/nuill

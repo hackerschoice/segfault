@@ -1,6 +1,6 @@
 diff -x !*.[ch] -u openssh-9.1p1-orig/channels.c openssh-9.1p1-sf/channels.c
 --- openssh-9.1p1-orig/channels.c	2022-10-03 15:51:42
-+++ openssh-9.1p1-sf/channels.c	2023-01-26 12:27:13
++++ openssh-9.1p1-sf/channels.c	2023-01-26 22:06:41
 @@ -3510,7 +3510,7 @@
  	ssh->chanctxt->IPv4or6 = af;
  }
@@ -20,19 +20,30 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/channels.c openssh-9.1p1-sf/channels.c
  				ssh_packet_send_debug(ssh,
 diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
 --- openssh-9.1p1-orig/serverloop.c	2022-10-03 15:51:42
-+++ openssh-9.1p1-sf/serverloop.c	2023-01-26 12:26:24
-@@ -618,6 +618,10 @@
- 	return c;
- }
++++ openssh-9.1p1-sf/serverloop.c	2023-01-26 22:09:06
+@@ -102,6 +102,12 @@
+ /* requested tunnel forwarding interface(s), shared with session.c */
+ char *tun_fwd_ifnames = NULL;
  
 +extern int sf_done;
 +extern size_t sf_ports_n;
 +extern int sf_ports[64];
++extern int sf_sigusr1_received;
++void sf_sshd2ns(void);
 +
+ /* returns 1 if bind to specified port by specified user is permitted */
  static int
- server_input_channel_open(int type, u_int32_t seq, struct ssh *ssh)
- {
-@@ -635,6 +639,15 @@
+ bind_permitted(int port, uid_t uid)
+@@ -380,6 +386,8 @@
+ 		if (sigprocmask(SIG_BLOCK, &bsigset, &osigset) == -1)
+ 			error_f("bsigset sigprocmask: %s", strerror(errno));
+ 		collect_children(ssh);
++		if (sf_sigusr1_received != 0)
++			sf_sshd2ns();
+ 		wait_until_can_do_something(ssh, connection_in, connection_out,
+ 		    &pfd, &npfd_alloc, &npfd_active, rekey_timeout_ms, &osigset,
+ 		    &conn_in_ready, &conn_out_ready);
+@@ -635,6 +643,15 @@
  	debug_f("ctype %s rchan %u win %u max %u",
  	    ctype, rchan, rwindow, rmaxpack);
  
@@ -48,7 +59,7 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
  	if (strcmp(ctype, "session") == 0) {
  		c = server_request_session(ssh);
  	} else if (strcmp(ctype, "direct-tcpip") == 0) {
-@@ -802,8 +815,20 @@
+@@ -802,8 +819,20 @@
  			ssh_packet_send_debug(ssh, "Server has disabled port forwarding.");
  		} else {
  			/* Start listening on the port */
@@ -73,8 +84,8 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
  			fatal_f("sshbuf_new");
 diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
 --- openssh-9.1p1-orig/sshd.c	2022-10-03 15:51:42
-+++ openssh-9.1p1-sf/sshd.c	2023-01-26 11:55:40
-@@ -536,8 +536,65 @@
++++ openssh-9.1p1-sf/sshd.c	2023-01-26 22:08:27
+@@ -536,8 +536,71 @@
  		return 0;
  	}
  }
@@ -87,6 +98,7 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
  
 +int sf_done;
 +int sf_by_signal;
++int sf_sigusr1_received;
 +int sf_ports[64];
 +size_t sf_ports_n;
 +static char sf_nsnet_name[128];
@@ -95,12 +107,13 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
 +cb_sigusr1(int sig)
 +{
 +	debug("SIGUSR1 RECEIVED");
-+	// Paranoia check
-+	if (sf_done != 0)
-+		return;
-+	
++	sf_sigusr1_received = 1;
 +	signal(SIGUSR1, SIG_IGN);
++}
 +
++void
++sf_sshd2ns(void)
++{
 +	int fd;
 +	if ((fd = open(sf_nsnet_name, O_RDONLY | O_CLOEXEC)) < 0)
 +	{
@@ -108,9 +121,12 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
 +		exit(252);
 +	}
 +
++	sf_sigusr1_received = 0;
++	
 +	// No longer needed
 +	unlink(sf_nsnet_name);
 +
++	debug("THC moving sshd. setns(%s)", sf_nsnet_name);
 +	if (setns(fd, CLONE_NEWNET) != 0)
 +	{
 +		debug("THC setns(%s) (fd=%d): %s", sf_nsnet_name, fd, strerror(errno));
@@ -128,6 +144,7 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
 +	for (i = 0; i < sf_ports_n; i++)
 +	{
 +		fwd.listen_port = sf_ports[i];
++		debug("THC remote forward #%zu for %d", i, fwd.listen_port);
 +		channel_setup_remote_fwd_listener(sf_ssh, &fwd, NULL /* allocated_listen_port */, &options.fwd_opts);
 +	}
 +	sf_ports_n = 0;
@@ -140,7 +157,7 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
  privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
  {
  #ifdef DISABLE_FD_PASSING
-@@ -576,8 +633,34 @@
+@@ -576,8 +639,34 @@
  
  	reseed_prngs();
  

@@ -1,4 +1,4 @@
-VER := 0.3.9a2fob
+VER := 0.3.9a3fob
 
 all:
 	make -C cleaner/cg
@@ -29,7 +29,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/zsh_command_not_found"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/proxychains.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-motd.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-setup.sh"
-FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/startvnc"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/startxvnc"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/startxweb"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"

@@ -14,8 +14,9 @@ unset VNC_OPTS
 VNC_OPTS+=("-shared")
 VNC_OPTS+=("-xkb")
 VNC_OPTS+=("-timeout" "3600")
-VNC_OPTS+=("-usepw")
+[[ -n $PASSWORD ]] && VNC_OPTS+=("-usepw")
 VNC_OPTS+=("-forever")
+VNC_OPTS+=("-localhost")
 #VNC_OPTS+=("-wirecopyrect" "-scrollcopyrect")
 #VNC_OPTS+=("nopw")
 VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm -bg black -fg gray & }")
@@ -24,15 +25,15 @@ VNC_PASSWDFILE="${HOME}/.vnc/passwd"
 mk_vncpass()
 {
 	local str
-	[[ -z $VNC_PASS ]] && {
+	[[ -z $PASSWORD ]] && {
 		str=$(echo -n "VNC-$USERNAME-${SF_SEC}" | sha512sum | base64 -w0)
 		str="${str//[^[:alpha:]]/}"
 		str="${str//[1lIi0ODG8B5S2Zmn]/}"
-		VNC_PASS="${str:0:16}"
+		PASSWORD="${str:0:16}"
 	}
 	str="$(dirname "$VNC_PASSWDFILE")"
 	[[ ! -d "$str" ]] && mkdir "$str"
-	x11vnc -storepasswd "${VNC_PASS}" "${VNC_PASSWDFILE}" &>/dev/null
+	x11vnc -storepasswd "${PASSWORD}" "${VNC_PASSWDFILE}" &>/dev/null
 }
 
 startonce()
@@ -68,16 +69,19 @@ sv_startx()
 }
 
 
-C_IP=$(</config/self/c_ip)
-mk_vncpass
+#C_IP=$(</config/self/c_ip)
+[[ -n $PASSWORD ]] && {
+	[[ ${#PASSWORD} -le 3 ]] && unset PASSWORD
+	mk_vncpass
+}
 sv_startx $PPID &>/dev/null &
 disown
 
 echo -e "Log in using:
 
-    ${CDC}ssh -L5900:${C_IP:-<THIS IP>}:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
+    ${CDC}ssh -L5900:127.0.0.1:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
 
 Then use your favourite VNC client and connect to 127.0.0.1:5900.
-VNC PASSWORD: ${CDY}${VNC_PASS}${CN}
+VNC PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}
 
 Exiting this shell will also terminate the VNC session."

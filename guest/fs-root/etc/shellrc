@@ -19,7 +19,7 @@ alias l='ls -Alh'
 alias lt='ls -Alhrt'
 alias xterm='xterm -bg black -fg gray'
 function dmesg {
-	[[ ! -t 1 ]] && { command curl -s rpc/dmesg/ -dnocolor=1; return }
+	[[ ! -t 1 ]] && { command curl -s rpc/dmesg/ -dnocolor=1; return; }
 	command curl -s rpc/dmesg/
 }
 

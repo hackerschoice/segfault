@@ -18,7 +18,7 @@ VNC_OPTS+=("-timeout" "3600")
 VNC_OPTS+=("-forever")
 VNC_OPTS+=("-localhost")
 #VNC_OPTS+=("-wirecopyrect" "-scrollcopyrect")
-#VNC_OPTS+=("nopw")
+#VNC_OPTS+=("-nopw")
 VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm -bg black -fg gray & }")
 VNC_PASSWDFILE="${HOME}/.vnc/passwd"
 

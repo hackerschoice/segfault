@@ -25,8 +25,11 @@ cleanup()
 sv_startx()
 {
 	local ppid=$1
+	local str_auth
 
-	XPRA_PASSWORD="${PASSWORD}" xpra.orig start --resize-display=1280x1024 --bind-tcp=127.0.0.1:2000,auth=env --html=on --start=xterm-dark --daemon=no &>/dev/null &
+	str_auth="env"
+	[[ -z $PASSWORD ]] && str_auth=allow
+	XPRA_PASSWORD="${PASSWORD}" xpra.orig start --resize-display=1280x1024 --bind-tcp=127.0.0.1:2000,auth="${str_auth}" --html=on --start=xterm-dark --daemon=no &>/dev/null &
 	PID_V=$!
 
 	while [[ -d /proc/$PPID && -d /proc/$PID_V ]]; do

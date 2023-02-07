@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +27,14 @@ import (
 var Version string
 var Buildtime string
 
+// CLI flags
+var (
+	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
+	resultFlag = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
+	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
+	debugFlag  = flag.Bool("debug", false, "activate debug mode")
+)
+
 func init() {
 	flag.Parse()
 	if *debugFlag {
@@ -36,14 +46,6 @@ func init() {
 		ForceColors: true,
 	})
 }
-
-// CLI flags
-var (
-	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
-	resultFlag = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
-	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
-	debugFlag  = flag.Bool("debug", false, "activate debug mode")
-)
 
 func main() {
 	hostname, _ := os.Hostname()
@@ -116,14 +118,14 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		return err
 	}
 
-	// mu protects `_largestUsage`
+	// mu protects `highestUsage`
 	var mu sync.Mutex
 	var highestUsage float64
 
 	// used to synchronize goroutines
 	var wg = &sync.WaitGroup{}
 
-	// check all containers usage and keep largest value in `largestUsage` var
+	// check all containers usage and keep largest value in `highestUsage` var
 	for _, c := range list {
 		wg.Add(1)
 		go func(c types.Container) {
@@ -157,11 +159,31 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 			// message user that he's being abusive
 			err = sendMessage(c.ID, abuseMessage)
 			if err != nil {
+				log.Errorf("unable to message the user: %v", err)
+			}
+
+			// run docker top and print running processes before killing the container
+			cgroupProcs := fmt.Sprintf("/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", c.ID)
+			file, err := os.Open(cgroupProcs)
+			if err != nil {
 				log.Error(err)
+			}
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				cmdline := fmt.Sprintf("/proc/%s/cmdline", scanner.Text())
+				file, err := os.Open(cmdline)
+				if err != nil {
+					log.Error(err)
+				}
+				_scanner := bufio.NewScanner(file)
+				for _scanner.Scan() {
+					data := sanitize(_scanner.Text())
+					log.Warnf("proc: %v", data)
+				}
 			}
 
 			ctx := context.Background()
-			err := cli.ContainerStop(ctx, c.ID, &killTimeout)
+			err = cli.ContainerStop(ctx, c.ID, &killTimeout)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -325,6 +347,25 @@ func (a LogData) save(path string) error {
 	log.Debugf("[LOG FILE] %v", filePath)
 
 	return nil
+}
+
+func sanitize(s string) string {
+	clean := func(s []byte) string {
+		j := 0
+		for _, b := range s {
+			if ('a' <= b && b <= 'z') ||
+				('A' <= b && b <= 'Z') ||
+				('0' <= b && b <= '9') ||
+				b == '#' {
+				s[j] = b
+				j++
+			}
+		}
+		return string(s[:j])
+	}
+	s = strings.ToValidUTF8(s, "#")
+	s = clean([]byte(s))
+	return s
 }
 
 type ContainerStatsData struct {

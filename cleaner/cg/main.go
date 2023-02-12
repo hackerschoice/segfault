@@ -162,24 +162,9 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 				log.Errorf("unable to message the user: %v", err)
 			}
 
-			// run docker top and print running processes before killing the container
-			cgroupProcs := fmt.Sprintf("/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", c.ID)
-			file, err := os.Open(cgroupProcs)
+			err = printProcs(c.ID)
 			if err != nil {
 				log.Error(err)
-			}
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				cmdline := fmt.Sprintf("/proc/%s/cmdline", scanner.Text())
-				file, err := os.Open(cmdline)
-				if err != nil {
-					log.Error(err)
-				}
-				_scanner := bufio.NewScanner(file)
-				for _scanner.Scan() {
-					data := sanitize(_scanner.Text())
-					log.Warnf("proc: %v", data)
-				}
 			}
 
 			ctx := context.Background()
@@ -366,6 +351,28 @@ func sanitize(s string) string {
 	s = strings.ToValidUTF8(s, "#")
 	s = clean([]byte(s))
 	return s
+}
+
+func printProcs(cid string) error {
+	cgroupProcs := fmt.Sprintf("/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", cid)
+	file, err := os.Open(cgroupProcs)
+	if err != nil {
+		return err
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		cmdline := fmt.Sprintf("/proc/%s/cmdline", scanner.Text())
+		file, err := os.Open(cmdline)
+		if err != nil {
+			return err
+		}
+		_scanner := bufio.NewScanner(file)
+		for _scanner.Scan() {
+			data := sanitize(_scanner.Text())
+			log.Warnf("proc: %v", data)
+		}
+	}
+	return nil
 }
 
 type ContainerStatsData struct {

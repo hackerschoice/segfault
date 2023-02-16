@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
@@ -147,7 +148,11 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		usage := containerUsage(cli, c.ID)
 		log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
 
-		var killTimeout = time.Second * 2
+		intPtr := func(v int) *int { return &v }
+		var killTimeout = container.StopOptions{
+			Signal:  "SIGTERM",
+			Timeout: intPtr(10),
+		}
 		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
 		const action = "STOP (2s) || KILL"
 		const abuseMessage = "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙"
@@ -168,7 +173,7 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 			}
 
 			ctx := context.Background()
-			err = cli.ContainerStop(ctx, c.ID, &killTimeout)
+			err = cli.ContainerStop(ctx, c.ID, killTimeout)
 			if err != nil {
 				log.Error(err)
 				continue

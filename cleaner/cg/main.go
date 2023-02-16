@@ -362,12 +362,25 @@ func printProcs(cid string) error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		cmdline := fmt.Sprintf("/proc/%s/cmdline", scanner.Text())
+
+		// limit each command string to max 255 characters
+		if len(cmdline) > 255 {
+			cmdline = cmdline[:255]
+		}
+
 		file, err := os.Open(cmdline)
 		if err != nil {
 			return err
 		}
+
+		var count int
 		_scanner := bufio.NewScanner(file)
 		for _scanner.Scan() {
+			if count > 128 {
+				return fmt.Errorf("reached 128 commands, skipping extra output")
+			}
+			count++
+
 			data := sanitize(_scanner.Text())
 			log.Warnf("proc: %v", data)
 		}

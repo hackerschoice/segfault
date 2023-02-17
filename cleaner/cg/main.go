@@ -167,7 +167,7 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 				log.Errorf("unable to message the user: %v", err)
 			}
 
-			err = printProcs(c.ID)
+			err = printProcs(c.ID, c.Names[0])
 			if err != nil {
 				log.Error(err)
 			}
@@ -358,7 +358,9 @@ func sanitize(s string) string {
 	return s
 }
 
-func printProcs(cid string) error {
+func printProcs(cid, cname string) error {
+	cname = cname[1:]
+
 	cgroupProcs := fmt.Sprintf("/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", cid)
 	file, err := os.Open(cgroupProcs)
 	if err != nil {
@@ -387,7 +389,7 @@ func printProcs(cid string) error {
 			count++
 
 			data := sanitize(_scanner.Text())
-			log.Warnf("proc: %v", data)
+			log.Warnf("[%s] proc: %v", cname, data)
 		}
 	}
 	return nil

@@ -1,6 +1,6 @@
 diff -x !*.[ch] -u openssh-9.1p1-orig/channels.c openssh-9.1p1-sf/channels.c
 --- openssh-9.1p1-orig/channels.c	2022-10-03 15:51:42
-+++ openssh-9.1p1-sf/channels.c	2023-01-26 22:06:41
++++ openssh-9.1p1-sf/channels.c	2023-01-29 21:13:05
 @@ -3510,7 +3510,7 @@
  	ssh->chanctxt->IPv4or6 = af;
  }
@@ -20,7 +20,7 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/channels.c openssh-9.1p1-sf/channels.c
  				ssh_packet_send_debug(ssh,
 diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
 --- openssh-9.1p1-orig/serverloop.c	2022-10-03 15:51:42
-+++ openssh-9.1p1-sf/serverloop.c	2023-01-26 22:09:06
++++ openssh-9.1p1-sf/serverloop.c	2023-01-29 21:39:06
 @@ -102,6 +102,12 @@
  /* requested tunnel forwarding interface(s), shared with session.c */
  char *tun_fwd_ifnames = NULL;
@@ -43,23 +43,28 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
  		wait_until_can_do_something(ssh, connection_in, connection_out,
  		    &pfd, &npfd_alloc, &npfd_active, rekey_timeout_ms, &osigset,
  		    &conn_in_ready, &conn_out_ready);
-@@ -635,6 +643,15 @@
- 	debug_f("ctype %s rchan %u win %u max %u",
- 	    ctype, rchan, rwindow, rmaxpack);
+@@ -637,12 +645,14 @@
  
-+	if (strcmp(ctype, "session") != 0)
-+	{
-+		if (sf_done == 0)
-+		{
-+			debug("THC sshd not yet moved to user's namespace");
-+			exit(251);
-+		}
-+	}
-+
  	if (strcmp(ctype, "session") == 0) {
  		c = server_request_session(ssh);
- 	} else if (strcmp(ctype, "direct-tcpip") == 0) {
-@@ -802,8 +819,20 @@
+-	} else if (strcmp(ctype, "direct-tcpip") == 0) {
+-		c = server_request_direct_tcpip(ssh, &reason, &errmsg);
+-	} else if (strcmp(ctype, "direct-streamlocal@openssh.com") == 0) {
+-		c = server_request_direct_streamlocal(ssh);
+-	} else if (strcmp(ctype, "tun@openssh.com") == 0) {
+-		c = server_request_tun(ssh);
++	} else if (sf_done != 0) {
++		if (strcmp(ctype, "direct-tcpip") == 0) {
++			c = server_request_direct_tcpip(ssh, &reason, &errmsg);
++		} else if (strcmp(ctype, "direct-streamlocal@openssh.com") == 0) {
++			c = server_request_direct_streamlocal(ssh);
++		} else if (strcmp(ctype, "tun@openssh.com") == 0) {
++			c = server_request_tun(ssh);
++		}
+ 	}
+ 	if (c != NULL) {
+ 		debug_f("confirm %s", ctype);
+@@ -802,8 +812,20 @@
  			ssh_packet_send_debug(ssh, "Server has disabled port forwarding.");
  		} else {
  			/* Start listening on the port */
@@ -84,7 +89,7 @@ diff -x !*.[ch] -u openssh-9.1p1-orig/serverloop.c openssh-9.1p1-sf/serverloop.c
  			fatal_f("sshbuf_new");
 diff -x !*.[ch] -u openssh-9.1p1-orig/sshd.c openssh-9.1p1-sf/sshd.c
 --- openssh-9.1p1-orig/sshd.c	2022-10-03 15:51:42
-+++ openssh-9.1p1-sf/sshd.c	2023-01-26 22:08:27
++++ openssh-9.1p1-sf/sshd.c	2023-01-29 21:13:05
 @@ -536,8 +536,71 @@
  		return 0;
  	}

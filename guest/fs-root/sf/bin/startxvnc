@@ -19,7 +19,7 @@ VNC_OPTS+=("-forever")
 VNC_OPTS+=("-localhost")
 #VNC_OPTS+=("-wirecopyrect" "-scrollcopyrect")
 #VNC_OPTS+=("-nopw")
-VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm -bg black -fg gray & }")
+VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm-dark & }")
 VNC_PASSWDFILE="${HOME}/.vnc/passwd"
 
 mk_vncpass()
@@ -77,11 +77,10 @@ sv_startx()
 sv_startx $PPID &>/dev/null &
 disown
 
+[[ -n $PASSWORD ]] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"
 echo -e "Log in using:
 
     ${CDC}ssh -L5900:127.0.0.1:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
 
 Then use your favourite VNC client and connect to 127.0.0.1:5900.
-VNC PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}
-
 Exiting this shell will also terminate the VNC session."

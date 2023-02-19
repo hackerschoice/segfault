@@ -83,5 +83,6 @@ fw2docker "udp" "25002:26023" "${NET_DIRECT_ROUTER_IP:?}"
 
 [[ -n $SF_DEBUG ]] && sysctl -w "net.ipv4.conf.$(DevByIP "${NET_DIRECT_BRIDGE_IP:?}").route_localnet=1"
 
-# Keep this running so we can inspect iptables rules (really mostly for debugging only)
-exec -a '[network-fix] sleep' sleep infinity
+# Keep this running so we can inspect iptables rules (for debugging only)
+[[ -n $SF_DEBUG ]] && exec -a '[network-fix] sleep' sleep infinity
+exit 0

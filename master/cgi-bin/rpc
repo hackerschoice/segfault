@@ -121,7 +121,7 @@ cmd_net_list()
 Port      : ${Y}$WG_PORT${N}
 Portsecret: ${Y}$PORTSECRET${N}
 "
-	ifaces="$(nsenter -t "$PID" -n wg show interfaces) "
+	ifaces="$(nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n wg show interfaces) "
 	# List all configured names
 	echo -e "\
 
@@ -182,7 +182,7 @@ PORTSECRET=\"${PORTSECRET}\"
 
 	echo "WG_PORT=${WG_PORT}" >"/config/db/wg/sec2port-${PORTSECRET}"
 	# Link to LID:
-	ln -sf "../db-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
+	ln -sf "../user/lg-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
 }
 
 # [WT_NAME]
@@ -199,23 +199,8 @@ WT_PUBLIC=\"${WT_PUBLIC}\"
 WG_PORT=\"${WG_PORT}\"
 " >"${LID_WGDIR}/wg-${name}" || BAIL "Failed to store WG information."
 
-	ln -sf "../db-${LID}/wg/wg-${name}" "/config/db/wg/wg-${name}"
+	ln -sf "../user/lg-${LID}/wg/wg-${name}" "/config/db/wg/wg-${name}"
 }
-
-# [WT_NAME]
-# write_wtfile()
-# {
-# 	local name
-# 	name="$1"
-
-# 	echo -n "\
-# WT_PRIVATE=\"${WT_PRIVATE}\"
-# WT_PUBLIC=\"${WT_PUBLIC}\"
-# WG_PORT=\"${WG_PORT}\"
-# " >"${LID_WGDIR}/wt-${name}" || BAIL "Failed to store WT information."
-
-# 	ln -sf "../db-${LID}/wg/wt-${name}" "/config/db/wg/wt-${name}"
-# }
 
 # Assign port to _this_ LID
 # [portsecret]
@@ -227,7 +212,7 @@ cmd_net_init_move()
 
 	source "/config/db/wg/sec2port-${psec}" 2>/dev/null || BAIL "Portsecret ${psec} is not known."
 	[[ ${ASSIGNED_LID} == $LID ]] && return # Already assigned to this LID
-	ln -sf "../db-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
+	ln -sf "../user/lg-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
 	PORTSECRET="$1"
 	write_portfile
 }
@@ -358,14 +343,14 @@ net_down()
 
 	# Shut down WG interface
 	if [[ -z $name || $name == "all" ]]; then
-		nsenter -t "${PID}" -n ip link delete group 31337
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337
 	else
 		# Return early if device did not exist.
-		nsenter -t "${PID}" -n ip link delete "wg${name}" || return
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete "wg${name}" || return
 	fi
 	# Restore default routing
 	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
-	nsenter -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}"
 }
 
 cmd_net_del()
@@ -421,10 +406,10 @@ cmd_net_show()
 
 	unset IFS
 	if [[ -z $COLOR ]]; then
-		str=$(nsenter -t "${PID}" -n wg show "${dev}")
+		str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg show "${dev}")
 	else
 		# Use 'script' to force color output
-		str=$(script -q -c "nsenter -t \"${PID}\" -n wg show \"${dev}\"" /dev/null </dev/null)
+		str=$(script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${dev}\"" /dev/null </dev/null)
 	fi
 	[[ -n $str ]] && {
 		echo "$str"
@@ -537,7 +522,7 @@ IFS=$_IFS
 	arr=($(redr GET "ip:${REMOTE_ADDR}")) || BAIL "Bad Value" "Bad Value: " "ret=$?, ${#arr[@]}"
 	[[ ${#arr[@]} -ne 3 ]] && BAIL "Value != 3" "Value != 3: " "${#arr[@]}"
 	LID="${arr[0]}"
-	LID_WGDIR="/config/db/db-${LID}/wg"
+	LID_WGDIR="/config/db/user/lg-${LID}/wg"
 	[[ ! -d "${LID_WGDIR}" ]] && mkdir "${LID_WGDIR}"
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
@@ -583,8 +568,7 @@ IFS=$_IFS
 	# then it would be easier to implement WireGuard Port Multiplexer simiar to
 	# https://github.com/apernet/mwgp but use IPTABLES (NFQUEUE) instaed to make it
 	# _far_ more efficient.)
-	nsenter -t "${PID}" -n ip link delete group 31337 2>/dev/null
-	# nsenter -t "${PID}" -n ip link del "${dev}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
 
 	err=$(nsenter -t "${WG_PID}" -n ip link add "${dev}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add $dev (${err:0:32})." "Failed $dev" ": $err"
 	nsenter -t "${WG_PID}" -n ip link set "${dev}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
@@ -595,17 +579,17 @@ IFS=$_IFS
 	err=$(nsenter -t "${WG_PID}" -n ip link set "${dev}" netns "${PID}" 2>&1) || BAIL "${R}ERROR${N}: Failed to move $dev." "Failed $dev netns $PID" ": $err"
 
 	# Configure interface after moving
-	nsenter -t "${PID}" -n ip -4 address add 192.168.0.2/32 dev "${dev}"
-	err=$(nsenter -t "${PID}" -n ip -6 address add fd::2/128 dev "${dev}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
-	nsenter -t "${PID}" -n ip link set mtu 1420 up dev "${dev}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -4 address add 192.168.0.2/32 dev "${dev}"
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add fd::2/128 dev "${dev}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu 1420 up dev "${dev}"
 
 	# Add static routes for RPC
-	# nsenter -t "${PID}" -n ip route add "${RPC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
-	nsenter -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter -t "${PID}" -n ip route del default 2>/dev/null
-	nsenter -t "${PID}" -n ip route add default dev "${dev}"
-
-	# nsenter -t "${PID}" -n ip --color=${COLOR:-never} addr show "${dev}"
+	# nsenter -t "${PID}" -n ip route add "${SF_PC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${dev}"
 
 	echo -e "${G}SUCCESS${N}"
 	net_print_example

@@ -1,14 +1,14 @@
 #! /bin/bash
 
 # Executed inside alpine-gcc context to build patched sshd
-# diff -u openssh-9.1p1-orig/ openssh-9.1p1-sf/
+# diff -u openssh-9.2p1-orig/ openssh-9.2p1-sf/
 
 DSTDIR="/src/fs-root/usr/sbin"
 DSTBIN="${DSTDIR}/sshd"
 set -e
-SRCDIR="/tmp/openssh-9.1p1"
+SRCDIR="/tmp/openssh-9.2p1"
 [[ ! -d "$SRCDIR" ]] && {
-	wget -O - https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.1p1.tar.gz | tar xfz -
+	wget -O - https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.2p1.tar.gz | tar xfz -
 
 	cd "$SRCDIR"
 

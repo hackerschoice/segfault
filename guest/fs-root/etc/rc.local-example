@@ -10,4 +10,9 @@
 # Or start all your daemons quickly like this:
 # Example:
 # nohup sleep 31337 &>/dev/null &
+#
+# Or start them the System-V way:
+# service nginx start
+# service postgresql start
+# service pagekite start
 

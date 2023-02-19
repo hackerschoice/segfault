@@ -17,7 +17,7 @@ CUL="\e[4m"
 
 alias l='ls -Alh'
 alias lt='ls -Alhrt'
-alias xterm='xterm -bg black -fg gray'
+alias xterm='xterm-dark'
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s rpc/dmesg/ -dnocolor=1; return; }
 	command curl -s rpc/dmesg/
@@ -72,11 +72,22 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		# Currently broken:
 		# - mtr (no output) 
 
-		# curl otherwise shows Progress Meter if stdout is piped to | grcat
+		# curl's -v/-I goes to STDERR and needs special treadment.
 		function curl {
 			[[ "$1" == "rpc"* ]] && { command curl "$@"; return; }
+			[[ -t 2 ]] && {
+				# HERE: stderr is a TTY. Pipe stderr through grcat
+				# Add -s to not show progress meter (cURL defaults to show progress if stdout is not a TTY)
+				if [[ -t 1 ]]; then
+					{ command curl -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
+				else
+					{ command curl -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
+				fi
+				return
+			}
+			# /usr/bin/grc --colour=auto curl "$@" # Doesnt do anything (!)
 			[[ ! -t 1 ]] && { command curl "$@"; return; }
-			/usr/bin/grc --colour=auto curl "$@"
+			command curl -s "$@" | hl
 		}
 
 		# These need stdout buffer disabled:
@@ -101,7 +112,13 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		}
 
 		# eg. cat -An /etc/shellrc | hl sh
-		hl() { /usr/bin/bat --color always -pp -l "$@"; }
+		hl() {
+			[[ -n $1 ]] && {
+				/usr/bin/bat --color always -pp -l "$@"
+				return
+			}
+			/usr/bin/bat --color always -pp
+		}
 
 		alias hi=hl
 		alias syntax=hl

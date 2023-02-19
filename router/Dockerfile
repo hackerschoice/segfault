@@ -24,6 +24,6 @@ RUN bash -c '{ true \
               && apt-get install -y --no-install-recommends docker-ce-cli; }' \
        && rm -rf /var/lib/apt/lists/*
 
-COPY tc.sh init.sh init-wg.sh fix-network.sh /
+COPY user-limit.sh tc.sh init.sh init-wg.sh fix-network.sh /
 CMD ["bash", "-il"]
 

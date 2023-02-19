@@ -1,23 +1,21 @@
 #! /bin/bash
 
-tc_set()
-{
-	local dev
-	local rate
-	dev="$1"
-	rate="$2"
+# https://openwrt.org/docs/guide-user/network/traffic-shaping/packet.scheduler.example4
+# https://wiki.archlinux.org/title/advanced_traffic_control
+# https://mirrors.bieringer.de/Linux+IPv6-HOWTO/x2759.html
+# Note: hsfc and fq_codel stop working after 30 seconds or so (100% packet loss). (odd?)
 
-	# Installs a class based queue
-	tc qdisc add dev "${dev}" root handle 1: cbq avpkt 1000 bandwidth 1000mbit 
+# Testing:
+# docker run --rm -p7575 -p7576 -p7677  -it sf-guest bash -il
+# -> 3 tmux panes with each iperf3 -s -p 757[567]
+# docker run --rm -it --privileged sf-guest bash -il
+# ifconfig eth0:0 172.17.0.5
+# iperf3 -c 172.17.0.2 -p 7575 -l1024 -t60-  & iperf3 -c 172.17.0.2 -p 7576 -l1024 -t60- & iperf3 -B 172.17.0.5 -c 172.17.0.2 -l1024 -p7577 -t60
+#
+# tc -s -d qdisc show
 
-	# Create a shaped class
-	tc class add dev "${dev}" parent 1: classid 1:1 cbq rate "${rate:-1000Mbit}" \
-		  allot 1500 prio 5 bounded isolated
-
-	# Send all traffic through the shaped class
-	# Amazon Linux 2 does not come with cls_matchall module
-	tc filter add dev "${dev}" parent 1: matchall flowid 1:1 || { echo -e >&2 "cls_matchall.ko not available? NO TRAFFIC LIMIT."; sleep 5; return 0; }
-}
+source "/sf/bin/funcs.sh"
+source "/sf/bin/funcs_net.sh"
 
 unset SF_MAXOUT
 unset SF_MAXIN
@@ -29,17 +27,26 @@ eval "$(grep ^SF_MAX /config/host/etc/sf/sf.conf)"
 DEV_SHELL=${1:-eth1}
 
 # All outgoing interfaces
-DEV_GW=${2:-eth3}  # Traffic via VPN (User's shell)
+DEV_GW=${2:-eth3}     # Traffic via VPN (from User's shell)
 DEV_DIRECT=${3:-eth0} # SSHD return traffic to User
 
-# Delete all. This might set $? to false
 tc qdisc del dev "${DEV_GW}" root 2>/dev/null
 tc qdisc del dev "${DEV_DIRECT}" root 2>/dev/null
-true # force $? to be true
+tc qdisc del dev "${DEV_SHELL}" root 2>/dev/null
 
-[[ -n $SF_MAXOUT ]] && { tc_set "${DEV_GW}" "${SF_MAXOUT}" || exit 255; }
-[[ -n $SF_MAXOUT ]] && { tc_set "${DEV_DIRECT}" "${SF_MAXOUT}" || exit 255; }
+unset err
+[[ -n $SF_MAXOUT ]] && {
+	### Shape/Limit VPN gateway first (LG -> VPN)
+	tc_set "${DEV_GW}" "${SF_MAXOUT}" "nfct-src" || err=1
 
-[[ -n $SF_MAXIN ]] && { tc_set "${DEV_SHELL}" "${SF_MAXIN}" || exit 255; }
+	### Shape DIRECT network next (LG's SSHD -> DirectInternet)
+	tc_set "${DEV_DIRECT}" "${SF_MAXOUT}" "dst" || err=1
+}
+
+[[ -n $SF_MAXIN ]] &&  {
+	tc_set "${DEV_SHELL}" "${SF_MAXIN}" "src"  || err=1
+}
+
+[[ -n $err ]] && SLEEPEXIT 0 5 "cls_matchall.ko not available? NO TRAFFIC LIMIT."
 
 exit 0

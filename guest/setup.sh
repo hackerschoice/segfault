@@ -54,7 +54,7 @@ fixr()
 ln -sf /sec/usr/etc/rc.local /etc/rc.local
 chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh
 chmod 755 /usr /usr/bin /usr/sbin /etc /etc/profile.d
-chmod 755 /usr/bin/mosh-server.sh /usr/bin/xpra-hook /usr/bin/xterm-dark /usr/sbin/halt
+chmod 755 /usr/bin/mosh-server-hook /usr/bin/xpra-hook /usr/bin/brave-browser-stable-hook /usr/bin/xterm-dark /usr/sbin/halt
 chmod 644 /etc/profile.d/segfault.sh
 chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
 fixr /usr/share/www
@@ -63,14 +63,40 @@ ln -s batcat /usr/bin/bat
 ln -s crackmapexec /usr/bin/cme
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
 ln -s /sf/bin/sf-motd.sh /usr/bin/help
+ln -s /sf/bin/sf-motd.sh /usr/bin/info
+rm -f /usr/sbin/shutdown /usr/sbin/reboot
+ln -s /usr/sbin/halt /usr/sbin/shutdown
+ln -s /usr/sbin/halt /usr/sbin/reboot
+ln -s /usr/bin/code /usr/bin/vscode
+# No idea why /etc/firefox-esr does not work...
+if [[ -e /usr/lib/firefox/defaults/pref/channel-prefs.js ]]; then
+	echo 'pref("network.dns.blockDotOnion", false);
+pref("browser.tabs.inTitlebar", 1);
+pref("browser.shell.checkDefaultBrowser", false);' >>/usr/lib/firefox/defaults/pref/channel-prefs.js
+else
+	[[ -e /usr/bin/firefox ]] && WARN "Firefox config could not be updated."
+fi
+ln -s /usr/games/lolcat /usr/bin/lolcat
 set +e
 
 # Non-Fatal. WARN but continue if any of the following commands fail
 sed 's/^TorAddress.*/TorAddress 172.20.0.111/' -i /etc/tor/torsocks.conf || WARN "Failed /etc/tor/torsocks.conf"
-[[ -f /usr/bin/mosh-server ]] && mv /usr/bin/mosh-server /usr/bin/mosh-server.orig
-[[ -f /usr/bin/mosh-server.sh ]] && { mv /usr/bin/mosh-server.sh /usr/bin/mosh-server; chmod 755 /usr/bin/mosh-server; }
 
-[[ -f /usr/bin/xpra ]] && ( cd /usr/bin; mv xpra xpra.orig; ln -s xpra-hook xpra )
+# Move "$1" to "$1".orig and link "$1" -> "$1"-hook
+mk_hook()
+{
+	local fn
+	fn="${1}/${2}"
+	[[ ! -e "$fn" ]] && return
+	( cd "${1}"
+	mv "$fn" "${fn}.orig"
+	ln -s "${fn}-hook" "$fn" )
+}
+mk_hook /usr/bin        mosh-server
+mk_hook /usr/bin        xpra
+mk_hook /usr/bin        brave-browser-stable
+mk_hook /usr/bin        chromium
+mk_hook /usr/share/code code
 
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {

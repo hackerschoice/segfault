@@ -107,6 +107,7 @@ warn_file()
 
 load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
+[[ -z $SF_SHMDIR ]] && SF_SHMDIR="/dev/shm/sf"
 
 [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
 [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
@@ -150,18 +151,67 @@ blockio_init
 sysctl -q -w net.ipv4.neigh.default.gc_thresh3=65536 || WARN "Could not set /proc/.../gc_thresh3"
 sysctl -q -w net.netfilter.nf_conntrack_buckets=16384 || WARN "Could not set /proc/.../nf_conntrack_buckets"
 sysctl -q -w net.netfilter.nf_conntrack_max=131072 || WARN "Could not set /proc/.../nf_conntrack_max"
+# Each Hugepagesize is 2MB (grep HUGE /proc/meminfo)
+#  512 => 1g as HUGE 
+# 8192 => 16g as HUGE
+[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN 'Huge Tables not set. Consider `echo "vm.nr_hugepages=8192" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192`'
 
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx-rpc.conf"
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx.conf"
 warn_file "${SF_BASEDIR}/config/etc/sf/sf.conf"
 
-# STOP HERE: Check if there are any fils in /sf/sfbin that are not equal to ./sfbin
+# Check if there are any fils in /sf/sfbin that are not equal to ./sfbin
+for x in "${BINDIR}/"*; do
+	[[ ! -e "$x" ]] && WARN "Oops. Files missing in ${BINDIR}/*???"
+	str=$(md5sum "$x")
+	src=${str%% *}
+	x=$(basename "$x")
+	str=$(md5sum "${SF_BASEDIR}/sfbin/${x}" 2>/dev/null)
+	dst=${str%% *}
+	[[ $src != $dst ]] && WARN "${SF_BASEDIR}/sfbin/${x} is outdated. Please update with ${CDC}${BINDIR}/${x}${CN}"
+done
+
 
 # Make sure /dev/shm is 'shared'
 [[ "$(findmnt -no TARGET,PROPAGATION /dev/shm)" != *"shared"* ]] && {
 	mount --make-shared /dev/shm/ || ERREXIT 252
 }
 
+systemctl start sf.slice || WARN 'Could not start sf.slice'
+systemctl start sf-guest.slice || WARN 'Could not start sf-guest.slice'
+systemctl status sf.slice | grep Segfault >/dev/null || WARN 'Bad start sf.slice. Does not belong to Segfault.'
+systemctl status sf-guest.slice | grep Segfault >/dev/null || WARN 'Bad start sf-guest.slice. Does not belong to Segfault.'
+
+SF_CG_DIR="/sys/fs/cgroup"
+[[ -d "/sys/fs/cgroup/unified" ]] && {
+	SF_CG_DIR="/sys/fs/cgroup/unified"
+	# for cgroupv1 docker-run expects the absolute hierarchy path (for --cgroup-parent):
+	export SF_CG_PARENT="sf.slice/sf-guest.slice"
+}
+
+str=$(mount | grep ^cgroup2 | grep -F "$SF_CG_DIR" )
+[[ $str == *'nsdelegate'* ]] && {
+	# HERE: cgroup2 is in use.
+	echo -e >&2 "[$(date '+%F %T' -u)] [${CDY}WARN${CN}] ${SF_CG_DIR} is mounted with nsdelegate. Disabling nsdelegate."
+	str=${str##*\(}
+	str=${str%\)*}
+	# We need to move encfsd to the user's cgroup: From sf.slice (sf-encfsd) to sf.slice/sf-guest.slice.
+	# We need to turn of "nsdelegate" as otherwise there is no (?) way moving it.
+	# (write() to cgroup.procs returns ENOENT if nsdelegate is enabled.)
+
+	# There is no 'nonsdelegate' and removing nsdelegate requires a hack:
+	#   mount -t cgroup2 none /mnt && umount /mnt
+	#   mount -o remount,rw,nosuid,nodev,noexec,relatime,memory_recursiveprot /sys/fs/cgroup
+	# Test with:
+	#   docker run --rm -v /sys/fs/cgroup:/sys/fs/cgroup -it ubuntu bash -c 'sleep 31339 & echo $! >/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-ANY-RUNNING-CONTAINER-ID-HERE.scope/cgroup.procs && echo $! OK'
+	mount -t cgroup2 none /mnt
+	umount /mnt
+	str="${str/,nsdelegate/}"
+	str="${str/nsdelegate,/}"
+	mount -o "remount,${str}" "${SF_CG_DIR}" || ERREXIT 255
+}
+
+grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
 # If there was a warning then wait...
 WARN_ENTER
 

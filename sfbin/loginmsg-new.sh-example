@@ -1,0 +1,7 @@
+#! /bin/bash
+
+# Rename this file to loginmsg-new.sh and it will get sources during login process for new root servers.
+
+echo -en "Creating new servers is currently not avaialble."
+exit
+

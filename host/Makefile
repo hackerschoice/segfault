@@ -16,9 +16,9 @@ fs-root/bin/docker-exec-sigproxy: docker-exec-sigproxy.c
 
 diff:
 	cd dev && \
-	diff -x '!*.[ch]' -u   openssh-9.1p1-orig/  openssh-9.1p1-sf/  | grep -Ev ^"(Only in|Common)" >../sf-sshd.patch
+	diff -x '!*.[ch]' -u   openssh-9.2p1-orig/  openssh-9.2p1-sf/  | grep -Ev ^"(Only in|Common)" >../sf-sshd.patch
 
 clean:
-	rm -rf openssh-9.1p1-sf fs-root/usr/sfbin/sshd
+	rm -rf openssh-9.2p1-sf fs-root/usr/sfbin/sshd
 	docker image rm alpine-gcc
 

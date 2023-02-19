@@ -1,5 +1,5 @@
 [Unit]
-Description=Slice for docker containers
+Description=Slice for Segfault host containers
 Before=slices.target
 
 [Slice]

@@ -183,7 +183,7 @@ init_emu()
 
 	xmkdir "${SF_ENCFS_SEC_DIR}"
 	xmkdir "${SF_CFG_GUEST_DIR}"
-	xmkdir "${SF_ENCFS_SEC_DIR}/user-${LID}"
+	xmkdir "${SF_ENCFS_SEC_DIR}/lg-${LID}"
 	xmkdir "${SF_ENCFS_SEC_DIR}/everyone-root"
 	xmkdir "${SF_ENCFS_SEC_DIR}/everyone-root/everyone"
 	xmkdir "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}"
@@ -201,7 +201,7 @@ init_defaults()
 {
 	[[ -z $SF_BASEDIR ]] && ERREXIT 1 "SF_BASEDIR= not set"
 	SF_SEC_DIR="/sec/www-root"
-	SF_WWW_ROOT_DIR="/sec/www-root"
+	# SF_WWW_ROOT_DIR="/sec/www-root"
 	SF_CONFIG_DIR="/config/host"
 	SF_ETCSF_DIR="/config/host/etc/sf"
 	SF_CFG_GUEST_DIR="${SF_SHMDIR}/config-for-guest" # Mounted to /config/guest
@@ -209,8 +209,40 @@ init_defaults()
 	SF_ENCFS_SEC_DIR="${SF_SHMDIR}/encfs-sec"
 }
 
+logout()
+{
+	# bash signal race condition: Might be called twice if signal arrives while
+	# in this function.
+	trap '' SIGHUP
+	trap '' SIGTERM
+	touch "${TS_LOGOUT_FILE:?}"
+	rm -f "${LG_PID_FILE:?}"
+	# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
+	for fn in "${LG_PID_DIR}/pid-${LID}."*; do
+		DEBUGF "Checking '$fn'"
+		[[ -f "$fn" ]] && break
+		# HERE: Last pid file for this lid.
+		DEBUGF "Last pid..."
+		rm -f "${IS_LOGGED_IN_FILE:?}"
+		break
+	done
+}
+
+cb_sighup()
+{
+	logout
+	exit 200
+}
+
+cb_sigterm()
+{
+	logout
+	exit 201
+}
+
 init_vars()
 {
+	local db_dir
 	init_defaults
 	init_emu
 
@@ -225,8 +257,30 @@ init_vars()
 	[[ -z $YOUR_IP_HASH ]] && ERREXIT 2 "YOUR_IP_HASH= not set"
 
 	[[ -z $SF_FQDN ]] && SF_FQDN="this"
-	DB_DIR="${SF_CONFIG_DIR}/db"
-	SF_USER_DB_DIR="${SF_CONFIG_DIR}/db/db-${LID}"
+	db_dir="${SF_CONFIG_DIR}/db"
+	SF_USER_DB_DIR="${db_dir}/user/lg-${LID}"
+	SF_BLACKLIST_DIR="${db_dir}/banned"
+	HNLID_DIR="${db_dir}/hn"
+
+	SF_RUN_DIR="/sf/run/"
+	LG_PID_DIR="${SF_RUN_DIR}/pids"
+	LG_PID_FILE="${LG_PID_DIR}/pid-${LID}.$$"
+	TS_LOGOUT_FILE="${SF_USER_DB_DIR}/ts_logout"
+	TS_LOGIN_FILE="${SF_USER_DB_DIR}/ts_login"
+	IS_LOGGED_IN_FILE="${SF_USER_DB_DIR}/is_logged_in"
+
+	# Set the number of CPU's a guest can use up to a max of 4.
+	# Min is 2 or NPROC / 4 to a max of 4.
+	CPUS=$((NPROC / 4))
+	if [[ $CPUS -le 1 ]]; then
+		CPUS=1
+		[[ $NPROC -ge 2 ]] && CPUS=2
+	elif [[ $CPUS -gt 4 ]]; then
+		CPUS=4
+	fi
+
+	trap cb_sighup SIGHUP
+	trap cb_sigterm SIGTERM
 }
 
 mk_portforward()
@@ -281,6 +335,7 @@ Thereafter use these commands:
 ----------------------------------------------------------------------"
 }
 
+
 # Output GOODBYE message with infos how to connect back to this shell
 print_goodbye()
 {
@@ -288,16 +343,19 @@ print_goodbye()
 	[[ -z $IS_PTY ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
-	n=$(IFS=$'\n' n=($(bash -c "exec docker top \"lg-${LID}\" -o pid 2>/dev/null")); echo "${#n[@]}")
-	[[ ! $n -gt 1 ]] && n=1
-	((n--))
+	# Note: pgrep is executed in user's context. Treat the output with care and do not trust it.
+	n=$(bash -c "exec docker exec --user 0:0 \"lg-${LID}\" pgrep -c . 2>/dev/null" | head -n1)
+	[[ -z "$n" ]] && n=0
+	[[ ${#n} -gt 5 ]] && n=0
+	[[ ! $n -eq $n ]] && n=0
+	n=$((n-2))
 
-	if [[ "$n" -gt 2 ]]; then
+	if [[ "$n" -gt 0 ]]; then
 		# Display the running processes
 		str="process is"
-		[[ "$n" -gt 3 ]] && str="processes are"
-		echo -e "${CY}WARNING: ${CR}$((n-2))${CY} ${str} still running:${CN}"
-		exec_errnull docker exec --user 0:0 "lg-${LID}" pgrep -v '^\[SF' -al | tail -n+3 | while read x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
+		[[ "$n" -gt 1 ]] && str="processes are"
+		echo -e "${CY}WARNING: ${CR}${n}${CY} ${str} still running:${CN}"
+		exec_errnull docker exec --user 0:0 "lg-${LID}" pgrep . -al | tail -n+3 | while read x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
@@ -376,7 +434,7 @@ spawn_shell_exit()
 	# Move SSHD to guest's network namespace (for -L/-R to work)
 	sshd_to_ns
 
-	wait_file_exist 20 "${SEMA_INIT_DONE_FN}" || {
+	wait_file_exist 20 "${LG_SEMA_INIT_DONE_FN}" || {
 		exec_devnull docker stop "lg-${LID}"
 		ERREXIT 237 "Oops. Found a stale lock file."
 	}
@@ -392,9 +450,10 @@ spawn_shell_exit()
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
-	docker-exec-sigproxy exec --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
+	docker-exec-sigproxy exec --workdir=/sec/root --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
+	logout
 	print_goodbye
 
 	exit "$ret"
@@ -431,24 +490,20 @@ setup_fs_limit()
 
 	DOCKER_ARGS+=("--storage-opt")
 	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_SIZE:?}")
-	IS_FS_LIMIT=1
 }
 
 # Set INODE limit per container. Docker does not support this via any
 # --storage-opt. Instead we start the container and add ourself to the
 # xfs quota group that docker set up. Yeahaaa..
-setup_fs_ilimit()
+setup_encfsd()
 {
 	local dir
-	[[ -z $IS_FS_LIMIT ]] && return 0
-	[[ ! "${SF_USER_ROOT_FS_INODE}" -gt 0 ]] && return 0 # True
 
 	dir=$(docker inspect "lg-${LID}" --format '{{.GraphDriver.Data.UpperDir }}') || return 255
 	dir=${dir#*overlay2/}
 
-	res=$(echo -e "RPUSH encfs \"$$ ${LID} X ${SF_USER_ROOT_FS_INODE} ${dir}\"\n\
+	res=$(echo -e "RPUSH encfs \"$$ ${LID} X ${CID} ${SF_USER_ROOT_FS_INODE:-0} ${dir}\"\n\
 BLPOP \"encfs-$$-${LID}-X\" 10" | red) || return 255
-	# [[ -z $res || "${res##*$'\n'}" != "OK" ]] && return 255
 
 	return 0
 }
@@ -461,13 +516,15 @@ load_limits()
 	#SF_USER_ROOT_FS_SIZE=2GB
 	SF_USER_ROOT_FS_INODE=65536
 	SF_USER_MEMORY_LIMIT=256MB
-	SF_USER_PIDS_LIMIT=32
+	SF_USER_PIDS_LIMIT=128
 	SF_USER_CPU_SHARE=8
 	SF_USER_OOM_SCORE=500
 	SF_USER_NICE_SCORE=10
 	SF_LIMIT_SERVER_BY_IP=8
 	SF_USER_BLKIO_WEIGHT=100
-	SF_ULIMIT_NOFILE="1024:4096"
+	SF_ULIMIT_NOFILE="1024:8192"
+	SF_USER_SYN_BURST=8196
+	SF_USER_SYN_LIMIT=1
 	# No new shells until load goes below STRAIN*NPROC.
 	# Should be larger than ContainerGuard's strain when CG starts killing
 	SF_MAX_STRAIN=100
@@ -481,6 +538,9 @@ load_limits()
 	# Then souce user specific limits
 	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(grep ^SF_ "${SF_USER_DB_DIR}/limits.conf")"
 
+	# Set swap limit if not set in sf.conf
+	[[ -z $SF_USER_MEMORY_AND_SWAP_LIMIT ]] && SF_USER_MEMORY_AND_SWAP_LIMIT="$SF_USER_MEMORY_LIMIT"
+
 	# Use MAX-MEMORY if no other limit is set.
 	[[ -z $SF_SHM_SIZE ]] && SF_SHM_SIZE=$SF_USER_MEMORY_LIMIT
 
@@ -493,7 +553,7 @@ load_limits()
 
 	DOCKER_ARGS+=("--memory=${SF_USER_MEMORY_LIMIT}")
 	# Setting memory-swap and memory to same value will disable swapping
-	DOCKER_ARGS+=("--memory-swap=${SF_USER_MEMORY_LIMIT}")
+	DOCKER_ARGS+=("--memory-swap=${SF_USER_MEMORY_AND_SWAP_LIMIT}")
 	DOCKER_ARGS+=("--pids-limit=${SF_USER_PIDS_LIMIT}")
 	DOCKER_ARGS+=("--cpu-shares=${SF_USER_CPU_SHARE}")
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
@@ -508,15 +568,32 @@ load_limits()
 			# These files must be mounted read-only as these are special files
 			# for docker and ingored by --opt storage-size= limitations.
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/hosts:/etc/hosts:ro")
-			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/db/db-${LID}/hostname:/etc/hostname:ro")
+			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/db/user/lg-${LID}/hostname:/etc/hostname:ro")
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/resolv.conf:/etc/resolv.conf:ro")
 		}
 	fi
 
-	# Default SHM_SIZE is 64M (if not set). Hard limit is --memory=
 	[[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
 	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
+}
+
+check_banned()
+{
+	local blfn
+
+	[[ -e "${SF_BLACKLIST_DIR}/ip-${YOUR_IP}" ]] && blfn="${SF_BLACKLIST_DIR}/ip-${YOUR_IP}"
+	[[ -z $blfn ]] && [[ -e "${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}" ]] && blfn="${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}"
+	[[ -z $blfn ]] && return
+
+	sleep 5
+	if [[ -s "$blfn" ]]; then
+		cat "$blfn"
+	else
+		echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
+	fi
+	sleep 30
+	exit 0
 }
 
 # wait_for_conn_limit <ID> <ts_window>
@@ -567,8 +644,7 @@ wait_for_load()
 	# FIXME: Implement garbage collector...
 	while :; do
 		load=($(</proc/loadavg))
-		load=${load[0]%%.*}
-		[[ $load -lt "$max" ]] && break
+		[[ ${load[0]%%.*} -lt "$max" ]] && break
 		echo -e >&2 "[${CY}SF${CN}] Waiting for load to go down..."
 		sleep 5
 	done
@@ -692,6 +768,14 @@ mk_geoip()
 	fi
 }
 
+sysmsg()
+{
+	local fn
+	fn="$1"
+
+	[[ ! -f "$1" ]] && return
+	eval "$(<"$fn")"
+}
 
 # Find out if SSHD spawns a shell or a command.
 # and if SSHD insists on a TTY (ssh -t <user@host> <command>)
@@ -735,17 +819,20 @@ LID="${LID//[^[:alpha:]]}"
 LID="${LID:0:10}"
 
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
-MARKFILE="THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
+
+# Show system messages
+sysmsg "/sf/bin/loginmsg-all.sh"
 
 # Call init_vars() after LID is set
 init_vars
 # Load CPU/PID/OOM limits (systemwide or user specific)
 load_limits
+# Check if IP is banned
+check_banned
 
 mk_hostname
-HNLID_DIR="${SF_CONFIG_DIR}/db/hn"
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
-SEMA_INIT_DONE_FN="${DB_DIR}/db-${LID}/init-done"
+LG_SEMA_INIT_DONE_FN="${SF_USER_DB_DIR}/init-done"
 
 # Keep guest waiting until there are sufficient resources
 wait_for_resources
@@ -771,6 +858,7 @@ if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	touch "${HNLID_FILE}"
 else
 	print_disclaimer
+	sysmsg "/sf/bin/loginmsg-new.sh"
 	# #####################################################################
 	# Got 54 space
 	# Creating Server => 16 chars
@@ -792,15 +880,21 @@ else
 	}
 	IS_NEW_SERVER=1
 
-	mkdir -p "${DB_DIR}/db-${LID}" || ERREXIT
-	touch "${DB_DIR}/db-${LID}/created.txt" || ERREXIT
-	tofile "$SF_NUM" "${DB_DIR}/db-${LID}/num"
-	tofile "$SF_HOSTNAME" "${DB_DIR}/db-${LID}/hostname"
+	mkdir -p "${SF_USER_DB_DIR}" || ERREXIT
+	touch "${SF_USER_DB_DIR}/created.txt" || ERREXIT
+	tofile "$SF_NUM" "${SF_USER_DB_DIR}/num"
+	tofile "$SF_HOSTNAME" "${SF_USER_DB_DIR}/hostname"
 	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}" || ERREXIT 231 "tofile: Failed to create hnlid_file"
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
+
+# Record which SSHD process is connect to guest LG.
+tofile "SSHD_PID=$PPID
+LID=$LID" "${LG_PID_FILE}"
+touch "${TS_LOGIN_FILE}"
+touch "${IS_LOGGED_IN_FILE}"
 
 # Create EncFS password
 encfspass=$(echo -n "EncFS-PASS-${SF_SEED}${SF_SEC}" | sha512sum | base64 -w0)
@@ -810,7 +904,7 @@ encfspass="${encfspass:0:24}"
 
 # Start & Wait for EncFS
 res=$(echo -e "RPUSH encfs \"$$ ${LID} M ${encfspass}\"\n\
-BLPOP \"encfs-$$-${LID}-M\" 10" | red) || ERREXIT 230 "Can't reach EncFSD"
+BLPOP \"encfs-$$-${LID}-M\" 20" | red) || ERREXIT 230 "Can't reach EncFSD"
 echo_pty -n "...."
 
 # Attach to instance if already running
@@ -850,15 +944,18 @@ xmkdir "${selfdir}"
 
 # Give docker-run and following command 5 seconds to complete
 # before allowing any docker-exec to spawn user shell.
-[[ -f "${SEMA_INIT_DONE_FN}" ]] && rm -f "${SEMA_INIT_DONE_FN:?}"
+[[ -f "${LG_SEMA_INIT_DONE_FN}" ]] && rm -f "${LG_SEMA_INIT_DONE_FN:?}"
 
+# Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
+# cgroup-v2 only sf-guest.slice need to be specified.
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
 	--rm \
 	--init \
-	--cgroup-parent sf_guest.slice \
-	--workdir=/sec/root \
+	--cpus="${CPUS}" \
+	--cgroup-parent "${SF_CG_PARENT:?}" \
+	--workdir=/ \
 	--ulimit nofile="${SF_ULIMIT_NOFILE}" \
 	--name "lg-${LID}" \
 	--cap-drop=MKNOD \
@@ -881,7 +978,7 @@ exec_devnull docker run \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \
-	-v "${SF_ENCFS_SEC_DIR}/user-${LID}:/sec:slave" \
+	-v "${SF_ENCFS_SEC_DIR}/lg-${LID}:/sec:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone/${SF_HOSTNAME}:/everyone/this:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
@@ -912,24 +1009,25 @@ echo_pty -n ".."
 
 # NOTE: Race conditon (which is harmless): A user can connect to his container (docker exec)
 # _before_ everything below this is executed.
-
-# Set up Root FS / inode limits
-setup_fs_ilimit || ERREXIT 244 "Could not set FS quota."
-echo_pty -n ".."
-
-# Set FW rules for this instance
 arr=($(docker inspect -f '{{.Id}} {{.State.Pid}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "lg-${LID}"))
+CID=${arr[0]}
+LG_PID=${arr[1]}
 C_IP=${arr[2]}
 [[ -z $C_IP ]] && ERREXIT 249 "Could not get container's IP address."
-res=$(red SET "ip:${C_IP}" "${LID} ${arr[0]} ${arr[1]}") || ERREXIT 252 "Failed to set LID in Redis"
 
-# FIXME: Could be implemented by hash-map for efficiency (and not set up for every host individually)
-exec_devnull docker exec sf-router bash -c "source /dev/shm/net-devs.txt || exit
-iptables --new-chain 'SYN-LIMIT-${C_IP}' 2>/dev/null || exit 0
-# HERE: Chain did not exist yet.
-iptables -I FORWARD 1 -i \"\${DEV_LG}\" -o \"\${DEV_GW}\" -s '${C_IP}' -p tcp --syn -j 'SYN-LIMIT-${C_IP}' &&
-iptables -A 'SYN-LIMIT-${C_IP}' -m limit --limit \"1/sec\" --limit-burst 8196 -j RETURN &&
-iptables -A 'SYN-LIMIT-${C_IP}' -j DROP" || ERREXIT 251 "Failed to set syn-limit..."
+# Set up Root FS / inode limits and move encfsd to lg's cgroup
+setup_encfsd || ERREXIT 244 "Could not set FS quota."
+echo_pty -n ".."
+
+# Store LG information in Redis
+res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || ERREXIT 252 "Failed to set LID in Redis"
+
+# Set FW rules for this instance
+[[ $SF_USER_SYN_LIMIT -ne 0 ]] && exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || ERREXIT 251 "Faild to set syn-limit..."
+
+# 255.0.0.1 always points to guest's localhost: user can now set up a ssh -D1080 and connect with browser to
+# 255.0.0.1 and land on guest's 127.0.0.1.
+exec_devnull docker exec sf-master bash -c "nsenter.u1000 -t \"${LG_PID}\" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1"
 
 # Setup instance
 exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
@@ -939,7 +1037,7 @@ tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 echo_pty -e "....[${CG}OK${CN}]"
 
 # Mark as init-complete:
-touch "${SEMA_INIT_DONE_FN}"
+touch "${LG_SEMA_INIT_DONE_FN}"
 
 # Show help how to connect elegantly
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access

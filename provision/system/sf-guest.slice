@@ -1,5 +1,5 @@
 [Unit]
-Description=Slice for segfault guest container's
+Description=Slice for Segfault guest container's
 Before=slices.target
 
 # Test with

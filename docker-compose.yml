@@ -7,6 +7,7 @@ services:
     read_only: true
     hostname: sf-redis
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
     networks:
@@ -24,6 +25,7 @@ services:
     image: sf-encfsd
     container_name: sf-encfsd
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - sf-redis
     cap_add:
@@ -32,8 +34,7 @@ services:
       - apparmor:unconfined
     # xfs_quota needs this :/ FIXME
     privileged: true
-    blkio_config:
-      weight: 500
+    # NOTE: _MUST_ not run in host's pid space because we use 'pgrep' to find lg's encfsd pid.
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_REDIS_IP=${SF_REDIS_IP}
@@ -51,6 +52,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_OVERLAYDIR:-/var/lib/docker/overlay2}:/var/lib/docker/overlay2:ro"
+      - "/sys/fs/cgroup:/sys/fs/cgroup"
 
   # Note: If this one fails to start then most likelly bad ENCFS password.
   # level=fatal msg="no such file or directory": unknown
@@ -59,6 +61,7 @@ services:
     image: sf-encfsd
     container_name: sf-destructor
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - sf-redis
       - sf-encfsd
@@ -77,6 +80,7 @@ services:
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
+      - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
       - "/var/run/docker.sock:/var/run/docker.sock"
@@ -87,6 +91,7 @@ services:
     image: sf-containerguard
     container_name: sf-containerguard
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     pid: "host"
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"
@@ -98,6 +103,7 @@ services:
     image: sf-encfsd
     container_name: sf-portd
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - sf-redis
     environment:
@@ -116,6 +122,7 @@ services:
     image: crazymax/cloudflared
     container_name: sf-dns-doh
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     networks:
       dns-doh-net:
         ipv4_address: ${SF_DOH_IP}
@@ -124,6 +131,7 @@ services:
     image: 4km3/dnsmasq:2.85-r2
     container_name: sf-dnsmasq
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - dns-doh
     cap_add:
@@ -140,6 +148,7 @@ services:
     image: hackerschoice/cryptostorm
     container_name: sf-nordvpn
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - dnsmasq
       - sf-redis
@@ -175,6 +184,7 @@ services:
   cryptostorm:
     image: hackerschoice/cryptostorm
     container_name: sf-cryptostorm
+    cgroup_parent: sf.slice
     restart: ${SF_RESTART:-on-failure}
     depends_on:
       - dnsmasq
@@ -212,6 +222,7 @@ services:
     image: hackerschoice/cryptostorm
     container_name: sf-mullvad
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - dnsmasq
       - sf-redis
@@ -248,6 +259,8 @@ services:
     image: sf-router
     hostname: sf-router
     container_name: sf-router
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - router-fix-network
     networks:
@@ -297,7 +310,6 @@ services:
       - SF_NORDVPN_IP=${SF_NORDVPN_IP:?}
       - SF_CRYPTOSTORM_IP=${SF_CRYPTOSTORM_IP:?}
       - SF_MULLVAD_IP=${SF_MULLVAD_IP:?}
-    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
@@ -314,6 +326,8 @@ services:
     image: sf-master
     hostname: sf-master
     container_name: sf-master
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - sf-redis
     # network_mode: none  # FIXME: Make redis available via shared socket so we dont need network on 'master'.
@@ -331,16 +345,15 @@ services:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_REDIS_IP=${SF_NET_MASTER_REDIS_IP}
       - SF_RPC_IP=${SF_RPC_IP:?}
+      - SF_TOR_IP=${SF_TOR_IP:?}
       - SF_DNS=${SF_NET_VPN_DNS_IP}
       - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
-    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/master:/dev/shm/master"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
       # - "${SF_SHMDIR:-/dev/shm/sf}/redis:/dev/shm/redis"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-      # - "/research/fob/master/cgi-bin:/cgi-bin:ro" # FIXME-2022: Remove in production
       - "/var/run/docker.sock:/var/run/docker.sock"
     entrypoint: ["/init-master.sh"]
 
@@ -348,9 +361,10 @@ services:
     # image: fabiocicerchia/nginx-lua
     image: nginx
     container_name: sf-rpc
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - master
-    restart: ${SF_RESTART:-on-failure}
     networks:
       guest-net:
         ipv4_address: ${SF_RPC_IP}
@@ -365,13 +379,13 @@ services:
     image: sf-router
     hostname: sf-wg
     container_name: sf-wg
+    restart: ${SF_RESTART:-on-failure}:1  # Try 1 restart
+    cgroup_parent: sf.slice
     depends_on:
       - router-fix-network
     networks:
       incoming-net:
         ipv4_address: ${SF_NET_DIRECT_WG_IP}
-      guest-net:
-        ipv4_address: ${SF_NET_LG_WG_IP}
     cap_add:
       - NET_ADMIN
     sysctls:
@@ -386,7 +400,6 @@ services:
       - net.netfilter.nf_conntrack_icmp_timeout=10
     environment:
       - SF_DEBUG
-    restart: ${SF_RESTART:-on-failure}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
@@ -398,6 +411,8 @@ services:
     build: router
     image: sf-router
     container_name: sf-fix-network
+    restart: ${SF_RESTART:-on-failure}:1  # Try 1 restart
+    cgroup_parent: sf.slice
     network_mode: host # host's stack
     privileged: true  # For 'sysctl -w' in fix-network.sh
     cap_add:
@@ -408,7 +423,6 @@ services:
       - NET_DIRECT_WG_IP=${SF_NET_DIRECT_WG_IP:?}
       - NET_DIRECT_ROUTER_IP=${SF_NET_DIRECT_ROUTER_IP:?}
       - NET_DIRECT_BRIDGE_IP=${SF_NET_DIRECT_BRIDGE_IP:?}
-    restart: ${SF_RESTART:-on-failure}:1
     volumes:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
     entrypoint: ["/fix-network.sh"]
@@ -417,6 +431,8 @@ services:
     build: tor
     image: sf-tor
     container_name: sf-tor
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     hostname: sf-tor
     networks:
       vpn-net:
@@ -426,7 +442,6 @@ services:
     environment:
       - SF_DEBUG
       - SF_TOR_VIA_VPN
-    restart: ${SF_RESTART:-on-failure}
     dns: ${SF_NET_VPN_DNS_IP}
     depends_on:
       - dnsmasq
@@ -440,6 +455,8 @@ services:
     build: gsnc
     image: sf-gsnc
     container_name: sf-gsnc
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     networks:
       access-net:
         ipv4_address: ${SF_GSNC_IP}
@@ -449,7 +466,6 @@ services:
     depends_on:
       - dnsmasq
       - router
-    restart: ${SF_RESTART:-on-failure}
     environment:
       - SF_SSH_PORT=${SF_SSH_PORT:-22}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
@@ -465,6 +481,8 @@ services:
     image: sf-host
     # /bin/segfaultsh need to know the container name; set it to sf-host statically
     container_name: sf-host
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     networks:
       # WARNING: sshd's port forward/socks can access those networks.
       access-net:
@@ -479,13 +497,11 @@ services:
       - dnsmasq
       - router
       - sf-encfsd
-    restart: ${SF_RESTART:-on-failure}
     init: true
-    # ports:
-    #   - 31337:31337 # FIXME-2022 disable in production
     # SSHD clears all environment variables before spwaning a shell (segfaultsh).
     # Add any variables to docker_sshd.sh as well.
     environment:
+      - SF_CG_PARENT=${SF_CG_PARENT:-sf-guest.slice}
       - SF_DNS=${SF_NET_VPN_DNS_IP}  # passed to sf-guest
       - SF_TOR_IP=${SF_TOR_IP}
       - SF_BASEDIR=${SF_BASEDIR}
@@ -502,16 +518,17 @@ services:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
       - "/var/run/docker.sock:/var/run/docker.sock"
-      # - "/research:/r"  # FIXME-2022 disable in production
 
   nginx:
     image: nginx
     container_name: sf-nginx
     restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
     depends_on:
       - sf-encfsd
     entrypoint: ["/sf/bin/wait_semaphore.sh", "/sec/.IS-ENCRYPTED", "nginx", "-g", "daemon off;"]

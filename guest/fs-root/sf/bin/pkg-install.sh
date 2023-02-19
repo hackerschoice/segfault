@@ -2,31 +2,22 @@
 
 export DEBIAN_FRONTEND=noninteractive
 
-# Install latest Binary from GitHub and smear it into /usr/bin
-# [<user>/<repo>] [<regex-match>] [asset]
-# Examples:
-# ghbin tomnomnom/waybackurls "linux-amd64-" waybackurls 
-# ghbin SagerNet/sing-box "linux-amd64." sing-box
-# ghbin projectdiscovery/httpx "linux_amd64.zip$" httpx 
-# ghbin Peltoche/lsd "lsd_.*_amd64.deb$" 
-ghbin()
+
+# Download & Extract
+# [URL] [asset]
+dlx()
 {
-	local loc
-	local regex
 	local url
 	local asset
-	local err
-	loc="$1"
-	regex="$2"
-	asset="$3"
+	url="$1"
+	asset="$2"
 
-	loc="https://api.github.com/repos/"$loc"/releases/latest"
-	url=$(curl -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
 	[[ -z "$url" ]] && { echo >&2 "URL: '$loc'"; return 255; }
 	case $url in
 		*.zip)
+			[[ -f /tmp/pkg.zip ]] && rm -f /tmp/pkg.zip
 			curl -SsfL -o /tmp/pkg.zip "$url" \
-			&& unzip /tmp/pkg.zip "$asset" -d /usr/bin \
+			&& unzip -j /tmp/pkg.zip "$asset" -d /usr/bin \
 			&& chmod 755 "/usr/bin/${asset}" \
 			&& rm -f /tmp/pkg.zip \
 			&& return 0
@@ -68,8 +59,34 @@ ghbin()
 			&& return 0
 			# echo >&2 "Unknown file extension in '$url'"
 	esac
+}
 
-	return 255
+# Install latest Binary from GitHub and smear it into /usr/bin
+# [<user>/<repo>] [<regex-match>] [asset]
+# Examples:
+# ghbin tomnomnom/waybackurls "linux-amd64-" waybackurls 
+# ghbin SagerNet/sing-box "linux-amd64." sing-box
+# ghbin projectdiscovery/httpx "linux_amd64.zip$" httpx 
+# ghbin Peltoche/lsd "lsd_.*_amd64.deb$" 
+ghbin()
+{
+	local loc
+	local regex
+	local url
+	local asset
+	local err
+	loc="$1"
+	regex="$2"
+	asset="$3"
+
+	loc="https://api.github.com/repos/"$loc"/releases/latest"
+	url=$(curl -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
+	dlx "$url" "$asset"
+}
+
+bin()
+{
+	dlx "$1" "$2"
 }
 
 
@@ -83,12 +100,22 @@ shift 1
 
 [[ -n $SF_PACKAGES ]] && {
 	SF_PACKAGES="${SF_PACKAGES^^}" # Convert to upper case
+	[[ "$TAG" == *DISABLED* ]] && { echo "Skipping Packages: $TAG [DISABLED]"; exit; }
+	[[ "$TAG" == ALLALL ]] && {
+		[[ "$SF_PACKAGES" != *ALLALL* ]] && { echo "Skipping Packages: ALLALL"; exit; }
+	}
 	[[ "$SF_PACKAGES" != *ALL* ]] && [[ "$SF_PACKAGES" != *"$TAG"* ]] && { echo "Skipping Packages: $TAG"; exit; }
 }
 
 [[ "$1" == ghbin ]] && {
 	shift 1
 	ghbin "$@"
+	exit
+}
+
+[[ "$1" == bin ]] && {
+	shift 1
+	bin "$@"
 	exit
 }
 

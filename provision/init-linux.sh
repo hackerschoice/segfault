@@ -153,7 +153,6 @@ init_config_run()
   mergedir "config/etc/sf" && IS_ETCSF_UPDATE=1
   mergedir "config/etc/nginx"
   mergedir "config/etc/redis"
-  mergedir "config/etc/hosts"
   mergedir "config/etc/resolv.conf"
 
   [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
@@ -170,7 +169,7 @@ init_config_run()
   [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
 
-  grep -F funcs_admin.sh /root/.bashrc >/dev/null || echo ". ${SF_BASEDIR}/sfbin/funcs_admin.sh" >>/root/.bashrc
+  grep -F funcs_admin.sh /root/.bash_profile >/dev/null || echo ". ${SF_BASEDIR}/sfbin/funcs_admin.sh" >>/root/.bash_profile
   # Configure BFQ module
   grep ^bfq /etc/modules &>/dev/null || echo "bfq" >>/etc/modules
   modprobe bfq || {
@@ -217,12 +216,13 @@ xinstall()
 
 docker_config()
 {
-  xinstall daemon.json /etc/docker
   xinstall sf.slice /etc/systemd/system
-  xinstall sf_guest.slice /etc/systemd/system
+  xinstall sf-guest.slice /etc/systemd/system
   sed 's/^Restart=always.*$/Restart=on-failure/' -i /lib/systemd/system/docker.service
   sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
   systemctl daemon-reload
+  systemctl start sf.slice
+  systemctl start sf-guest.slice
 }
 
 docker_start()
@@ -253,6 +253,10 @@ docker_fixdir
 docker_config
 docker_start
 
+# Install QEMU and register binfmt
+"${PKG_INSTALL[@]}" qemu binfmt-support qemu-user-static
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
 # SSHD's login user (normally 'root' with uid 1000) needs to start docker instances
 usermod -a -G docker "${SF_HOST_USER}"
 
@@ -277,7 +281,7 @@ journalctl --vacuum-time=10d
 init_config_run
 
 ### Create guest, encfs and other docker images.
-[[ -z $SF_NO_INTERNET ]] && { SUDO_SF "cd ${SFI_SRCDIR} && SF_PACKAGES=\"${SF_PACKAGES}\" make" || exit; }
+[[ -z $SF_NO_INTERNET ]] && { cd "${SFI_SRCDIR}" && make || exit; }
 
 # SNAPSHOT #4 (2022-07-22)
 # SNAPSHOT #4.1 (2022-07-23)

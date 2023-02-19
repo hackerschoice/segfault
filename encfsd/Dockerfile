@@ -3,6 +3,8 @@ FROM alpine
 RUN apk add --no-cache --upgrade \
 	&& apk add --no-cache \
 		bash \
+		cgroup-tools \
+		curl \
 		docker-cli \
 		encfs \
 		redis \

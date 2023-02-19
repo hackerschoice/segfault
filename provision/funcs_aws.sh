@@ -1,6 +1,6 @@
 #! /bin/bash
 
-[[ $(basename -- "$0") == "aws.sh" ]] && { echo "Use 'source aws.sh' instead."; exit 32; }
+[[ $(basename -- "$0") == "funcs_aws.sh" ]] && { echo "Use 'source funcs_aws.sh' instead."; exit 32; }
 
 SFI_SRCDIR="$(cd "$(dirname "${BASH_ARGV[0]}")/.." || return; pwd)"
 

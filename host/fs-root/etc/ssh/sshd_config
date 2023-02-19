@@ -29,7 +29,7 @@ HostKey /config/host/etc/ssh/ssh_host_ed25519_key
 
 # Authentication:
 
-LoginGraceTime 15 # 2m
+LoginGraceTime 25 # 2m
 #PermitRootLogin prohibit-password
 # SF: Allow keys to be on vmbox drive (rwxrwx---).
 StrictModes no

@@ -54,10 +54,16 @@ SF_CFG_GUEST_DIR="/config/guest"
 [[ ! -d "${SF_CFG_HOST_DIR}" ]] && SLEEPEXIT 255 3 "Not found: ${SF_CFG_HOST_DIR}"
 [[ ! -d "${SF_CFG_GUEST_DIR}" ]] && SLEEPEXIT 255 3 "Not found: ${SF_CFG_GUEST_DIR}"
 
-
 [[ ! -d "${SF_CFG_HOST_DIR}" ]] && SLEEPEXIT 255 5 "${CR}Not found: ${SF_CFG_HOST_DIR}/db${CN}. Try -v \${SF_BASEDIR}/config:${SF_CFG_HOST_DIR}"
-
 [[ ! -d "${SF_CFG_HOST_DIR}/db" ]] && { mkdir "${SF_CFG_HOST_DIR}/db" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db${CN}"; }
+[[ ! -d "${SF_CFG_HOST_DIR}/db/user" ]] && { mkdir "${SF_CFG_HOST_DIR}/db/user" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db/user${CN}"; }
+[[ ! -d "${SF_CFG_HOST_DIR}/db/banned" ]] && { mkdir "${SF_CFG_HOST_DIR}/db/banned" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db/banned${CN}"; }
+
+SF_RUN_DIR="/sf/run"
+LG_PID_DIR="${SF_RUN_DIR}/pids"
+[[ -d "${LG_PID_DIR}" ]] && rm -rf "${LG_PID_DIR}"
+mkdir -p "${LG_PID_DIR}"
+chown 1000 "${LG_PID_DIR}" || SLEEPEXIT 255 5 "${CR}Not found: ${LG_PID_DIR}${CN}"
 
 # Wait for systemwide encryption to be available.
 # Note: Do not need to wait for /everyone because no other service
@@ -69,7 +75,6 @@ setup_sshd
 
 ip route del default
 ip route add default via 172.22.0.254
-
 
 # This is the entry point for SF-HOST (e.g. host/Dockerfile)
 # Fix ownership if mounted from within vbox
@@ -105,6 +110,7 @@ cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
 # variables to the user's docker instance (sf-guest)
 echo "NPROC=\"$(nproc)\"
+SF_CG_PARENT=\"${SF_CG_PARENT}\"
 SF_DNS=\"${SF_DNS}\"
 SF_TOR_IP=\"${SF_TOR_IP}\"
 SF_SEED=\"${SF_SEED}\"
@@ -144,10 +150,10 @@ chmod 770 /var/run/docker.sock && \
 # group owner or permission is. Need to add our root(uid=1000) to that group.
 # However, we dont like this to be group=0 (root) and if it is then we force it
 # to nogroup.
-[[ "$(stat -c %g "${SF_CFG_HOST_DIR}/db")" -eq 0 ]] && chgrp nogroup "${SF_CFG_HOST_DIR}/db" # Change root -> nogroup
-addgroup -g "$(stat -c %g "${SF_CFG_HOST_DIR}/db")" sf-dbrw 2>/dev/null # Ignore if already exists.
-addgroup "${SF_USER}" "$(stat -c %G "${SF_CFG_HOST_DIR}/db")" 2>/dev/null # Ignore if already exists.
-chmod g+wx "${SF_CFG_HOST_DIR}/db" || exit $?
+[[ "$(stat -c %g "${SF_CFG_HOST_DIR}/db/user")" -eq 0 ]] && chgrp nogroup "${SF_CFG_HOST_DIR}/db/user" # Change root -> nogroup
+addgroup -g "$(stat -c %g "${SF_CFG_HOST_DIR}/db/user")" sf-dbrw 2>/dev/null # Ignore if already exists.
+addgroup "${SF_USER}" "$(stat -c %G "${SF_CFG_HOST_DIR}/db/user")" 2>/dev/null # Ignore if already exists.
+chmod g+wx "${SF_CFG_HOST_DIR}/db/user" || exit $?
 
 # vbox hack for /bin/segfaultsh to access funcs_redis.sh
 addgroup -g "$(stat -c %g /sf/bin)" vboxsf 2>/dev/null

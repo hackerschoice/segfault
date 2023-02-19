@@ -1,10 +1,14 @@
-FROM kalilinux/kali-rolling
+# FROM kalilinux/kali-rolling
+# FROM kalilinux/kali-bleeding-edge
+# 2023-02-19: kali-rolling has packages with dependencies for python <<3.11 but installs python 3.11.1-3
+FROM kalilinux/kali-last-release
 
 WORKDIR /root/
 
 # Valid options are:
 #   MINI BASE DEVEL NET WEB HACK LARGE HUGE GUI ALL
-#   SF_PACKAGES=ALL make
+#   SF_PACKAGES=ALL make     # All
+#   SF_PACKAGES=ALLALL make  # All _and_ kali-linux-everything
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
 
@@ -32,6 +36,7 @@ RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		ca-certificates \
 		curl \
 		dos2unix \
+		ed \
 		file \
 		git \
 		jq \
@@ -42,6 +47,7 @@ RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		sharutils \
 		supervisor \
 		tmux \
+		unrar \
 		unzip \
 		wget \
 		xxd
@@ -64,10 +70,13 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		libc-devtools \
 		libevent-dev \
 		libev-dev \
+		libsodium-dev \
 		libssl-dev \
 		ltrace \
 		lz4 \
 		make \
+		musl \
+		musl-tools \
 		patch \
 		perl-tk \
 		pv \
@@ -81,6 +90,8 @@ RUN /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
 		ftp \
 		iftop \
+		iperf \
+		iperf3 \
 		iputils-tracepath \
 		gsocket \
 		man-db \
@@ -99,6 +110,8 @@ RUN /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		wireguard-tools \
 		whois
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		adb \
+		apktool \
 		assetfinder \
 		crackmapexec \
 		dnsmap \
@@ -119,6 +132,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		oracle-instantclient-sqlplus \
 		oscanner \
 		pagekite \
+		pwncat \
 		shadowsocks-libev \
 		shadowsocks-v2ray-plugin \
 		snmpcheck \
@@ -157,11 +171,13 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		exa \
 		exiftool \
 		fd-find \
+		flatpak \
 		fossil \
 		fzf \
 		gnupg \
 		hashcat \
 		highlight \
+		httpie \
 		htop \
 		libcurl4-openssl-dev \
 		libdbus-glib-1-dev \
@@ -174,6 +190,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		libz3-dev \
 		ldap-utils \
 		ldapscripts \
+		lolcat \
 		jsbeautifier \
 		joe \
 		john \
@@ -192,12 +209,14 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		nfs-common \
 		neofetch \
 		neovim \
+		nginx \
 		ngrep \
 		nikto \
 		openssh-client \
 		p7zip-full \
 		peass \
 		pip \
+		pipx \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \
@@ -220,6 +239,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		ssh-audit \
 		sublist3r \
 		syncthing \
+		syncthing-relaysrv \
 		theharvester \
 		tmate \
 		tree \
@@ -256,38 +276,93 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		rust-all \
 		ruby \
 		rubygems \
-		veil \
-		x11-apps
+		veil
+RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		seclists
+RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		debootstrap \
+		qemu-efi \
+		qemu-efi-arm \
+		qemu-user \
+		qemu-utils \
+		u-boot-qemu
+RUN /pkg-install.sh ALLALL apt-get install -y kali-linux-everything
+## Everything above here should be stable and not modified (or a full rebuild will occur)
+#########################################################################################
+RUN /pkg-install.sh HUGE bash -c 'mkdir /usr/muslcc; \
+	muslinstall() { \
+		local n; \
+		n="${1}-linux-musl${2}"; \
+		echo "[muslCC] Installing ${n}..."; \
+		curl -fsSL "https://musl.cc/${n}-cross.tgz" | tar xfz - -C /usr/muslcc || return; \
+		ln -s "../muslcc/${n}-cross/bin/${n}-gcc" "/usr/bin/${n}-gcc"; \
+		ln -s "${n}-gcc" "/usr/bin/gcc-${1}-linux"; \
+		ln -s "${n}-gcc" "/usr/bin/musl-gcc-${1}-linux"; \
+	}; \
+	muslinstall "aarch64"     ""; \
+	muslinstall "arm"         "eabi"; \
+	muslinstall "armv7l"      "eabihf"; \
+	muslinstall "armv6"       "eabi"; \
+	muslinstall "i686"        ""; \
+	muslinstall "x86_64"      ""; \
+	muslinstall "mips64"      ""; \
+	muslinstall "mips64el"    ""; \
+	muslinstall "mips"        "sf"; \
+	muslinstall "mipsel"      "sf"; \
+	muslinstall "powerpc"     ""; \
+	muslinstall "powerpcle"   ""; \
+	muslinstall "powerpc64"   ""; \
+	muslinstall "powerpc64le" ""'
 RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
-		&& wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/sublimehq-archive.gpg >/dev/null \
+		&& wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | gpg --dearmor | tee /etc/apt/trusted.gpg.d/sublimehq-archive.gpg >/dev/null \
+		&& wget -qO - https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/microsoft.gpg >/dev/null \
 		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
-		&& echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list \
+		&& echo "deb https://download.sublimetext.com/ apt/stable/" | tee /etc/apt/sources.list.d/sublime-text.list \
+		&& echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" | tee /etc/apt/sources.list.d/microsfot.list \
 		&& apt-get update; }' \
 	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		`###alacritty - Not available in stable release` \
+		aqemu \
 		awesome \
 		brave-browser \
+		evince \
 		eterm \
 		enlightenment-data \
 		fluxbox \
+		fonts-noto-color-emoji \
+		fonts-symbola \
 		geany \
 		gimp \
+		gnome \
+		gnome-terminal \
+		kate \
+		kitty \
+		konsole \
+		libreoffice \
+		ncurses-term \
+		pidgin \
+		qemu-system-gui \
 		remmina remmina-plugin-rdp remmina-plugin-vnc remmina-plugin-secret remmina-plugin-exec remmina-plugin-kwallet remmina-plugin-python remmina-plugin-www remmina-plugin-x2go \
-		`### qterminal # needs RSS 80mb of memory` \
-		tigervnc-standalone-server \
+		qterminal `### needs RSS 80mb of memory` \
+		rxvt-unicode \
 		sublime-text \
+		syncthing-gtk \
+		terminator \
+		tigervnc-standalone-server \
+		tilix \
 		wireshark \
 		x11vnc \
 		x11-xserver-utils \
 		xterm \
 		xorg \
-		xrdp \
-	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
-		`### xpar ` \
+		xrdp
+RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		`### xpra ` \
 		libavformat59 \
 		libavif15 \
 		libjs-jquery-ui \
-		`### DISABLED. NO LONGER PART OF KALI: libprocps8 ` \
+		libprocps8 `### Not available in kali-rolling` \
 		libqrencode4 \
 		libxres1 \
 		libxtst6 \
@@ -301,22 +376,26 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		python3-pil \
 		python3-rencode \
 		xserver-xorg-video-dummy \
-		xvfb \
-	&& /pkg-install.sh GUI bash -c '{ cd /usr/lib \
-		&& curl  https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
-		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }' \
-	&& /pkg-install.sh GUI-DISABLED bash -c '{ cd /tmp \
+		xvfb
+# Everything below here will overwrite packages already installed by apt-get.
+#############################################################################
+RUN /pkg-install.sh GUI bash -c '{ cd /usr/lib \
+		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
+		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
+RUN	/pkg-install.sh GUI bash -c '{ cd /tmp \
 		`### Use the debian package (not ubuntu) because dpkg does not support .zst compression used in the ubuntu .deb file ` \
-		&& wget http://ftp.de.debian.org/debian/pool/main/p/procps/libprocps8_3.3.17-5_amd64.deb \
+		&& rm -f /tmp/*.deb \
+		`### && wget http://ftp.de.debian.org/debian/pool/main/p/procps/libprocps8_3.3.17-5_amd64.deb ### NEEDED FOR KALI-ROLLING ONLY` \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra_4.4.3-r0-1_amd64.deb \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra-html5-6.2-r1-1.deb \
-		&& dpkg -i libprocps*.deb xpra*.deb \
-		&& rm -f /tmp/xpra*.deb; }' \
-	&& /pkg-install.sh GUI bash -c '{ true; \
+		&& dpkg -i *.deb \
+		&& rm -f /tmp/*.deb; }'
+RUN /pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/brave-browser-release.list; \
 		rm -f /etc/apt/sources.list.d/sublime-text.list; \
 		apt-get update ; }'
 RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
+	&& /pkg-install.sh HACK bin https://api.localxpose.io/api/v2/downloads/loclx-linux-amd64.zip loclx \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_amd64.zip$' httpx \
@@ -335,13 +414,18 @@ RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh LARGE ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
 	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
 	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
+	&& /pkg-install.sh HACK ghbin tomnomnom/anew 'linux-amd64' anew \
+	&& /pkg-install.sh HACK ghbin lc/gau 'linux_amd64.tar.gz$' gau \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
-	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/d3mondev/puredns/v2@latest; }' \
+	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/subfinder/goaltdns@latest; }' \
+	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/d3mondev/puredns | PREFIX=/usr/bin sh; }' \
+	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/asciimoo/wuzz | PREFIX=/usr/bin sh; }' \
+	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/gwen001/github-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh LARGE bash -c '{ mkdir -p /usr/share/cheatsheets/community \
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
 	&& /pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \
-		&& git clone --depth 1 https://github.com/scipag/vulscan; } ' \
-	&& /pkg-install.sh HUGE bash -c '{ cd /tmp \
+		&& git clone --depth 1 https://github.com/scipag/vulscan; }'
+RUN /pkg-install.sh HUGE bash -c '{ cd /tmp \
 		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
 		&& cd pwndbg \
 		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
@@ -362,6 +446,11 @@ RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 RUN /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 	&& /pkg-install.sh WEB pip install \
 		'pelican[Markdown]' \
+	&& /pkg-install.sh HACK bash -c '{ cd /tmp \
+		&& git clone --depth 1 https://github.com/fullhunt/log4j-scan \
+		&& cd log4j-scan \
+		&& pip install -r requirements.txt \
+		&& cp log4j-scan.py /usr/local/bin/log4j-scan; }' \
 	&& /pkg-install.sh LARGE pip install \
 		discord \
 		git-dumper \
@@ -370,9 +459,12 @@ RUN /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
 		maigret \
 	&& /pkg-install.sh HACK pip install \
 		arsenal-cli \
+		git+https://github.com/vortexau/dnsvalidator \
 		h8mail \
 		hashid \
+		holehe \
 		pyTelegramBotAPI \
+		git+https://github.com/EntySec/Shreder \
 		sqlmap \
 		tgcrypto \
 		webtech \

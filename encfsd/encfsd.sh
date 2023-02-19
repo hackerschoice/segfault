@@ -11,7 +11,7 @@ BAD()
 	delay="$1"
 
 	shift 1
-	echo -e >&2 "[BAD] $*"
+	echo -e >&2 "[${CR}BAD${CN}] $*"
 	sleep "$delay"
 }
 
@@ -47,7 +47,7 @@ encfs_mkdir()
 
 	if [[ -d "${secdir}" ]]; then
 		mountpoint "${secdir}" >/dev/null && {
-			echo "[encfs-${name}] Already mounted."
+			# echo "[encfs-${name}] Already mounted."
 			[[ ! -e "${secdir}/${MARK_FN}" ]] && return 1
 			ERR "[encfs-${name}] Mounted but markfile exist showing not encrypted."
 			return 255
@@ -89,7 +89,7 @@ encfs_mount()
 	# echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o fsname=/dev/sec-\"${name}\" -o \"${opts}\"" >/dev/null
 	# --nocache -> Blindly hoping that encfs consumes less memory?!
 	# -s single thread. Seems to give better I/O performance and uses less memory (!)
-	ERRSTR=$(echo "$s" | bash -c "exec -a '[encfs-${name:-BAD}]' encfs -s --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"")
+	ERRSTR=$(echo "$s" | nice -n10 bash -c "exec -a '[encfs-${name:-BAD}]' encfs -s --nocache --standard --public -o nonempty -S \"${rawdir}\" \"${secdir}\" -- -o \"${opts}\"")
 	ret=$?
 	[[ $ret -eq 0 ]] && return 0
 
@@ -136,7 +136,7 @@ load_limits()
 	[[ -f "/config/etc/sf/sf.conf" ]] && eval "$(grep ^SF_ "/config/etc/sf/sf.conf")"
 
 	# Then source user specific limits
-	[[ -f "/config/db/db-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/db-${lid}/limits.conf")"
+	[[ -f "/config/db/user/lg-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/user/lg-${lid}/limits.conf")"
 }
 
 dir2prjid()
@@ -203,8 +203,8 @@ cmd_user_mount()
 
 	[[ ${#secret} -ne 24 ]] && { BAD 0 "Bad secret='$secret'"; return 255; }
 
-	secdir="/encfs/sec/user-${lid}"
-	rawdir="/encfs/raw/user/user-${lid}"
+	secdir="/encfs/sec/lg-${lid}"
+	rawdir="/encfs/raw/user/lg-${lid}"
 	encfs_mkdir "${lid}" "${secdir}" "${rawdir}"
 	ret=$?
 	[[ $ret -eq 1 ]] && return 0 # Already mounted
@@ -214,8 +214,8 @@ cmd_user_mount()
 	# Set XFS limits
 	load_limits "${lid}"
 	[[ -n $SF_USER_FS_INODE ]] || [[ -n $SF_USER_FS_SIZE ]] && {
-		SF_NUM=$(<"/config/db/db-${lid}/num") || return 255
-		SF_HOSTNAME=$(<"/config/db/db-${lid}/hostname") || return 255
+		SF_NUM=$(<"/config/db/user/lg-${lid}/num") || return 255
+		SF_HOSTNAME=$(<"/config/db/user/lg-${lid}/hostname") || return 255
 		prjid=$((SF_NUM + 10000000))
 		DEBUGF "SF_NUM=${SF_NUM}, prjid=${prjid}, SF_HOSTNAME=${SF_HOSTNAME}, INODE=${SF_USER_FS_INODE}, SIZE=${SF_USER_FS_SIZE}"
 		err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE:-16384} bhard=${SF_USER_FS_SIZE:-128m} ${prjid}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; return 255; }
@@ -223,7 +223,7 @@ cmd_user_mount()
 		local prjid_old
 		prjid_old=$(dir2prjid "${rawdir}")
 		[[ "$prjid_old" != "$prjid" ]] && {
-			DEBUGF "Setting it $prjid, old $prjid_old"
+			DEBUGF "Creating new prjid=$prjid, old $prjid_old"
 			err=$(xfs_quota -x -c "project -s -p ${rawdir} ${prjid}" 2>&1) || { ERR "XFS-QUOTA /sec: \n'$err'"; return 255; }
 		} 
 	}
@@ -240,18 +240,55 @@ cmd_user_mount()
 	return 0
 }
 
-# Set ROOT_FS xfs quota
-# [LID] [INODE LIMIT] [relative OVERLAY2 dir]
-cmd_xfs_quota()
+# Set ROOT_FS xfs quota and move encfs to lg's cgroup
+# [LID] "[CID] [INODE LIMIT] [relative OVERLAY2 dir]"
+cmd_setup_encfsd()
 {
 	local lid
 	local ilimit
 	local dir
 	local prjid
+	local cid
+	local pid
+	local str
+	local err
+	local cg_fn
 	lid="$1"
-	ilimit=${2%% *}
+	cid=${2%% *}
+	str=${2#* }
+	ilimt=${str%% *}
 	ilimit=${ilimit//[^0-9]/}
-	dir="/var/lib/docker/overlay2/${2#* }"
+	dir="/var/lib/docker/overlay2/${str#* }"
+
+	# Move lg's encfsd to lg's cgroup.
+	# Note: We can not use cgexec because encfsd needs to be started before the lg container
+	# is started. Thus we only know the LG's container-ID _after_ encfsd has started.
+	pid=$(pgrep "^\[encfs-${lid}")
+	unset err
+	cg_fn="system.slice/containerd.service/sf.slice/sf-guest.slice/${cid}/tasks"
+	if [[ -e "/sys/fs/cgroup/cpu/${cg_fn}" ]]; then
+		## CGROUPv1
+		# It's really really bad to use cgroup/unified if /sys/fs/cgroup is cgroup-v1:
+		# It messses up /proc/<PID>/cgroup and nobody really knows the effect of this.
+
+		# Note: The 'pid' is local to this namespace. However, linux kernel still accepts
+		# it for moving between cgroups (but will yield an error).
+		echo "$pid" >"/sys/fs/cgroup/cpu/${cg_fn}" 2>/dev/null || err=1
+		echo "$pid" >"/sys/fs/cgroup/blkio/${cg_fn}" 2>/dev/null || err=1
+	else
+		## CGROUPv2
+		cg_fn="/sys/fs/cgroup/sf.slice/sf-guest.slice"
+		str="${cid}"
+		cg_fn="/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-${cid}.scope/cgroup.procs"
+		[[ ! -e "${cg_fn}" ]] && cg_fn="/sys/fs/cgroup/sf.slice/sf-guest.slice/${cid}/cgroup.procs"
+		echo "$pid" >"${cg_fn}" || err=1
+	fi
+	grep -F sf-guest.slice "/proc/${pid}/cgroup" &>/dev/null || BAD 0 "Could not move encfs[pid=$pid] to lg's cgroup[cid=$cid]"
+
+	[[ -z $ilimit ]] && return
+	[[ $ilimit -le 0 ]] && return
+
+	# Setup LG's Root-FS inode limit 		
 
 	[[ ! -d "${dir}" ]] && { BAD 0 "Not found: ${dir}."; return 255; }
 	s=$(lsattr -dp "${dir}")
@@ -305,7 +342,7 @@ redis_loop_forever()
 		res=${res:2}
 
 		if [[ "$cmd" == "X" ]]; then
-			cmd_xfs_quota "${lid}" "${res}" || continue
+			cmd_setup_encfsd "${lid}" "${res}" || continue
 		elif [[ "$cmd" == "M" ]]; then
 			cmd_user_mount "${lid}" "${res}" || continue
 		else
@@ -330,7 +367,8 @@ ENCFS_SERVER_PASS="${ENCFS_SERVER_PASS//[^[:alpha:]]}"
 ENCFS_SERVER_PASS="${ENCFS_SERVER_PASS:0:24}"
 
 export REDISCLI_AUTH="${SF_REDIS_AUTH}"
-
+# CGV2_DIR="/sys/fs/cgroup"
+# [[ -d "/sys/fs/cgroup/unified" ]] && CGV2_DIR="/sys/fs/cgroup/unified"
 
 # Mount Segfault-wide encrypted file systems
 encfs_mount_server "everyone" "${ENCFS_SERVER_PASS}"
@@ -353,7 +391,3 @@ CPID=$!
 wait $CPID # SIGTERM will wake us
 # HERE: Could be a SIGTERM or a legitimate exit by redis_loop process
 do_exit_err $?
-
-
-
-

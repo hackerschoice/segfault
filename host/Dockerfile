@@ -4,13 +4,14 @@ FROM alpine
 
 RUN	apk add --no-cache --upgrade \
 	&& apk add --no-cache \
-		docker-cli \
-		redis \
 		bash \
-		libcap \
-		xauth \
-		openssh-server \
+		docker-cli \
+		iptables \
 		jq \
+		libcap \
+		openssh-server \
+		redis \
+		xauth \
 		xfsprogs-extra \
 	&& echo "/bin/segfaultsh" >>/etc/shells
 COPY /fs-root/ /

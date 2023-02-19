@@ -42,11 +42,10 @@ C_IP=$(</config/self/c_ip)
 
 sv_startx $PPID &
 
+[[ -n $PASSWORD ]] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"
 echo -e "Log in using:
 
     ${CDC}ssh -L2000:127.0.0.1:2000 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
 
 Then use your web browser and go to http://127.0.0.1:2000.
-PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}
-
 Exiting this shell will also terminate the GUI session."

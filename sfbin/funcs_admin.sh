@@ -53,6 +53,22 @@ lgstop()
 }
 echo -e "${CDC}lgstop [lg-LID] <message>${CN}              # eg \`lgstop lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
 
+lgban()
+{
+	local fn
+	local ip
+	fn="/dev/shm/sf-u1000/self-for-guest/${1}/ip"
+	[[ -f "$fn" ]] && {
+		ip=$(<"$fn")
+		fn="/sf/config/db/banned/ip-${ip:0:18}"
+		[[ ! -e "$fn" ]] && touch "$fn"
+		echo "Banned: $ip"
+	}
+
+	lgstop "$@"	
+}
+echo -e "${CDC}lgban  [lg-LID] <message>${CN}              # Stop & Ban IP address, eg \`lgban lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
+
 _sfcg_forall()
 {
 	docker ps --format "{{.Names}}"  --filter 'name=^lg-'
@@ -159,7 +175,9 @@ echo -e "${CDC}lg_cleaner [max_pid_count=3] <stop>${CN}    # eg \`lg_cleaner 3 s
 # Delete all images
 docker_clean()
 {
+	# shellcheck disable=SC2207
 	docker rm $(docker ps -a -q)
+	# shellcheck disable=SC2207
 	docker rmi $(docker images -q)
 }
 echo -e "${CDC}docker_clean${CN}"
@@ -169,8 +187,25 @@ _sfmax()
 	docker stats --no-stream --format "table {{.Name}}\t{{.Container}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}" | grep -E '(^lg-|^NAME)' | sort -k "$1" -h
 }
 
-lgsh() { docker exec -it "$1" bash -il; }
-echo -e "${CDC}lgsh [lg-LID]${CN}                          # Enter bash"
+lgsh() { docker exec -w/root -u0 -e HISTFILE=/dev/null -it "$1" bash -c 'exec -a [cached] bash'; }
+echo -e "${CDC}lgsh [lg-LID]${CN}                          # Enter bash [FOR TESTING]"
+
+_grephst()
+{
+	local fn
+	fn=$2
+
+	[[ ! -e "$fn" ]] && return
+	grep -E "$1" "${fn}" || return
+	echo "=== ${fn}"
+}
+lghst() {
+	cd /dev/shm/sf-u1000/encfs-sec || return
+	for d in lg-*; do
+		_grephst "$1" "${d}/root/.zsh_history"
+	done
+}
+echo -e "${CDC}lghst [regex]${CN}                          # grep in zsh_history [FOR TESTING]"
 
 lgcpu() { _sfmax 3; }
 lgmem() { _sfmax 4; }

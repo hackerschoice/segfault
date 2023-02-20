@@ -30,10 +30,11 @@ var Buildtime string
 
 // CLI flags
 var (
-	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
-	resultFlag = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
-	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
-	debugFlag  = flag.Bool("debug", false, "activate debug mode")
+	strainFlag     = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
+	resultFlag     = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
+	timerFlag      = flag.Int("timer", 5, "every how often to check for system load in seconds")
+	cgroupPathFlag = flag.String("cgroup", "/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", "path of your cgroup.procs file")
+	debugFlag      = flag.Bool("debug", false, "activate debug mode")
 )
 
 func init() {
@@ -361,7 +362,7 @@ func sanitize(s string) string {
 func printProcs(cid, cname string) error {
 	cname = cname[1:]
 
-	cgroupProcs := fmt.Sprintf("/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", cid)
+	cgroupProcs := fmt.Sprintf(*cgroupPathFlag, cid)
 	file, err := os.Open(cgroupProcs)
 	if err != nil {
 		return err

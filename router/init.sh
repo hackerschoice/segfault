@@ -3,6 +3,7 @@
 # - Take over host's 169.254.224.1 (and set host's sf-host to 169.254.255.254).
 # - Force default route to VPN Gateways
 
+# shellcheck disable=SC1091 # Do not follow
 source "/sf/bin/funcs.sh"
 
 ASSERT_EMPTY "NET_VPN" "$NET_VPN"
@@ -11,6 +12,7 @@ ASSERT_EMPTY "NET_LG_ROUTER_IP" "$NET_LG_ROUTER_IP"
 ASSERT_EMPTY "NET_LG_ROUTER_IP_DUMMY" "$NET_LG_ROUTER_IP_DUMMY"
 ASSERT_EMPTY "NET_ACCESS_ROUTER_IP" "$NET_ACCESS_ROUTER_IP"
 ASSERT_EMPTY "NET_VPN_ROUTER_IP" "$NET_VPN_ROUTER_IP"
+ASSERT_EMPTY "NET_VPN_DNS_IP" "$NET_VPN_DNS_IP"
 ASSERT_EMPTY "TOR_IP" "$TOR_IP"
 ASSERT_EMPTY "GSNC_IP" "$GSNC_IP"
 ASSERT_EMPTY "SSHD_IP" "$SSHD_IP"
@@ -214,6 +216,7 @@ ipt_set()
 	# LG can access Internet via VPN except bad routes
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_ONION}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${TOR_IP}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_VPN_DNS_IP}" -j ACCEPT
 	for ip in "${BAD_ROUTES[@]}"; do
 		iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${ip}" -j DROP
 	done
@@ -251,7 +254,6 @@ ipt_syn_limit_set()
 	iptables -I FORWARD 1 -i "${in}" -o "${out}" -p tcp --syn -j "SYN-LIMIT-${in}-${out}"
 	# Refill bucket at a speed of 20/sec and take out max of 64k at one time.
 	# 64k are taken and thereafter limit to 20syn/second (as fast as the bucket refills)
-	echo iptables -A "SYN-LIMIT-${in}-${out}" -m limit --limit "${limit}" --limit-burst "${burst}" -j RETURN
 	iptables -A "SYN-LIMIT-${in}-${out}" -m limit --limit "${limit}" --limit-burst "${burst}" -j RETURN
 	sleep 1
 	iptables -A "SYN-LIMIT-${in}-${out}" -j DROP

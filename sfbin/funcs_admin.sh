@@ -2,6 +2,7 @@
 
 [[ $(basename -- "$0") == "funcs_admin.sh" ]] && { echo "ERROR. Use \`source $0\` instead."; exit 1; }
 _basedir="$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)"
+# shellcheck disable=SC1091 # Do not follow
 source "${_basedir}/funcs.sh"
 unset _basedir
 
@@ -16,7 +17,7 @@ container_df()
 {
         for container in $(docker ps --all --quiet --format '{{ .Names }}'); do
 		[[ -n $1 ]] && [[ ! $container =~ ${1:?} ]] && continue
-		mdir="$(docker inspect $container --format '{{.GraphDriver.Data.UpperDir }}')" 
+		mdir=$(docker inspect "$container" --format '{{.GraphDriver.Data.UpperDir }}')
 		size="$(du -sk "$mdir" | cut -f1)                        "
 		cn="${container}                                         "
 		echo "${size:0:10} ${cn:0:20} $(echo "$mdir" | grep -Po '^.+?(?=/diff)'  )" 
@@ -118,8 +119,7 @@ lgps()
 	while [[ $i -lt ${#arr[@]} ]]; do
 		lglid=${arr[$i]}
 		((i++))
-		IFS= str=$(_sfcg_psarr "$lglid" "$match")
-		[[ $? -eq 0 ]] && continue
+		IFS= str=$(_sfcg_psarr "$lglid" "$match") && continue
 
 		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
 		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
@@ -150,11 +150,12 @@ lg_cleaner()
 {
 	local is_stop
 	local max
+	local IFS
 	max="$1"
 	is_stop="$2"
 	[[ -z $max ]] && max=3
 	IFS=$'\n'
-	real=($(ps alxww | grep -v grep | grep -F " docker-exec-sigproxy exec -i" | awk '{print $16;}'))
+	real=($(pgrep docker-exec-sig -a | awk '{print $5;}'))
 	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))
 	for x in "${all[@]}"; do
 		[[ ! $x =~ ^lg- ]] && continue
@@ -175,9 +176,9 @@ echo -e "${CDC}lg_cleaner [max_pid_count=3] <stop>${CN}    # eg \`lg_cleaner 3 s
 # Delete all images
 docker_clean()
 {
-	# shellcheck disable=SC2207
+	# shellcheck disable=SC2046
 	docker rm $(docker ps -a -q)
-	# shellcheck disable=SC2207
+	# shellcheck disable=SC2046
 	docker rmi $(docker images -q)
 }
 echo -e "${CDC}docker_clean${CN}"

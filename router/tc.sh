@@ -14,6 +14,7 @@
 #
 # tc -s -d qdisc show
 
+# shellcheck disable=SC1091 # Do not follow
 source "/sf/bin/funcs.sh"
 source "/sf/bin/funcs_net.sh"
 
@@ -36,10 +37,10 @@ tc qdisc del dev "${DEV_SHELL}" root 2>/dev/null
 
 unset err
 [[ -n $SF_MAXOUT ]] && {
-	### Shape/Limit VPN gateway first (LG -> VPN)
+	### Shape/Limit VPN gateway (LG -> VPN)
 	tc_set "${DEV_GW}" "${SF_MAXOUT}" "nfct-src" || err=1
 
-	### Shape DIRECT network next (LG's SSHD -> DirectInternet)
+	### Shape/Limit DIRECT network (LG's SSHD -> DirectInternet)
 	tc_set "${DEV_DIRECT}" "${SF_MAXOUT}" "dst" || err=1
 }
 

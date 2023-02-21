@@ -1,8 +1,8 @@
 #! /bin/bash
 
+# shellcheck disable=SC1091 # Do not follow
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_redis.sh
-
 		
 SF_TIMEOUT_WITH_SHELL=604800
 SF_TIMEOUT_NO_SHELL=129600
@@ -27,13 +27,13 @@ stop_lg()
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
 
 	# Tear down container
-	[[ ! -z $is_container ]] && docker stop "lg-$lid" &>/dev/nuill
+	[[ -n $is_container ]] && docker stop "lg-$lid" &>/dev/nuill
 
 	# Odd: On cgroup2 the command 'docker top lg-*' shows that encfs is running
 	# inside the container even that we never moved it into the container's
 	# Process Namespace. EncFS will also die when the lg- is shut down.
 	# This is only neede for cgroup1:
-	[[ ! -z $is_encfs ]] && pkill -SIGTERM -f "^\[encfs-${lid}\]" 2>/dev/null
+	[[ -n $is_encfs ]] && pkill -SIGTERM -f "^\[encfs-${lid}\]" 2>/dev/null
 }
 
 # Return 0 if container started just recently.
@@ -166,9 +166,8 @@ while :; do
 	# Every 30 seconds check all running lg-containers if they need killing.
 	# docker ps -f "name=^lg" --format "{{.ID}} {{.Names}}"
 	containers=($(docker ps -f "name=^lg-" --format "{{.Names}}"))
-	[[ -z $containers ]] && continue
-	i=0
 	n=${#containers[@]}
+	i=0
 	while [[ $i -lt $n ]]; do
 		check_container "${containers[$i]}"
 		((i++))

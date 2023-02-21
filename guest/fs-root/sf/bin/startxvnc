@@ -2,7 +2,9 @@
 
 CDY="\e[0;33m"
 CDC="\e[0;36m"
+CB="\e[1;34m" # blue
 CN="\e[0m"
+CUL="\e[4m"
 
 cleanup()
 {
@@ -78,9 +80,9 @@ sv_startx $PPID &>/dev/null &
 disown
 
 [[ -n $PASSWORD ]] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"
-echo -e "Log in using:
+echo -e "Keep this shell open and log in again using:
 
-    ${CDC}ssh -L5900:127.0.0.1:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
+    ${CDC}ssh -L5900:0:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
 
-Then use your favourite VNC client and connect to 127.0.0.1:5900.
-Exiting this shell will also terminate the VNC session."
+Then use your favourite VNC client and connect to ${CB}${CUL}127.0.0.1:5900${CN}.
+${CDY}DO NOT EXIT THIS SHELL${CN}: Exiting this shell will terminate the GUI session."

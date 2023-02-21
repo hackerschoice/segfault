@@ -1,5 +1,6 @@
 #! /bin/bash
 
+# shellcheck disable=SC1091 # Do not follow
 source "/sf/bin/funcs.sh"
 source "/sf/bin/funcs_net.sh"
 
@@ -10,6 +11,7 @@ source "/sf/bin/funcs_net.sh"
 # the iptable rules set inside this container. (Why?).
 # See also
 # - https://stackoverflow.com/questions/31265993/docker-networking-namespace-not-visible-in-ip-netns-list
+# - https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg
 
 # Once
 ipt()
@@ -38,7 +40,12 @@ fw2docker()
 	range="$2"
 	dstip="$3"
 
+	# Debugging:
+	#  iptables -t raw -I PREROUTING -p udp --dport 55372 -j TRACE
+	#  xtables-monitor --trace
 	ipt -I PREROUTING -t nat -i "${dev:?}" -d "${mainip}" -p "${proto}" --dport "${range}" -j DNAT --to-destination "${dstip}"
+	# Accept forward in case the host's FORWARD policy is set to DROP
+	ipt -I DOCKER-USER -o "${dev_br:?}" -d "${dstip}" -p "${proto}" --dport "${range}" -j ACCEPT
 
 	[[ -z $SF_DEBUG ]] && return
 
@@ -66,12 +73,8 @@ ip link set "$dev" arp off
 ip addr flush "$dev"
 
 mainip=$(GetMainIP)
-dev=$(DevByIP "${mainip:?}")
-[[ -z $dev ]] && ERREXIT 255 "Failed to find main network device on host."
-
-# NET_DIRECT_WG_IP=172.28.0.3
-# NET_DIRECT_BRIDGE_IP=172.28.0.1
-# WireGuard forwards to sf-wg
+dev=$(DevByIP "${mainip:?}") || ERREXIT 255 "Failed to find main network device on host."
+dev_br=$(DevByIP "${NET_DIRECT_BRIDGE_IP:?}") || ERREXIT 255 "Failed to find main network device on host."
 
 ## NOTE: Flushing POSTROUTING may screw up dns-doh (when dns-doh tries to reconnect)
 # iptables -t nat -F PREROUTING
@@ -81,7 +84,7 @@ fw2docker "udp" "32768:65535" "${NET_DIRECT_WG_IP:?}"
 # MOSH forwards to sf-router (for traffic control)
 fw2docker "udp" "25002:26023" "${NET_DIRECT_ROUTER_IP:?}"
 
-[[ -n $SF_DEBUG ]] && sysctl -w "net.ipv4.conf.$(DevByIP "${NET_DIRECT_BRIDGE_IP:?}").route_localnet=1"
+# [[ -n $SF_DEBUG ]] && sysctl -w "net.ipv4.conf.${dev_br}.route_localnet=1"
 
 # Keep this running so we can inspect iptables rules (for debugging only)
 [[ -n $SF_DEBUG ]] && exec -a '[network-fix] sleep' sleep infinity

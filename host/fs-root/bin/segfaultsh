@@ -125,7 +125,7 @@ emu_set_env()
 {
 	eval "[[ -n \"\$$1\" ]]" && return
 	echo "[+] EMULATION: Setting $1=$2"
-	eval "$1"=\"${2}\"
+	eval "$1"=\""${2}"\"
 }
 
 init_emu_tor()
@@ -228,12 +228,14 @@ logout()
 	done
 }
 
+# shellcheck disable=SC2317 # Not reachable
 cb_sighup()
 {
 	logout
 	exit 200
 }
 
+# shellcheck disable=SC2317 # Not reachable
 cb_sigterm()
 {
 	logout
@@ -355,7 +357,7 @@ print_goodbye()
 		str="process is"
 		[[ "$n" -gt 1 ]] && str="processes are"
 		echo -e "${CY}WARNING: ${CR}${n}${CY} ${str} still running:${CN}"
-		exec_errnull docker exec --user 0:0 "lg-${LID}" pgrep . -al | tail -n+3 | while read x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
+		exec_errnull docker exec --user 0:0 "lg-${LID}" pgrep . -al | tail -n+3 | while read -r x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
@@ -643,7 +645,7 @@ wait_for_load()
 	# FIXME: Stop after waiting for too long.
 	# FIXME: Implement garbage collector...
 	while :; do
-		load=($(</proc/loadavg))
+		read -r -a load </proc/loadavg
 		[[ ${load[0]%%.*} -lt "$max" ]] && break
 		echo -e >&2 "[${CY}SF${CN}] Waiting for load to go down..."
 		sleep 5
@@ -709,8 +711,7 @@ check_limit_server_by_ip()
 		for lid in "${ARR[@]}"; do
 			[[ -z $lid ]] && break
 			### Check if any of the shells are still alive
-			str="$(exec_errnull docker container inspect "lg-${lid}" -f '{{.State.Status}}')"
-			[[ $? -ne 0 ]] && continue
+			str="$(exec_errnull docker container inspect "lg-${lid}" -f '{{.State.Status}}')" || continue
 
 			# Container can be in "Created" state (reason is unknown)
 			[[ "$str" != "running" ]] && {
@@ -859,7 +860,8 @@ if [[ -d "${SF_USER_DB_DIR}" ]]; then
 else
 	print_disclaimer
 	sysmsg "/sf/bin/loginmsg-new.sh"
-	# #####################################################################
+	# ######################################################################
+	# 70 long
 	# Got 54 space
 	# Creating Server => 16 chars
 	# Color escape codes => 11 chars
@@ -911,8 +913,7 @@ echo_pty -n "...."
 [[ -n $IS_TRY_EXISTING ]] && {
 	DEBUGF "Attaching to existing instance lg-${LID}..."
 	# If state is not running then stop it.
-	str="$(exec_errnull docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
-	if [[ $? -eq 0 ]]; then
+	str="$(exec_errnull docker container inspect "lg-${LID}" -f '{{.State.Status}}')" && {
 		[[ $str == "running" ]] && {
 			echo_pty -e "..........[${CG}Ok${CN}]"
 			spawn_shell_exit "$@"
@@ -920,9 +921,7 @@ echo_pty -n "...."
 		}
 		# HERE: Container exists but not in RUNNING state.
 		exec_devnull docker stop "lg-${LID}"
-	fi
-	echo_pty -n ".."
-
+	}
 	DEBUGF "FAILED to attached to lg-${LID}"
 	# HERE: Instance does not exists.
 }
@@ -995,8 +994,9 @@ DEBUGF "Instance started..."
 # Wait for detached docker shell to enter 'running' state
 n=0
 while :; do
-	str="$(exec_errnull docker container inspect "lg-${LID}" -f '{{.State.Status}}')"
-	[[ "$?" -eq 0 ]] && [[ "$str" == "running" ]] && break
+	str="$(exec_errnull docker container inspect "lg-${LID}" -f '{{.State.Status}}')" && {
+		[[ "$str" == "running" ]] && break
+	}
 	DEBUGF "#${n} Waiting for sf-guest to be ready..."
 	if [[ $n -gt 0 ]]; then sleep 5; else sleep 0.1; fi
 	n=$((n+1))
@@ -1023,7 +1023,7 @@ echo_pty -n ".."
 res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || ERREXIT 252 "Failed to set LID in Redis"
 
 # Set FW rules for this instance
-[[ $SF_USER_SYN_LIMIT -ne 0 ]] && exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || ERREXIT 251 "Faild to set syn-limit..."
+[[ $SF_USER_SYN_LIMIT -ne 0 ]] && { exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || ERREXIT 251 "Faild to set syn-limit..."; }
 
 # 255.0.0.1 always points to guest's localhost: user can now set up a ssh -D1080 and connect with browser to
 # 255.0.0.1 and land on guest's 127.0.0.1.

@@ -31,6 +31,7 @@ sed 's/\/home\//\/sec\/home\//g' -i /etc/passwd
 
 # Docker depends on /root to exist or otherwise throws a:
 # [process_linux.go:545: container init caused: mkdir /root: file exists: unknown]
+# shellcheck disable=SC2114
 rm -rf /root /home
 mkdir -p /sec/root
 ln -s /sec/root /root
@@ -54,7 +55,7 @@ fixr()
 ln -sf /sec/usr/etc/rc.local /etc/rc.local
 chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh
 chmod 755 /usr /usr/bin /usr/sbin /etc /etc/profile.d
-chmod 755 /usr/bin/mosh-server-hook /usr/bin/xpra-hook /usr/bin/brave-browser-stable-hook /usr/bin/xterm-dark /usr/sbin/halt
+chmod 755 /usr/bin/mosh-server-hook /usr/bin/xpra-hook /usr/bin/brave-browser-stable-hook /usr/share/code/code-hook /usr/share/code/bin/code-hook /usr/bin/xterm-dark /usr/sbin/halt
 chmod 644 /etc/profile.d/segfault.sh
 chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
 fixr /usr/share/www
@@ -67,7 +68,7 @@ ln -s /sf/bin/sf-motd.sh /usr/bin/info
 rm -f /usr/sbin/shutdown /usr/sbin/reboot
 ln -s /usr/sbin/halt /usr/sbin/shutdown
 ln -s /usr/sbin/halt /usr/sbin/reboot
-ln -s /usr/bin/code /usr/bin/vscode
+[[ ! -e /usr/bin/vscode ]] && ln -sf /usr/bin/code /usr/bin/vscode
 # No idea why /etc/firefox-esr does not work...
 if [[ -e /usr/lib/firefox/defaults/pref/channel-prefs.js ]]; then
 	echo 'pref("network.dns.blockDotOnion", false);
@@ -96,7 +97,9 @@ mk_hook /usr/bin        mosh-server
 mk_hook /usr/bin        xpra
 mk_hook /usr/bin        brave-browser-stable
 mk_hook /usr/bin        chromium
+mk_hook /usr/share/code/bin code
 mk_hook /usr/share/code code
+[[ -f /usr/share/code/bin/code.orig ]] && sed 's/PATH\/code\"/PATH\/code.orig\"/' -i /usr/share/code/bin/code.orig
 
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {

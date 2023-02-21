@@ -17,7 +17,7 @@ dlx()
 		*.zip)
 			[[ -f /tmp/pkg.zip ]] && rm -f /tmp/pkg.zip
 			curl -SsfL -o /tmp/pkg.zip "$url" \
-			&& unzip -j /tmp/pkg.zip "$asset" -d /usr/bin \
+			&& unzip -o -j /tmp/pkg.zip "$asset" -d /usr/bin \
 			&& chmod 755 "/usr/bin/${asset}" \
 			&& rm -f /tmp/pkg.zip \
 			&& return 0
@@ -74,12 +74,11 @@ ghbin()
 	local regex
 	local url
 	local asset
-	local err
 	loc="$1"
 	regex="$2"
 	asset="$3"
 
-	loc="https://api.github.com/repos/"$loc"/releases/latest"
+	loc="https://api.github.com/repos/${loc}/releases/latest"
 	url=$(curl -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
 	dlx "$url" "$asset"
 }

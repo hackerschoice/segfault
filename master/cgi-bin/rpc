@@ -39,7 +39,7 @@ GetFormVars()
 	local ifs
 	ifs=$IFS
 
-	IFS=\& arr=(${REQUEST_BODY})
+	IFS=\& read -r -a arr <<< "${REQUEST_BODY}"
 
 	local i
 	local str
@@ -51,7 +51,7 @@ GetFormVars()
 		val=${str#*=}
 
 		[[ ${key} == "nocolor" ]] && unset COLOR
-		[[ ${key} == "verbose" ]] && IS_VERBOSE=1
+		# [[ ${key} == "verbose" ]] && IS_VERBOSE=1
 		[[ ${key} == "port" ]] && { val=$((${val//[^0-9]})); [[ $val -ge 32768 && $val -le 65535 ]] && R_PORT="$val"; }
 		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
 		[[ ${key} == "exit_private" ]] && R_WT_PRIVATE="${val//[^[:alnum:]+\/]}="
@@ -76,7 +76,6 @@ GenSecret()
 {
 	local len
 	len=16
-	[[ -n $1 ]] && len=$1
 
 	str=$(head -c $((len*2)) </dev/urandom | base64 -w0)
 	str=${str//[^[:alnum:]]}
@@ -112,7 +111,6 @@ cmd_net_list()
 	local str
 	local name
 	local upstr
-	local ex_wt_private
 	local ex_wg_public
 	local privstr
 
@@ -139,7 +137,6 @@ Name (${G}active${N})  |           | Private                                    
 		unset upstr
 		[[ $ifaces == *"wg${name} "* ]] && {
 			upstr="${G}"
-			ex_wt_private="$WT_PRIVATE"
 			ex_wg_public="$WG_PUBLIC"
 		}
 		privstr="${WT_PRIVATE:-                                                                            }"
@@ -206,12 +203,11 @@ WG_PORT=\"${WG_PORT}\"
 # [portsecret]
 cmd_net_init_move()
 {
-	local sec
 	local psec
 	psec="$1"
 
 	source "/config/db/wg/sec2port-${psec}" 2>/dev/null || BAIL "Portsecret ${psec} is not known."
-	[[ ${ASSIGNED_LID} == $LID ]] && return # Already assigned to this LID
+	[[ "${ASSIGNED_LID}" == "$LID" ]] && return # Already assigned to this LID
 	ln -sf "../user/lg-${LID}/wg/port" "/config/db/wg/port-${WG_PORT}"
 	PORTSECRET="$1"
 	write_portfile
@@ -343,14 +339,14 @@ net_down()
 
 	# Shut down WG interface
 	if [[ -z $name || $name == "all" ]]; then
-		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null || return
 	else
 		# Return early if device did not exist.
-		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete "wg${name}" || return
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete "wg${name}" 2>/dev/null || return
 	fi
 	# Restore default routing
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
 	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}"
 }
 
 cmd_net_del()
@@ -379,7 +375,6 @@ cmd_net_del()
 
 	[[ ! -f "${LID_WGDIR}/wg-${R_WT_NAME}" ]] && BAIL "${R}Not found${N}: ${R_WT_NAME}"
 	xrm "/config/db/wg/wg-${R_WT_NAME}" "${LID_WGDIR}/wg-${R_WT_NAME}"
-	# xrm "/config/db/wg/wt-${R_WT_NAME}" "${LID_WGDIR}/wt-${R_WT_NAME}"
 
 	echo -en "\
 ${G}Private key deleted${N} ($R_WT_NAME).
@@ -399,7 +394,6 @@ cmd_net_show()
 {
 	local str
 	local dev
-	local exe
 
 	dev="all"
 	[[ -n $R_WT_NAME ]] && dev="wg${R_WT_NAME}"
@@ -468,7 +462,7 @@ CheckGoodKey()
 	[[ ${#key} -eq 44 ]] && return
 	BAIL "${R}ERROR${N}: Bad Key for ${opt}="
 }
-
+# shellcheck disable=2188 # unrecognized redirection (haha. shellsheck you suck)
 0<&- # Close STDIN
 Sanitize
 GetFormVars
@@ -491,7 +485,7 @@ CheckGoodKey "$R_WT_PUBLIC"  "--exit_public"
 
 # Split into arguments
 _IFS=$IFS
-IFS=/ ARGS=(${REQUEST_URI:1})  # Ignore first '/'. Split into arguements.
+IFS=/ read -r -a ARGS <<< "${REQUEST_URI:1}"  # Ignore first '/'. Split into arguements.
 IFS=$_IFS
 
 [[ "${FCGI_CMD}" == "dmesg" ]] && {

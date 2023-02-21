@@ -367,8 +367,6 @@ ENCFS_SERVER_PASS="${ENCFS_SERVER_PASS//[^[:alpha:]]}"
 ENCFS_SERVER_PASS="${ENCFS_SERVER_PASS:0:24}"
 
 export REDISCLI_AUTH="${SF_REDIS_AUTH}"
-# CGV2_DIR="/sys/fs/cgroup"
-# [[ -d "/sys/fs/cgroup/unified" ]] && CGV2_DIR="/sys/fs/cgroup/unified"
 
 # Mount Segfault-wide encrypted file systems
 encfs_mount_server "everyone" "${ENCFS_SERVER_PASS}"

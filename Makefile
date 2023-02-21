@@ -1,4 +1,4 @@
-VER := 0.4.3a
+VER := 0.4.3rc1
 
 all:
 	make -C cleaner/cg
@@ -24,6 +24,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/xpra-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/brave-browser-stable-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/chromium-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/code/code-hook"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/code/bin/code-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/xterm-dark"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/profile.d/segfault.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/shellrc"

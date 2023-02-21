@@ -12,7 +12,7 @@ WORKDIR /root/
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
 
-COPY setup.sh fs-root/sf/bin/pkg-install.sh /
+COPY fs-root/sf/bin/pkg-install.sh /
 
 RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& apt-get update -y \
@@ -319,13 +319,14 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& wget -qO - https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/microsoft.gpg >/dev/null \
 		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
 		&& echo "deb https://download.sublimetext.com/ apt/stable/" | tee /etc/apt/sources.list.d/sublime-text.list \
-		&& echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" | tee /etc/apt/sources.list.d/microsfot.list \
+		&& echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" | tee /etc/apt/sources.list.d/microsoft.list \
 		&& apt-get update; }' \
 	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`###alacritty - Not available in stable release` \
 		aqemu \
 		awesome \
 		brave-browser \
+		code \
 		evince \
 		eterm \
 		enlightenment-data \
@@ -384,6 +385,7 @@ RUN /pkg-install.sh GUI bash -c '{ cd /usr/lib \
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
 RUN	/pkg-install.sh GUI bash -c '{ cd /tmp \
 		`### Use the debian package (not ubuntu) because dpkg does not support .zst compression used in the ubuntu .deb file ` \
+		`### Beta releases are at: https://xpra.org/beta/testing/main/binary-amd64/ ` \
 		&& rm -f /tmp/*.deb \
 		`### && wget http://ftp.de.debian.org/debian/pool/main/p/procps/libprocps8_3.3.17-5_amd64.deb ### NEEDED FOR KALI-ROLLING ONLY` \
 		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra_4.4.3-r0-1_amd64.deb \
@@ -391,8 +393,7 @@ RUN	/pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& dpkg -i *.deb \
 		&& rm -f /tmp/*.deb; }'
 RUN /pkg-install.sh GUI bash -c '{ true; \
-		rm -f /etc/apt/sources.list.d/brave-browser-release.list; \
-		rm -f /etc/apt/sources.list.d/sublime-text.list; \
+		rm -f /etc/apt/sources.list.d/*.list; \
 		apt-get update ; }'
 RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HACK bin https://api.localxpose.io/api/v2/downloads/loclx-linux-amd64.zip loclx \
@@ -488,12 +489,21 @@ RUN /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projec
 	&& { rm -f /tmp/*.deb; true; } \
 	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin" \
 	&& echo "DONE."
+### AFter 0.4.3a release
+RUN /pkg-install.sh GAMES apt-get install -y --no-install-recommends \
+	pacman4console
+RUN /pkg-install.sh EMU apt-get install -y --no-install-recommends \
+		dosbox \
+		fs-uae fs-uae-arcade \
+		vice
+RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
+	&& apt-get update
 
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*
 
 # Do fs-root last (on vmbox it messes with permissions on directories and setup.sh fixes it)
-COPY /fs-root/ /
+COPY setup.sh /fs-root/ /
 RUN		/setup.sh \
 	&& rm -f /setup.sh /pkg-install.sh
 

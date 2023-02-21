@@ -1,4 +1,4 @@
-VER := 0.4.3rc1
+VER := 0.4.3a
 
 all:
 	make -C cleaner/cg

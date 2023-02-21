@@ -1,4 +1,4 @@
-FROM golang:1.19 as BUILD
+FROM golang:1.20 as BUILD
 WORKDIR /app
 COPY *.go go.mod go.sum /app/
 RUN go mod tidy && go mod vendor

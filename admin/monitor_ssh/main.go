@@ -132,9 +132,9 @@ func main() {
 				} else {
 					if _, ok := badState[server]; ok {
 						elapsed := time.Since(downTime[server])
+						msgC <- fmt.Sprintf("[%v] is now healthy [down %v]", server, elapsed.String())
 						delete(badState, server)
 						delete(downTime, server)
-						msgC <- fmt.Sprintf("[%v] is now healthy [down %v]", server, elapsed.String())
 					}
 				}
 			}(server, secret)
@@ -176,7 +176,6 @@ func checkServer(server, secret string) error {
 		return fmt.Errorf("[%v] SSH session failed: %v", server, err)
 	}
 	defer session.Close()
-
 	session.Setenv("SECRET", secret)
 
 	// configure terminal mode

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -11,10 +12,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
@@ -24,6 +27,15 @@ import (
 // set during compilation using ldflags
 var Version string
 var Buildtime string
+
+// CLI flags
+var (
+	strainFlag     = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
+	resultFlag     = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
+	timerFlag      = flag.Int("timer", 5, "every how often to check for system load in seconds")
+	cgroupPathFlag = flag.String("cgroup", "/sys/fs/cgroup/sf.slice/sf-guest.slice/docker-%s.scope/cgroup.procs", "path of your cgroup.procs file")
+	debugFlag      = flag.Bool("debug", false, "activate debug mode")
+)
 
 func init() {
 	flag.Parse()
@@ -36,14 +48,6 @@ func init() {
 		ForceColors: true,
 	})
 }
-
-// CLI flags
-var (
-	strainFlag = flag.Float64("strain", 20, "maximum amount of strain per CPU core")
-	resultFlag = flag.String("result", "/sf/config/db/cg", "path where action results are stored")
-	timerFlag  = flag.Int("timer", 5, "every how often to check for system load in seconds")
-	debugFlag  = flag.Bool("debug", false, "activate debug mode")
-)
 
 func main() {
 	hostname, _ := os.Hostname()
@@ -116,14 +120,14 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		return err
 	}
 
-	// mu protects `_largestUsage`
+	// mu protects `highestUsage`
 	var mu sync.Mutex
 	var highestUsage float64
 
 	// used to synchronize goroutines
 	var wg = &sync.WaitGroup{}
 
-	// check all containers usage and keep largest value in `largestUsage` var
+	// check all containers usage and keep largest value in `highestUsage` var
 	for _, c := range list {
 		wg.Add(1)
 		go func(c types.Container) {
@@ -145,7 +149,11 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		usage := containerUsage(cli, c.ID)
 		log.Debugf("allowed to kill %v with usage %v", c.Names[0], usage)
 
-		var killTimeout = time.Second * 2
+		intPtr := func(v int) *int { return &v }
+		var killTimeout = container.StopOptions{
+			Signal:  "SIGTERM",
+			Timeout: intPtr(10),
+		}
 		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
 		const action = "STOP (2s) || KILL"
 		const abuseMessage = "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙"
@@ -157,11 +165,16 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 			// message user that he's being abusive
 			err = sendMessage(c.ID, abuseMessage)
 			if err != nil {
+				log.Errorf("unable to message the user: %v", err)
+			}
+
+			err = printProcs(c.ID, c.Names[0])
+			if err != nil {
 				log.Error(err)
 			}
 
 			ctx := context.Background()
-			err := cli.ContainerStop(ctx, c.ID, &killTimeout)
+			err = cli.ContainerStop(ctx, c.ID, killTimeout)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -324,6 +337,62 @@ func (a LogData) save(path string) error {
 
 	log.Debugf("[LOG FILE] %v", filePath)
 
+	return nil
+}
+
+func sanitize(s string) string {
+	clean := func(s []byte) string {
+		j := 0
+		for _, b := range s {
+			if ('a' <= b && b <= 'z') ||
+				('A' <= b && b <= 'Z') ||
+				('0' <= b && b <= '9') ||
+				b == '#' {
+				s[j] = b
+				j++
+			}
+		}
+		return string(s[:j])
+	}
+	s = strings.ToValidUTF8(s, "#")
+	s = clean([]byte(s))
+	return s
+}
+
+func printProcs(cid, cname string) error {
+	cname = cname[1:]
+
+	cgroupProcs := fmt.Sprintf(*cgroupPathFlag, cid)
+	file, err := os.Open(cgroupProcs)
+	if err != nil {
+		return err
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		cmdline := fmt.Sprintf("/proc/%s/cmdline", scanner.Text())
+
+		// limit each command string to max 255 characters
+		if len(cmdline) > 255 {
+			cmdline = cmdline[:255]
+		}
+
+		file, err := os.Open(cmdline)
+		if err != nil {
+			return err
+		}
+
+		var count int
+		_scanner := bufio.NewScanner(file)
+		for _scanner.Scan() {
+			if count > 128 {
+				return fmt.Errorf("reached 128 commands, skipping extra output")
+			}
+			count++
+
+			data := sanitize(_scanner.Text())
+			log.Warnf("[%s] proc: %v", cname, data)
+		}
+	}
 	return nil
 }
 

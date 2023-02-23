@@ -139,6 +139,7 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 				highestUsage = usage
 				mu.Unlock()
 			}
+
 			log.Infof("[%v] usage (%.2f%%)", c.Names[0][1:], usage)
 		}(c)
 	}
@@ -152,11 +153,13 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		intPtr := func(v int) *int { return &v }
 		var killTimeout = container.StopOptions{
 			Signal:  "SIGTERM",
-			Timeout: intPtr(10),
+			Timeout: intPtr(5),
 		}
+
 		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
-		const action = "STOP (2s) || KILL"
-		const abuseMessage = "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙"
+
+		const action = "STOP (5s) || KILL"
+		const abuseMessage = "Your server was shut down because it consumed too many resources. If you feel that this was a mistake then please contact us 💙"
 
 		// stop all containers where usage > `highestUsage` * 0.8
 		if usage > killThreshold {
@@ -251,7 +254,8 @@ func sendMessage(cID string, message string) error {
 
 		fdCount++
 
-		err = _sendMessage(path, message)
+		_path = filepath.Join(_path, d.Name())
+		err = _sendMessage(_path, message)
 		if err != nil {
 			return err
 		}
@@ -347,7 +351,7 @@ func sanitize(s string) string {
 			if ('a' <= b && b <= 'z') ||
 				('A' <= b && b <= 'Z') ||
 				('0' <= b && b <= '9') ||
-				b == '#' {
+				b == '#' || b == ' ' {
 				s[j] = b
 				j++
 			}

@@ -256,7 +256,7 @@ func sendMessage(cID string, message string) error {
 		_, err = strconv.Atoi(d.Name())
 		if err != nil {
 			log.Debugf("not a number: %v", d.Name())
-			return nil
+			return err
 		}
 
 		log.Debugf("MESSAGE to: %v", path)

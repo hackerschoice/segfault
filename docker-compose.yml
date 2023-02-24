@@ -95,7 +95,7 @@ services:
     pid: "host"
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"
-    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task:ro"
+    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task"
     - "${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config"
     - "/sys/fs/cgroup:/sys/fs/cgroup"
 

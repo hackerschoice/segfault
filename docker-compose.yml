@@ -87,7 +87,7 @@ services:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   sf-containerguard:
-    build: cleaner/cg
+    build: tools/cg
     image: sf-containerguard
     container_name: sf-containerguard
     restart: ${SF_RESTART:-on-failure}

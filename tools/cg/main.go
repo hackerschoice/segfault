@@ -240,7 +240,7 @@ func sendMessage(cID string, message string) error {
 
 	pid, err := os.ReadFile(pidPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("readfile: %v", err)
 	}
 
 	// keeps track of how many FDs we've walked past.
@@ -256,7 +256,7 @@ func sendMessage(cID string, message string) error {
 		_, err = strconv.Atoi(d.Name())
 		if err != nil {
 			log.Debugf("not a number: %v", d.Name())
-			return err
+			return nil
 		}
 
 		log.Debugf("MESSAGE to: %v", path)
@@ -272,7 +272,7 @@ func sendMessage(cID string, message string) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("walkpath: %v", err)
 	}
 
 	return nil

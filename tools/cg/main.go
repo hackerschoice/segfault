@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +36,7 @@ var (
 	debugFlag      = flag.Bool("debug", false, "activate debug mode")
 )
 
-func init() {
+func main() {
 	flag.Parse()
 	if *debugFlag {
 		log.SetLevel(log.DebugLevel)
@@ -47,9 +46,7 @@ func init() {
 	log.SetFormatter(&log.TextFormatter{
 		ForceColors: true,
 	})
-}
 
-func main() {
 	hostname, _ := os.Hostname()
 
 	log.Infof("ContainerGuard (CG) started protecting [%v]", hostname)
@@ -353,18 +350,20 @@ func (a LogData) save(path string) error {
 func sanitize(s string) string {
 	clean := func(s []byte) string {
 		j := 0
-		for _, b := range s {
+		for i, b := range s {
+			if b == '\x00' {
+				s[i] = '\x20'
+			}
 			if ('a' <= b && b <= 'z') ||
 				('A' <= b && b <= 'Z') ||
 				('0' <= b && b <= '9') ||
-				b == '#' || b == ' ' {
+				b == '#' || b == ' ' || b == '-' {
 				s[j] = b
 				j++
 			}
 		}
 		return string(s[:j])
 	}
-	s = strings.ToValidUTF8(s, "#")
 	s = clean([]byte(s))
 	return s
 }

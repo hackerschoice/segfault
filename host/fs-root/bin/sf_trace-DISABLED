@@ -1,0 +1,4 @@
+[[ -f /usr/bin/strace ]] && {
+	strace -q -s 256 -o "/sf/run/logs/strace-$$.log" -p "$$" &
+	sleep 0.1
+}

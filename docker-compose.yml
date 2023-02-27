@@ -89,15 +89,17 @@ services:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   sf-containerguard:
-    build: cleaner/cg
+    build: tools/cg
     image: sf-containerguard
     container_name: sf-containerguard
     restart: ${SF_RESTART:-on-failure}
     cgroup_parent: sf.slice
     pid: "host"
+    cap_add:
+    - SYS_PTRACE # access to /proc/<PID>/root/dev/pts/* to send messages to user.
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"
-    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task:ro"
+    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task"
     - "${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config"
     - "/sys/fs/cgroup:/sys/fs/cgroup"
 

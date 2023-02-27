@@ -2,7 +2,7 @@ VER := 0.4.3rc2
 
 all:
 	make -C router
-	make -C cleaner/cg
+	make -C tools/cg
 	make -C master
 	make -C host
 	make -C tor
@@ -123,12 +123,12 @@ FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 FILES_ROOT += "segfault-$(VER)/sfbin/loginmsg-new.sh-example"
 FILES_ROOT += "segfault-$(VER)/sfbin/loginmsg-all.sh-example"
 
-FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Dockerfile"
-FILES_CLEANER += "segfault-$(VER)/cleaner/cg/go.mod"
-FILES_CLEANER += "segfault-$(VER)/cleaner/cg/go.sum"
-FILES_CLEANER += "segfault-$(VER)/cleaner/cg/main.go"
-FILES_CLEANER += "segfault-$(VER)/cleaner/cg/Makefile"
-FILES_CLEANER += "segfault-$(VER)/cleaner/cg/sysinfo_linux.go"
+FILES_CLEANER += "segfault-$(VER)/tools/cg/Dockerfile"
+FILES_CLEANER += "segfault-$(VER)/tools/cg/go.mod"
+FILES_CLEANER += "segfault-$(VER)/tools/cg/go.sum"
+FILES_CLEANER += "segfault-$(VER)/tools/cg/main.go"
+FILES_CLEANER += "segfault-$(VER)/tools/cg/Makefile"
+FILES_CLEANER += "segfault-$(VER)/tools/cg/sysinfo_linux.go"
 
 FILES += $(FILES_CLEANER) $(FILES_MASTER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
 TARX = $(shell command -v gtar 2>/dev/null)

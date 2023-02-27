@@ -496,6 +496,34 @@ RUN /pkg-install.sh EMU apt-get install -y --no-install-recommends \
 		dosbox \
 		fs-uae fs-uae-arcade \
 		vice
+RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+	rust-src
+RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
+	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit.tgz$' spirit \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/hacks/inscope@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/analyticsrelationships@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/gotator@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/roboxtractor@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/six2dez/ipcdn@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/damit5/gitdorks_go@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/dsieve@master; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/enumerepo@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/lobuhi/byp4xx@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Hackmanit/Web-Cache-Vulnerability-Scanner@latest && ln -s Web-Cache-Vulnerability-Scanner /usr/bin/wcvs; }' \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/qsreplace' 'linux-amd64' qsreplace \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/unfurl' 'linux-amd64' unfurl \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/notify' 'linux_amd64' notify \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_amd64' interactsh-client \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_amd64' mapcidr \
+	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64' subjs \
+	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_amd64' rush \
+	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64' Gxss \
+	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_amd64' crlfuzz \
+	&& /pkg-install.sh HACK ghbin 'hahwul/dalfox' 'inux_amd64' dalfox \
+	&& /pkg-install.sh HACK ghbin 'pwnesia/dnstake' 'linux_amd64' dnstake \
+	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
+	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }' \
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 

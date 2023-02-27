@@ -11,6 +11,7 @@ RUN	apk add --no-cache --upgrade \
 		libcap \
 		openssh-server \
 		redis \
+		strace \
 		xauth \
 		xfsprogs-extra \
 	&& echo "/bin/segfaultsh" >>/etc/shells

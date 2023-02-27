@@ -50,6 +50,7 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/etc/sf:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/encfsd/user:/sf/run/encfsd/user"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_OVERLAYDIR:-/var/lib/docker/overlay2}:/var/lib/docker/overlay2:ro"
       - "/sys/fs/cgroup:/sys/fs/cgroup"
@@ -70,7 +71,7 @@ services:
     security_opt:
       - apparmor:unconfined
     environment:
-      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
       - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     pid: "service:sf-encfsd"
@@ -83,6 +84,7 @@ services:
       - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/encfsd/user/:/sf/run/encfsd/user"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
@@ -97,6 +99,7 @@ services:
     - "/var/run/docker.sock:/var/run/docker.sock"
     - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task:ro"
     - "${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config"
+    - "/sys/fs/cgroup:/sys/fs/cgroup"
 
   sf-portd:
     build: encfsd

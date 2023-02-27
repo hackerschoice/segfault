@@ -9,6 +9,7 @@ export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 redr()
 {
 	local res
+	bash -c "{ echo '[###] [$(date '+%F %T' -u)] #######################'; ip l sh dev eth1; ip a s dev eth1; arp -n; }  2>>'/dev/shm/lg-${LID}.err'  >>'/dev/shm/lg-${LID}.log'"
 	res=$("${REDCMD[@]}" "$@") || return 255
 	[[ -z $res ]] && return 200
 	echo "$res"

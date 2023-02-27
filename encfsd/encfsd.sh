@@ -69,7 +69,6 @@ encfs_mount()
 {
 	local name
 	local s
-	local n
 	local err
 	local secdir
 	local rawdir
@@ -237,6 +236,8 @@ cmd_user_mount()
 		xfs_quota_sub "${prjid}" "${BASE_RAWDIR_EVR}" "/encfs/sec/everyone-root/everyone/${SF_HOSTNAME}" 
 	}
 
+	# Mark as mounted (for destructor to track)
+	touch "/sf/run/encfsd/user/lg-${lid}"
 	return 0
 }
 
@@ -256,7 +257,7 @@ cmd_setup_encfsd()
 	lid="$1"
 	cid=${2%% *}
 	str=${2#* }
-	ilimt=${str%% *}
+	ilimit=${str%% *}
 	ilimit=${ilimit//[^0-9]/}
 	dir="/var/lib/docker/overlay2/${str#* }"
 
@@ -285,8 +286,8 @@ cmd_setup_encfsd()
 	fi
 	grep -F sf-guest.slice "/proc/${pid}/cgroup" &>/dev/null || BAD 0 "Could not move encfs[pid=$pid] to lg's cgroup[cid=$cid]"
 
-	[[ -z $ilimit ]] && return
-	[[ $ilimit -le 0 ]] && return
+	[[ -z $ilimit ]] && { BAD 0 "ilimit is empty"; return 255; }
+	[[ $ilimit -le 0 ]] && return 0
 
 	# Setup LG's Root-FS inode limit 		
 

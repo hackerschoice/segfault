@@ -215,6 +215,8 @@ grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice 
 # If there was a warning then wait...
 WARN_ENTER
 
+# Delete stale run files..
+[[ -d "${SF_SHMDIR}/run/encfsd/user" ]] && rm -rf "${SF_SHMDIR}/run/encfsd/user"
 # exec docker-compose "$@"
 docker-compose "$@"
 ret=$?

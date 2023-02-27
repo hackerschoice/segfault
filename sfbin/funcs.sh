@@ -12,13 +12,16 @@ CF="\e[2m"    # faint
 CN="\e[0m"    # none
 # CBG="\e[42;1m" # Background Green
 # night-mode
-CDY="\e[0;33m" # yellow
-CDG="\e[0;32m" # green
 CDR="\e[0;31m" # red
+CDG="\e[0;32m" # green
+CDY="\e[0;33m" # yellow
 CDB="\e[0;34m" # blue
-CDC="\e[0;36m" # cyan
 CDM="\e[0;35m" # magenta
+CDC="\e[0;36m" # cyan
 CUL="\e[4m"
+
+# 6 colors for rainbows
+# CRBOW=("$CDR" "$CDG" "$CDY" "$CDB" "$CDM" "$CDC")
 
 ASSERT_EMPTY()
 {
@@ -46,11 +49,11 @@ WARN_RESET()
 
 LOG()
 {
-	local lid
-	lid="$1"
+	local name
+	name="$1"
 
 	shift 1
-	echo -e "[$(date '+%F %T' -u)] [${CDM}${lid}${CN}] $*"
+	echo -e "[$(date '+%F %T' -u)] [${CDM}${name}${CN}] $*"
 }
 
 ERREXIT()

@@ -21,7 +21,8 @@ SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
 [[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
 unset SSH_SF_DEBUG
 eval "$(</sf/bin/funcs_redis.sh)"
-
+# Debug Trace
+[[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
 
 CY="\e[1;33m" # yellow
 CDY="\e[0;33m" # yellow
@@ -37,12 +38,33 @@ CW="\e[1;37m" # white
 CF="\e[2m"    # faint
 CUL="\e[4m"
 
+# [PREFIX] [MSG]
+_log()
+{
+	local str
+	local p
+	p=$1
+	shift 1
+
+	[[ -z $IS_LOGGING ]] && return
+
+	# Replace ' with '"'"'
+	str="${*//\'/\'\"\'\"\'}"
+	# NOTE: segfault.log must be owned 1000:1000
+	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${LID}] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
+}
+
+LOG(){ _log "" "$@"; }
+LOG_E() { _log "${CR}ERROR${CN}" "$@";}
+LOG_W() { _log "${CDY}WARN${CN}" "$@";}
+
 ERREXIT()
 {
 	local code
 	code="$1"
 	[[ -z $code ]] && code=99
 
+	LOG_E "$@"
 	shift 1
 	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
 
@@ -116,8 +138,7 @@ tofile()
 	local str
 	# Replace ' with '"'"'
 	str="${1//\'/\'\"\'\"\'}"
-	# [[ -n $SF_DEBUG ]] && ls -al $(dirname $2)
-	bash -c "echo '$str' >'$2' 2>/dev/null"
+	bash -c "echo '$str' 2>/dev/null >'$2'"
 }
 
 # Set $1 to $2 if $1 is not already set.
@@ -219,10 +240,9 @@ logout()
 	rm -f "${LG_PID_FILE:?}"
 	# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
 	for fn in "${LG_PID_DIR}/pid-${LID}."*; do
-		DEBUGF "Checking '$fn'"
 		[[ -f "$fn" ]] && break
 		# HERE: Last pid file for this lid.
-		DEBUGF "Last pid..."
+		LOG "Last PID"
 		rm -f "${IS_LOGGED_IN_FILE:?}"
 		break
 	done
@@ -248,6 +268,8 @@ init_vars()
 	init_defaults
 	init_emu
 
+	[[ -f "/sf/run/logs/segfault.log" ]] && IS_LOGGING=1
+
 	NOW="$(date +%s)"
 	YOUR_IP="${SSH_CONNECTION%%[[:space:]]*}"
 	YOUR_IP="${YOUR_IP//[^0-9.:]/}"
@@ -269,6 +291,7 @@ init_vars()
 	LG_PID_FILE="${LG_PID_DIR}/pid-${LID}.$$"
 	TS_LOGOUT_FILE="${SF_USER_DB_DIR}/ts_logout"
 	TS_LOGIN_FILE="${SF_USER_DB_DIR}/ts_login"
+	TS_RUN_FILE="${SF_USER_DB_DIR}/ts_run"
 	IS_LOGGED_IN_FILE="${SF_USER_DB_DIR}/is_logged_in"
 
 	# Set the number of CPU's a guest can use up to a max of 4.
@@ -656,8 +679,8 @@ wait_for_resources()
 {
 	# 5 Connections within 60 seconds from the same IP.
 	wait_for_conn_limit "${YOUR_IP_HASH}" "60" 
-	# 5 Connections within 15 seconds all in all
-	wait_for_conn_limit "all" "30"
+	# 5 Connections within 10 seconds all in all
+	wait_for_conn_limit "all" "10"
 
 	wait_for_load "${SF_MAX_LOAD}"
 }
@@ -681,7 +704,7 @@ check_tor_status()
         [[ -n $SF_ALLOW_SRC_TOR ]] && return
         [[ ! -f "/sf/share/tor-exit-nodes.txt" ]] && return
 
-        exec_devnull grep -q -Fx "${YOUR_IP}" "/sf/share/tor-exit-nodes.txt" && { print_tor_notice; ERREXIT 255; }
+        exec_devnull grep -q -Fx "${YOUR_IP}" "/sf/share/tor-exit-nodes.txt" && { print_tor_notice; LOG_W "TOR DENIED"; ERREXIT 255; }
 }
 
 # Check if max servers per IP are in use.
@@ -728,8 +751,8 @@ check_limit_server_by_ip()
 		## Eyy, good idea to check if they are idle?
 		[[ "$n" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && {
 			print_to_many_servers
-
-			ERREXIT 255
+			LOG_W "TO MANY SERVERS FOR ${YOUR_IP}"
+			ERREXIT 254
 		}
 
 		[[ "$n" -ge 1 ]] && {
@@ -891,6 +914,7 @@ else
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
+LOG "${CDG}${SF_HOSTNAME}${CN}, ${CDC}$*${CN}"
 
 # Record which SSHD process is connect to guest LG.
 tofile "SSHD_PID=$PPID
@@ -909,28 +933,30 @@ res=$(echo -e "RPUSH encfs \"$$ ${LID} M ${encfspass}\"\n\
 BLPOP \"encfs-$$-${LID}-M\" 20" | red) || ERREXIT 230 "Can't reach EncFSD"
 echo_pty -n "...."
 
-# Attach to instance if already running
+# Attach to container if already running
 [[ -n $IS_TRY_EXISTING ]] && {
-	DEBUGF "Attaching to existing instance lg-${LID}..."
 	# If state is not running then stop it.
 	str="$(exec_errnull docker container inspect "lg-${LID}" -f '{{.State.Status}}')" && {
 		[[ $str == "running" ]] && {
 			echo_pty -e "..........[${CG}Ok${CN}]"
+			DEBUGF "Attaching to existing container lg-${LID}..."
+			LOG "Attaching to existing container"
 			spawn_shell_exit "$@"
 			# NOT REACHED
 		}
+		LOG "Container not in RUNNING state."
 		# HERE: Container exists but not in RUNNING state.
 		exec_devnull docker stop "lg-${LID}"
 	}
 	DEBUGF "FAILED to attached to lg-${LID}"
-	# HERE: Instance does not exists.
+	# HERE: Container does not exists.
 }
 
 ### Create ONION directory => From within encfsd (to set XFS quota)
 
 # Starting GUEST shell
 # Challenge: Keep user processes running that got spawned in the background
-# even when first instance terminates. Also do not terminate instance
+# even when first container terminates. Also do not terminate container
 # when there are still shells using it ('docker exec').
 # Solution: Spawn a container in the background and always use 'docker exec' to
 # create a shell for the user.
@@ -983,13 +1009,13 @@ exec_devnull docker run \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
 	--user 1000:1000 \
 	-d \
-	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a '[init-${LID}-${SF_HOSTNAME}]' sleep infinity" || ERREXIT 251 "Failed to set up guest instance..."
+	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a '[init-${LID}-${SF_HOSTNAME}]' sleep infinity" || ERREXIT 251 "Failed to set up guest container..."
 # Note: Run 'sleep' as user 1000:1000 so that sf-host's SSHD can move itself into this guest's
 # network namespace. 
 
 echo_pty -n ".."
-
-DEBUGF "Instance started..."
+DEBUGF "Container started..."
+touch "${TS_RUN_FILE}"
 
 # Wait for detached docker shell to enter 'running' state
 n=0
@@ -1002,10 +1028,11 @@ while :; do
 	n=$((n+1))
 	[[ $n -gt 2 ]] && {
 		exec_devnull docker stop "lg-${LID}"
-		ERREXIT 253 "Could not create instance..."
+		ERREXIT 253 "Could not create container..."
 	}
 done
 echo_pty -n ".."
+LOG "Container started & RUNNING..."
 
 # NOTE: Race conditon (which is harmless): A user can connect to his container (docker exec)
 # _before_ everything below this is executed.
@@ -1022,15 +1049,15 @@ echo_pty -n ".."
 # Store LG information in Redis
 res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || ERREXIT 252 "Failed to set LID in Redis"
 
-# Set FW rules for this instance
+# Set FW rules for this container
 [[ $SF_USER_SYN_LIMIT -ne 0 ]] && { exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || ERREXIT 251 "Faild to set syn-limit..."; }
 
 # 255.0.0.1 always points to guest's localhost: user can now set up a ssh -D1080 and connect with browser to
 # 255.0.0.1 and land on guest's 127.0.0.1.
 exec_devnull docker exec sf-master bash -c "nsenter.u1000 -t \"${LG_PID}\" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1"
 
-# Setup instance
-exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest instance..."
+# Setup container
+exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest container..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 

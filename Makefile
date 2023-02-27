@@ -1,12 +1,12 @@
-VER := 0.4.3rc1
+VER := 0.4.3rc2
 
 all:
+	make -C router
 	make -C cleaner/cg
 	make -C master
 	make -C host
 	make -C tor
 	make -C encfsd
-	make -C router
 	make -C gsnc
 	make -C guest
 	docker pull redis
@@ -64,6 +64,7 @@ FILES_HOST += "segfault-$(VER)/host/docker-exec-sigproxy.c"
 FILES_HOST += "segfault-$(VER)/host/mk_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/sf-sshd.patch"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"
+FILES_HOST += "segfault-$(VER)/host/fs-root/bin/sf_trace-DISABLED"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/mmdbinspect"
 FILES_HOST += "segfault-$(VER)/host/fs-root/etc/ssh/sshd_config"

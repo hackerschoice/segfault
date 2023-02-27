@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +36,7 @@ var (
 	debugFlag      = flag.Bool("debug", false, "activate debug mode")
 )
 
-func init() {
+func main() {
 	flag.Parse()
 	if *debugFlag {
 		log.SetLevel(log.DebugLevel)
@@ -47,20 +46,11 @@ func init() {
 	log.SetFormatter(&log.TextFormatter{
 		ForceColors: true,
 	})
-}
 
-func main() {
 	hostname, _ := os.Hostname()
 
 	log.Infof("ContainerGuard (CG) started protecting [%v]", hostname)
 	log.Infof("compiled on %v from commit %v", Buildtime, Version)
-
-	// docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		panic(err)
-	}
-	log.Debugf("connected to docker client v%v", cli.ClientVersion())
 
 	// number of virtual cores
 	var numCPU = runtime.NumCPU()
@@ -97,11 +87,20 @@ func main() {
 		}
 
 		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", sysLoad1mAvg(), numCPU, MAX_LOAD)
-		LAST_LOAD = sysLoad1mAvg()
+
+		// docker client
+		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			panic(err)
+		}
+		log.Debugf("connected to docker client v%v", cli.ClientVersion())
+
 		err = stopContainersBasedOnUsage(cli)
 		if err != nil {
 			log.Error(err)
 		}
+
+		LAST_LOAD = sysLoad1mAvg()
 	}
 }
 
@@ -139,6 +138,7 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 				highestUsage = usage
 				mu.Unlock()
 			}
+
 			log.Infof("[%v] usage (%.2f%%)", c.Names[0][1:], usage)
 		}(c)
 	}
@@ -152,20 +152,25 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 		intPtr := func(v int) *int { return &v }
 		var killTimeout = container.StopOptions{
 			Signal:  "SIGTERM",
-			Timeout: intPtr(10),
+			Timeout: intPtr(5),
 		}
+
 		var killThreshold = highestUsage * 0.8 // 80% of highestUsage
-		const action = "STOP (2s) || KILL"
-		const abuseMessage = "Your server was shut down because it consumed to many resources. If you feel that this was a mistake then please contact us 💙"
+
+		const actionMessage = "STOP (5s) || KILL"
+		const abuseMessage = "Your server was shut down because it consumed too many resources. If you feel that this was a mistake then please contact us 💙"
 
 		// stop all containers where usage > `highestUsage` * 0.8
 		if usage > killThreshold {
-			log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, action)
+			if killThreshold < 10.0 {
+				return fmt.Errorf("StopContainer: operation aborted: threshold too low %.5f", killThreshold)
+			}
+			log.Warnf("[%v] usage (%.2f%%) > threshold (%.2f%%) | action %v", c.Names[0][1:], usage, killThreshold, actionMessage)
 
 			// message user that he's being abusive
 			err = sendMessage(c.ID, abuseMessage)
 			if err != nil {
-				log.Errorf("unable to message the user: %v", err)
+				log.Errorf("unable to message container: %v", err)
 			}
 
 			err = printProcs(c.ID, c.Names[0])
@@ -187,7 +192,7 @@ func stopContainersBasedOnUsage(cli *client.Client) error {
 			usage:     usage,
 			threshold: killThreshold,
 			load:      sysLoad1mAvg(),
-			action:    action,
+			action:    actionMessage,
 		}
 		if err := logData.save(*resultFlag); err != nil {
 			log.Error(err)
@@ -232,7 +237,7 @@ func sendMessage(cID string, message string) error {
 
 	pid, err := os.ReadFile(pidPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("readfile: %v", err)
 	}
 
 	// keeps track of how many FDs we've walked past.
@@ -243,14 +248,15 @@ func sendMessage(cID string, message string) error {
 			return err
 		}
 
+		fdCount++
+
 		_, err = strconv.Atoi(d.Name())
 		if err != nil {
-			log.Debugf("not a number: %v", path)
+			log.Debugf("not a number: %v", d.Name())
 			return nil
 		}
 
-		fdCount++
-
+		log.Debugf("MESSAGE to: %v", path)
 		err = _sendMessage(path, message)
 		if err != nil {
 			return err
@@ -263,7 +269,7 @@ func sendMessage(cID string, message string) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("walkpath: %v", err)
 	}
 
 	return nil
@@ -289,9 +295,10 @@ func _sendMessage(fd, message string) error {
 		return fmt.Errorf("%v is a symlink! dodging attack...", file.Name())
 	}
 
-	if info.Mode().Type() != os.ModeSocket {
-		return fmt.Errorf("%v is NOT a socket! dodging attack...", file.Name())
-	}
+	// removed this check as pts/0 is not detected as socket and the message won't be sent.
+	// if info.Mode().Type() != os.ModeSocket {
+	// 	return fmt.Errorf("%v is NOT a socket! dodging attack...", file.Name())
+	// }
 
 	if !terminal.IsTerminal(int(file.Fd())) {
 		return fmt.Errorf("unable to write to %v: not a tty", file.Name())
@@ -343,18 +350,20 @@ func (a LogData) save(path string) error {
 func sanitize(s string) string {
 	clean := func(s []byte) string {
 		j := 0
-		for _, b := range s {
+		for i, b := range s {
+			if b == '\x00' {
+				s[i] = '\x20'
+			}
 			if ('a' <= b && b <= 'z') ||
 				('A' <= b && b <= 'Z') ||
 				('0' <= b && b <= '9') ||
-				b == '#' {
+				b == '#' || b == ' ' || b == '-' {
 				s[j] = b
 				j++
 			}
 		}
 		return string(s[:j])
 	}
-	s = strings.ToValidUTF8(s, "#")
 	s = clean([]byte(s))
 	return s
 }
@@ -367,8 +376,14 @@ func printProcs(cid, cname string) error {
 	if err != nil {
 		return err
 	}
+	var count int
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
+		if count > 12 {
+			return fmt.Errorf("reached max commands, skipping extra output")
+		}
+		count++
+
 		cmdline := fmt.Sprintf("/proc/%s/cmdline", scanner.Text())
 
 		// limit each command string to max 255 characters
@@ -381,14 +396,8 @@ func printProcs(cid, cname string) error {
 			return err
 		}
 
-		var count int
 		_scanner := bufio.NewScanner(file)
 		for _scanner.Scan() {
-			if count > 128 {
-				return fmt.Errorf("reached 128 commands, skipping extra output")
-			}
-			count++
-
 			data := sanitize(_scanner.Text())
 			log.Warnf("[%s] proc: %v", cname, data)
 		}

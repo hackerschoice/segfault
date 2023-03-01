@@ -28,6 +28,7 @@ stop_lg()
 
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
 	rm -f "/sf/run/encfsd/user/lg-${lid}"
+	rm -f "/sf/run/pids/lg-${lid}.pid"
 
 	# Tear down container
 	[[ -n $is_container ]] && docker stop "lg-$lid" &>/dev/nuill

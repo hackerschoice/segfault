@@ -3,6 +3,9 @@
 # This is called by SSHD inside SF-HOST docker.
 # - All environments have been cleared by SSHD.
 # - Redirects not allowed in restricted shells.
+# - bash's 'source' is prohibited (use 'eval' instead)
+# - This script might be executed inside the LG's network namespace
+#   (if 'ssh -M -S ~/.ssh/foobar' and 'ssh -S ~/.ssh/foobar' is used for multiplexing/Mastering)
 #
 # This script can be run from the source directory for testing.
 # SF_BASEDIR must point to the source directory.
@@ -10,10 +13,8 @@
 #    export SF_BASEDIR=/home/sf-user/x/segfault-0.2.2a
 #    cd /segfault/host/fs-root/bin
 #    SF_DEBUG=1 SF_EMU=1 SF_SEED=foobar3 ./segfaultsh
-#
+
 # Load/restore environment variables from file
-# `source' is prohibited from outside directory in restricted bash shell (bash -r)
-# use `eval' trick to load environemnt variables into a restricted shell
 # SF_DEBUG can be set by ssh-client with -o SetEnv SF_DEBUG=1 or by
 # docker compose '.env' file.
 SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
@@ -21,7 +22,7 @@ SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
 [[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
 unset SSH_SF_DEBUG
 eval "$(</sf/bin/funcs_redis.sh)"
-# Debug Trace
+# Debug Trace. see sf_trace-DISABLED
 [[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
 
 CY="\e[1;33m" # yellow
@@ -51,12 +52,58 @@ _log()
 	# Replace ' with '"'"'
 	str="${*//\'/\'\"\'\"\'}"
 	# NOTE: segfault.log must be owned 1000:1000
-	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${LID}] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
+	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${LID}][$$] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
 }
 
 LOG(){ _log "" "$@"; }
-LOG_E() { _log "${CR}ERROR${CN}" "$@";}
-LOG_W() { _log "${CDY}WARN${CN}" "$@";}
+LOG_E() { _log " ${CR}ERROR${CN} " "$@";}
+LOG_W() { _log " ${CDY}WARN${CN} " "$@";}
+
+# NOTE: This function might get called from ERREXIT and before all variables are set.
+logout()
+{
+	local fn
+	local pid
+	local is_last
+	# bash signal race condition: Might be called twice if signal arrives while
+	# in this function.
+	trap '' SIGHUP
+	trap '' SIGTERM
+	touch "${TS_LOGOUT_FILE:?}"
+	[[ -f "${LG_PID_FILE:?}" ]] && rm -f "${LG_PID_FILE}"
+	# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
+	is_last=1
+	for fn in "${LG_PID_DIR:?}/pid-${LID:?}."*; do
+		[[ ! -f "$fn" ]] && break # No pid file exists for this LID
+		pid=${fn##*.}
+		[[ ! -d "/proc/${pid}" ]] && {
+			# FIXME: This should never happen...but it does
+			# (e.g. when 'Failed to set up guest instance' is triggered)
+			LOG_E "Stale: pid-${LID}.${pid} [removed]"
+			rm -f "${fn}" 
+			continue
+		}
+		unset is_last
+	done
+
+	[[ -n $is_last ]] && {
+		LOG "Last PID"
+		[[ -f "${IS_LOGGED_IN_FILE:?}" ]] && rm -f "${IS_LOGGED_IN_FILE}"
+	}
+}
+
+sem_wait()
+{
+	redq BLPOP "${LG_SEM:?}" 15 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
+	IS_SEM_WAIT=1
+}
+
+sem_release()
+{
+	[[ -z $IS_SEM_WAIT ]] && return
+	unset IS_SEM_WAIT
+	echo -e "DEL '${LG_SEM}'\nRPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
+}
 
 ERREXIT()
 {
@@ -68,8 +115,11 @@ ERREXIT()
 	shift 1
 	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
 
+	logout
+	sem_release
 	exit "$code"
 }
+
 
 if [[ -z $SF_DEBUG ]]; then
 	DEBUGF(){ :;}
@@ -230,23 +280,6 @@ init_defaults()
 	SF_ENCFS_SEC_DIR="${SF_SHMDIR}/encfs-sec"
 }
 
-logout()
-{
-	# bash signal race condition: Might be called twice if signal arrives while
-	# in this function.
-	trap '' SIGHUP
-	trap '' SIGTERM
-	touch "${TS_LOGOUT_FILE:?}"
-	rm -f "${LG_PID_FILE:?}"
-	# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
-	for fn in "${LG_PID_DIR}/pid-${LID}."*; do
-		[[ -f "$fn" ]] && break
-		# HERE: Last pid file for this lid.
-		LOG "Last PID"
-		rm -f "${IS_LOGGED_IN_FILE:?}"
-		break
-	done
-}
 
 # shellcheck disable=SC2317 # Not reachable
 cb_sighup()
@@ -303,6 +336,10 @@ init_vars()
 	elif [[ $CPUS -gt 4 ]]; then
 		CPUS=4
 	fi
+
+	# Check if we are still in sshd's Network Namespace
+	IS_SSHD_NS_NET=1
+	[[ ${SF_NS_NET:?} != "$(readlink /proc/self/ns/net)" ]] && unset IS_SSHD_NS_NET # Already inside LG's Network Namespace
 
 	trap cb_sighup SIGHUP
 	trap cb_sigterm SIGTERM
@@ -417,39 +454,22 @@ echo_pty()
 }
 
 
-wait_file_exist()
-{
-	local fn
-	local max_sec
-	local n
-	max_sec="$1"
-	fn="$2"
-
-	n=0
-	while [[ $n -lt $max_sec ]]; do
-		[[ -f "$fn" ]] && return 0 # True
-		((n++))
-		sleep 1
-	done
-
-	return 255
-}
-
-
 sshd_to_ns()
 {
-	local upid
+	# local upid
 	local str
 
-	# Find PID of sleep process (uid=1000)
-	str=$(docker top "lg-${LID}" -o uid,pid | grep ^"1000 ")
-	upid="${str##* }"
-	[[ -z $upid ]] && ERREXIT 222 "Oops. Cant find pid of sleep process."
-	ln -s "/proc/${upid}/ns/net" "/dev/shm/ns-net-${PPID}"
-	DEBUGF "Moving SSHD(=$PPID) to net-NS(=$upid)"
-	kill -USR1 $PPID || ERREXIT 221 "Oops. Could not signal SSHD ($PPID)."
-}
+	[[ -z $IS_SSHD_NS_NET ]] && return  # Already in LG's network namespace?
 
+	# Load PID of container's init process (uid=1000)
+	[[ -z $LG_PID ]] && {
+		LG_PID=$(<"/sf/run/pids/lg-${LID}.pid")
+		[[ -z $LG_PID ]] && ERREXIT 222 "Init PID not found."
+	}
+	ln -sf "/proc/${LG_PID}/ns/net" "/dev/shm/ns-net-${PPID}"
+	DEBUGF "Moving SSHD(=$PPID) to net-NS(=$LG_PID)"
+	kill -USR1 "$PPID" || ERREXIT 221 "Oops. Could not signal SSHD ($PPID)."
+}
 
 spawn_shell_exit()
 {
@@ -459,10 +479,7 @@ spawn_shell_exit()
 	# Move SSHD to guest's network namespace (for -L/-R to work)
 	sshd_to_ns
 
-	wait_file_exist 20 "${LG_SEMA_INIT_DONE_FN}" || {
-		exec_devnull docker stop "lg-${LID}"
-		ERREXIT 237 "Oops. Found a stale lock file."
-	}
+	sem_release
 
 	# Update current IP:
 	tofile "${YOUR_IP:?}" "/config/self-for-guest/lg-${LID}/ip"
@@ -618,7 +635,7 @@ check_banned()
 		echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	fi
 	sleep 30
-	exit 0
+	exit 255
 }
 
 # wait_for_conn_limit <ID> <ts_window>
@@ -856,7 +873,7 @@ check_banned
 
 mk_hostname
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
-LG_SEMA_INIT_DONE_FN="${SF_USER_DB_DIR}/init-done"
+LG_SEM="sema:lg-$(( (SF_NUM + SF_RAND_OFS) % SF_HM_SIZE_LG ))"
 
 # Keep guest waiting until there are sufficient resources
 wait_for_resources
@@ -933,6 +950,9 @@ res=$(echo -e "RPUSH encfs \"$$ ${LID} M ${encfspass}\"\n\
 BLPOP \"encfs-$$-${LID}-M\" 20" | red) || ERREXIT 230 "Can't reach EncFSD"
 echo_pty -n "...."
 
+# Only one LG at a time (and wait any other connection to call 'docker exec' until it's fully running.
+sem_wait
+
 # Attach to container if already running
 [[ -n $IS_TRY_EXISTING ]] && {
 	# If state is not running then stop it.
@@ -966,10 +986,6 @@ echo_pty -n "...."
 ### Start the care taker...
 selfdir="/config/self-for-guest/lg-${LID}"
 xmkdir "${selfdir}"
-
-# Give docker-run and following command 5 seconds to complete
-# before allowing any docker-exec to spawn user shell.
-[[ -f "${LG_SEMA_INIT_DONE_FN}" ]] && rm -f "${LG_SEMA_INIT_DONE_FN:?}"
 
 # Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
 # cgroup-v2 only sf-guest.slice need to be specified.
@@ -1009,8 +1025,8 @@ exec_devnull docker run \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
 	--user 1000:1000 \
 	-d \
-	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a '[init-${LID}-${SF_HOSTNAME}]' sleep infinity" || ERREXIT 251 "Failed to set up guest container..."
-# Note: Run 'sleep' as user 1000:1000 so that sf-host's SSHD can move itself into this guest's
+	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a '[init-${LID}-${SF_HOSTNAME}]' sleep infinity" || ERREXIT 251 "Failed-#1 to set up guest container..."
+# Note: Run 'init/sleep' as user 1000:1000 so that sf-host's SSHD can move itself into this guest's
 # network namespace. 
 
 echo_pty -n ".."
@@ -1041,6 +1057,7 @@ CID=${arr[0]}
 LG_PID=${arr[1]}
 C_IP=${arr[2]}
 [[ -z $C_IP ]] && ERREXIT 249 "Could not get container's IP address."
+tofile "${LG_PID:?}" "/sf/run/pids/lg-${LID}.pid"
 
 # Set up Root FS / inode limits and move encfsd to lg's cgroup
 setup_encfsd || ERREXIT 244 "Could not set FS quota."
@@ -1057,14 +1074,11 @@ res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || ERREXIT 252 "Failed to 
 exec_devnull docker exec sf-master bash -c "nsenter.u1000 -t \"${LG_PID}\" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1"
 
 # Setup container
-exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed to set up guest container..."
+exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed-#2 to set up guest container..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 
 echo_pty -e "....[${CG}OK${CN}]"
-
-# Mark as init-complete:
-touch "${LG_SEMA_INIT_DONE_FN}"
 
 # Show help how to connect elegantly
 [[ -n $IS_NEW_SERVER ]] && print_ssh_access

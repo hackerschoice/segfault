@@ -10,15 +10,11 @@ services:
     cgroup_parent: sf.slice
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-    networks:
-      redis-net:
-        ipv4_address: ${SF_REDIS_IP}
-      master-net:
-        ipv4_address: ${SF_NET_MASTER_REDIS_IP}
+    network_mode: none
     command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH}" ]
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/redis/redis.conf:/redis.conf:ro"
-      # - "${SF_SHMDIR:-/dev/shm/sf}/redis:/dev/shm/redis"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
 
   sf-encfsd:
     build: encfsd
@@ -37,12 +33,11 @@ services:
     # NOTE: _MUST_ not run in host's pid space because we use 'pgrep' to find lg's encfsd pid.
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_REDIS_IP}
+      # - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_SEED=${SF_SEED}
       - SF_DEBUG
     command: ["/encfsd.sh"]
-    networks:
-      redis-net:
+    network_mode: none
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
@@ -53,6 +48,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/encfsd/user:/sf/run/encfsd/user"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_OVERLAYDIR:-/var/lib/docker/overlay2}:/var/lib/docker/overlay2:ro"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "/sys/fs/cgroup:/sys/fs/cgroup"
 
   # Note: If this one fails to start then most likelly bad ENCFS password.
@@ -72,12 +68,10 @@ services:
       - apparmor:unconfined
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH:?}
-      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     pid: "service:sf-encfsd"
     command: ["/destructor.sh"]
-    networks:
-      redis-net:
+    network_mode: none
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
@@ -85,6 +79,7 @@ services:
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/encfsd/user/:/sf/run/encfsd/user"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
@@ -97,9 +92,10 @@ services:
     pid: "host"
     cap_add:
     - SYS_PTRACE # access to /proc/<PID>/root/dev/pts/* to send messages to user.
+    network_mode: none
     volumes:
     - "/var/run/docker.sock:/var/run/docker.sock"
-    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task"
+    - "/var/run/containerd/io.containerd.runtime.v2.task:/var/run/containerd/io.containerd.runtime.v2.task:ro"
     - "${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config"
     - "/sys/fs/cgroup:/sys/fs/cgroup"
 
@@ -113,13 +109,12 @@ services:
       - sf-redis
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     command: ["/portd.sh"]
-    networks:
-      redis-net:
+    network_mode: none
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
@@ -168,14 +163,10 @@ services:
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     networks:
       vpn-net:
         ipv4_address: ${SF_NORDVPN_IP}
-      redis-net:
-    extra_hosts:
-      - "sf-redis:${SF_REDIS_IP}"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -184,6 +175,7 @@ services:
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   cryptostorm:
@@ -206,14 +198,10 @@ services:
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     networks:
       vpn-net:
         ipv4_address: ${SF_CRYPTOSTORM_IP}
-      redis-net:
-    extra_hosts:
-      - "sf-redis:${SF_REDIS_IP}"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -221,6 +209,7 @@ services:
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   mullvad:
@@ -242,14 +231,10 @@ services:
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_DEBUG
     networks:
       vpn-net:
         ipv4_address: ${SF_MULLVAD_IP}
-      redis-net:
-    extra_hosts:
-      - "sf-redis:${SF_REDIS_IP}"
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
@@ -257,6 +242,7 @@ services:
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   router:
@@ -336,10 +322,7 @@ services:
     cgroup_parent: sf.slice
     depends_on:
       - sf-redis
-    # network_mode: none  # FIXME: Make redis available via shared socket so we dont need network on 'master'.
-    networks:
-      master-net:
-    # dns: 255.255.255.255
+    network_mode: none
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN   # For nsenter
@@ -349,7 +332,6 @@ services:
       - SF_DEBUG
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_NET_MASTER_REDIS_IP}
       - SF_RPC_IP=${SF_RPC_IP:?}
       - SF_TOR_IP=${SF_TOR_IP:?}
       - SF_DNS=${SF_NET_VPN_DNS_IP}
@@ -357,14 +339,13 @@ services:
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/master:/dev/shm/master"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
-      # - "${SF_SHMDIR:-/dev/shm/sf}/redis:/dev/shm/redis"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "/var/run/docker.sock:/var/run/docker.sock"
     entrypoint: ["/init-master.sh"]
 
   rpc:
-    # image: fabiocicerchia/nginx-lua
     image: nginx
     container_name: sf-rpc
     restart: ${SF_RESTART:-on-failure}
@@ -493,7 +474,6 @@ services:
       # WARNING: sshd's port forward/socks can access those networks.
       access-net:
         ipv4_address: ${SF_SSHD_IP}
-      redis-net:
     dns: ${SF_NET_ACCESS_DNS_IP}
     cap_add:
       - NET_ADMIN # need to set default route via sf-router
@@ -516,9 +496,9 @@ services:
       - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_RPC_IP=${SF_RPC_IP}
       - SF_SEED=${SF_SEED}
+      - SF_HM_SIZE_LG=8
       - SF_DEBUG
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
@@ -529,6 +509,8 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
       - "/var/run/docker.sock:/var/run/docker.sock"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
+      # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-2022
 
   nginx:
     image: nginx
@@ -542,8 +524,6 @@ services:
       dmz-net:
         ipv4_address: ${SF_NGINX_IP}
     dns: 255.255.255.255
-    # cap_add:
-    #   - NET_ADMIN # need to set default route
     volumes:
       - "${SF_BASEDIR:-.}/sfbin/wait_semaphore.sh:/sf/bin/wait_semaphore.sh:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave,ro"
@@ -581,22 +561,6 @@ networks:
     ipam:
       config:
         - subnet: ${SF_NET_DMZ}
-
-  redis-net:
-    name: sf-redis-net
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: ${SF_NET_REDIS}
-
-  master-net:
-    name: sf-master-net
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: ${SF_NET_MASTER}
 
   dns-doh-net:
     name: sf-dns-doh

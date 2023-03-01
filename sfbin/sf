@@ -217,6 +217,10 @@ WARN_ENTER
 
 # Delete stale run files..
 [[ -d "${SF_SHMDIR}/run/encfsd/user" ]] && rm -rf "${SF_SHMDIR}/run/encfsd/user"
+[[ ! -d "${SF_SHMDIR}/run/redis/sock" ]] && mkdir -p "${SF_SHMDIR}/run/redis/sock"
+chmod 700 "${SF_SHMDIR}/run/redis"
+chown 999 "${SF_SHMDIR}/run/redis/sock" # docker/redis user
+chmod 711 "${SF_SHMDIR}/run/redis/sock"
 # exec docker-compose "$@"
 docker-compose "$@"
 ret=$?

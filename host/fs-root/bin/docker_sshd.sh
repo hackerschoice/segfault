@@ -1,10 +1,11 @@
 #! /bin/bash
 
+source /sf/bin/funcs_redis.sh
+
 # CY="\e[1;33m" # yellow
 CR="\e[1;31m" # red
 # CC="\e[1;36m" # cyan
 CN="\e[0m"    # none
-
 
 SLEEPEXIT()
 {
@@ -64,6 +65,8 @@ LG_PID_DIR="${SF_RUN_DIR}/pids"
 [[ -d "${LG_PID_DIR}" ]] && rm -rf "${LG_PID_DIR}"
 mkdir -p "${LG_PID_DIR}"
 chown 1000 "${LG_PID_DIR}" || SLEEPEXIT 255 5 "${CR}Not found: ${LG_PID_DIR}${CN}"
+[[ -d "${SF_RUN_DIR}/logs" ]] && chown 1000 "${SF_RUN_DIR}/logs"
+chmod 777 "/sf/run/redis/sock/redis.sock"
 
 # Wait for systemwide encryption to be available.
 # Note: Do not need to wait for /everyone because no other service
@@ -105,6 +108,13 @@ chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
 cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
 # [[ ! -f "${SF_CFG_GUEST_DIR}/id_ed25519" ]] && cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
 
+# Create semaphore (buckets)
+i=0
+while [[ $i -lt $SF_HM_SIZE_LG ]]; do
+	echo -e "DEL 'sema:lg-$i'\nRPUSH 'sema:lg-$i' 1" | red
+	((i++))
+done
+
 # SSHD resets the environment variables. The environment variables relevant to the guest
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
@@ -115,12 +125,14 @@ SF_DNS=\"${SF_DNS}\"
 SF_TOR_IP=\"${SF_TOR_IP}\"
 SF_SEED=\"${SF_SEED}\"
 SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"
-SF_REDIS_IP=\"${SF_REDIS_IP}\"
 SF_RPC_IP=\"${SF_RPC_IP}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
 SF_SHMDIR=\"${SF_SHMDIR}\"
+SF_RAND_OFS=\"$RANDOM\"
+SF_HM_SIZE_LG=\"$SF_HM_SIZE_LG\"
+SF_NS_NET=\"$(readlink /proc/self/ns/net)\"
 SF_FQDN=\"${SF_FQDN}\"" >/dev/shm/env.txt
 
 # Note: Any host added here also needs to be added in segfaultsh with --add-host

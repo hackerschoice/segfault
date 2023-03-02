@@ -53,15 +53,9 @@ sv_startx()
 {
 	local ppid=$1
 	trap "cleanup" SIGHUP
-	#Xvfb :10 -screen 0 1920x1080x24 &
-	PID_X=$(startonce Xvfb :10 -screen 0 1024x768x24)
-	echo "pid=$PID_X"
-	#fluxbox -display :10 &>/dev/null &
-	#xfce4-session --display=:10
-	PID_F=$(DISPLAY=:10 startonce awesome)
-
-	# vncserver -geometry 1024x720 -localhost no :0
-	PID_V=$(startonce x11vnc -display :10 "${VNC_OPTS[@]}")
+	PID_X=$(startonce Xvfb ${DISPLAY} -screen 0 1024x768x24)
+	PID_F=$(startonce "${DESKTOP}")
+	PID_V=$(startonce x11vnc "${VNC_OPTS[@]}")
 	trap "" SIGHUP
 	jobs -p
 	while [[ -d /proc/$PPID && -d /proc/$PID_V ]]; do
@@ -70,8 +64,13 @@ sv_startx()
 	cleanup
 }
 
+[[ -z $DISPLAY ]] && export DISPLAY=:10
+DESKTOP=${DESKTOP,,}
+if [[ -z $DESKTOP || ${DESKTOP} == *"xfce"* ]]; then
+	DESKTOP=xfce4-session
+fi
+command -v "${DESKTOP}" &>/dev/null || { echo >&2 "Window Manager not found: $DESKTOP"; exit 255; }
 
-#C_IP=$(</config/self/c_ip)
 [[ -n $PASSWORD ]] && {
 	[[ ${#PASSWORD} -le 3 ]] && unset PASSWORD
 	mk_vncpass

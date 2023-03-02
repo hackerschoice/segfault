@@ -525,6 +525,9 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK ghbin 'pwnesia/dnstake' 'linux_amd64' dnstake \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
+RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+	i3 \
+	tigervnc-tools
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 

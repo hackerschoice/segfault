@@ -41,8 +41,6 @@ sv_startx()
 	cleanup
 }
 
-C_IP=$(</config/self/c_ip)
-
 sv_startx $PPID &
 
 [[ -n $PASSWORD ]] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"

@@ -527,6 +527,8 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 	i3 \
+	pavucontrol \
+	pulseaudio \
 	tigervnc-tools
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update

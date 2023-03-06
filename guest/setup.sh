@@ -82,6 +82,7 @@ set +e
 
 # Non-Fatal. WARN but continue if any of the following commands fail
 sed 's/^TorAddress.*/TorAddress 172.20.0.111/' -i /etc/tor/torsocks.conf || WARN "Failed /etc/tor/torsocks.conf"
+sed 's/^worker_processes.*/worker_processes 2;/' -i /etc/nginx/nginx.conf || WARN "Failed /etc/nginx/nginx.conf"
 
 # Move "$1" to "$1".orig and link "$1" -> "$1"-hook
 mk_hook()

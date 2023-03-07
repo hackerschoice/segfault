@@ -22,6 +22,7 @@ CUL="\e[4m"
 cleanup()
 {
 	kill -SIGTERM $PID_V
+	killall pulseaudio
 	pkill -f 'dbus-daemon --syslog-only --fork --print-pid'
 }
 

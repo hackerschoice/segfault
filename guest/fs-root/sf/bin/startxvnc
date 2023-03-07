@@ -9,6 +9,7 @@ CUL="\e[4m"
 cleanup()
 {
 	kill -SIGTERM $PID_X $PID_F $PID_V
+	killall ssh-agent gpg-agent
 	exit
 }
 
@@ -53,7 +54,7 @@ sv_startx()
 {
 	local ppid=$1
 	trap "cleanup" SIGHUP
-	PID_X=$(startonce Xvfb ${DISPLAY} -screen 0 1024x768x24)
+	PID_X=$(startonce Xvfb ${DISPLAY} -screen 0 1920x1080x24)
 	PID_F=$(startonce "${DESKTOP}")
 	PID_V=$(startonce x11vnc "${VNC_OPTS[@]}")
 	trap "" SIGHUP

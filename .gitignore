@@ -1,0 +1,6 @@
+segfault-*.tar.gz
+segfault-0*/
+data/
+.env
+.DS_Store
+info.txt

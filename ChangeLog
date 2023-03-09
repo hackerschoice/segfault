@@ -1,10 +1,14 @@
 0.4.4 - 2022-03-00
+    * Updated for quarterly Kali-latest
+    * pipx, xpra and pwndbg update
     * SSHD master/NameSpace fix
     * Redis via unix domain socket only
+
 0.4.3 - 2022-02-21
     * kali-linux-everything
     * sshd to user's network namespace
     * Better cgroups (encfs/blkio, slices, cpus=)
+
 0.3.9 - 2022-12-00
     * VNC/X11 sessions
     * nmap vulscan (nmap -sV --script=vulscan/vulscan.nse <targer>)

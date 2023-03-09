@@ -59,6 +59,8 @@ SF_CFG_GUEST_DIR="/config/guest"
 [[ ! -d "${SF_CFG_HOST_DIR}/db" ]] && { mkdir "${SF_CFG_HOST_DIR}/db" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db${CN}"; }
 [[ ! -d "${SF_CFG_HOST_DIR}/db/user" ]] && { mkdir "${SF_CFG_HOST_DIR}/db/user" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db/user${CN}"; }
 [[ ! -d "${SF_CFG_HOST_DIR}/db/banned" ]] && { mkdir "${SF_CFG_HOST_DIR}/db/banned" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db/banned${CN}"; }
+[[ ! -d "${SF_CFG_HOST_DIR}/db/hn" ]] && { mkdir "${SF_CFG_HOST_DIR}/db/hn" || SLEEPEXIT 255 5 "${CR}Cant create ${SF_CFG_HOST_DIR}/db/hn${CN}"; }
+chown 1000:1000 "${SF_CFG_HOST_DIR}/db/hn"
 
 SF_RUN_DIR="/sf/run"
 LG_PID_DIR="${SF_RUN_DIR}/pids"

@@ -1,7 +1,8 @@
 #! /bin/bash
 
 export DEBIAN_FRONTEND=noninteractive
-
+export PIPX_HOME=/usr
+export PIPX_BIN_DIR=/usr/bin
 
 # Download & Extract
 # [URL] [asset]

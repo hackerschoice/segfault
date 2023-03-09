@@ -220,7 +220,10 @@ docker_config()
   xinstall sf-guest.slice /etc/systemd/system
   sed 's/^Restart=always.*$/Restart=on-failure/' -i /lib/systemd/system/docker.service
   sed 's/^OOMScoreAdjust=.*$/OOMScoreAdjust=-1000/' -i /lib/systemd/system/docker.service
-  systemctl daemon-reload
+  sed 's/.*DefaultCPUAccounting=no.*/DefaultCPUAccounting=yes/' -i /etc/systemd/system.conf
+  sed 's/.*DefaultIOAccounting=no.*/DefaultIOAccounting=yes/' -i /etc/systemd/system.conf
+  # systemctl daemon-reload
+  systemctl daemon-reexec # reload system.conf
   systemctl start sf.slice
   systemctl start sf-guest.slice
 }

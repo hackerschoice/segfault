@@ -2,6 +2,7 @@
 # FROM kalilinux/kali-bleeding-edge
 # 2023-02-19: kali-rolling has packages with dependencies for python <<3.11 but installs python 3.11.1-3
 FROM kalilinux/kali-last-release
+#FROM kalilinux/kali-rolling
 
 WORKDIR /root/
 
@@ -70,6 +71,7 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		libc-devtools \
 		libevent-dev \
 		libev-dev \
+		libfreetype6-dev `### ft2build.h missing otherwise` \
 		libsodium-dev \
 		libssl-dev \
 		ltrace \
@@ -113,7 +115,6 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		adb \
 		apktool \
 		assetfinder \
-		crackmapexec \
 		dnsmap \
 		dnsx \
 		ffuf \
@@ -133,6 +134,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		oscanner \
 		pagekite \
 		pwncat \
+		python3-shodan \
 		shadowsocks-libev \
 		shadowsocks-v2ray-plugin \
 		snmpcheck \
@@ -155,6 +157,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		clang \
 		cmseek \
 		commix \
+		cython3 \
 		dirb \
 		dirsearch \
 		dnsenum \
@@ -220,10 +223,13 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \
+		python3-full \
+		python3-scapy \
 		python3-pwntools \
 		python3-pygments \
 		python3-venv \
 		python3-virtualenv \
+		python3-ipython \
 		radare2 \
 		recon-ng \
 		redis-tools \
@@ -260,6 +266,8 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		xvfb \
 		zlib1g-dev \
 		zoxide
+RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
+		pelican
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		bloodhound \
 		chromium \
@@ -359,11 +367,11 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		xorg \
 		xrdp
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
-		`### xpra ` \
+		`### xpra ### Using Xpra repo instead` \
 		libavformat59 \
 		libavif15 \
 		libjs-jquery-ui \
-		libprocps8 `### Not available in kali-rolling` \
+		`###libprocps8 ### yanked from Kali` \
 		libqrencode4 \
 		libxres1 \
 		libxtst6 \
@@ -380,23 +388,21 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		xvfb
 # Everything below here will overwrite packages already installed by apt-get.
 #############################################################################
+RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.11.3 and libprocps8` \
+		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
+		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
+		&& apt-get update \
+		&& apt-get install -y xpra xpra-html5; \
+		rm -f /var/lib/apt/lists/xpra*; }' \
 RUN /pkg-install.sh GUI bash -c '{ cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
-RUN	/pkg-install.sh GUI bash -c '{ cd /tmp \
-		`### Use the debian package (not ubuntu) because dpkg does not support .zst compression used in the ubuntu .deb file ` \
-		`### Beta releases are at: https://xpra.org/beta/testing/main/binary-amd64/ ` \
-		&& rm -f /tmp/*.deb \
-		`### && wget http://ftp.de.debian.org/debian/pool/main/p/procps/libprocps8_3.3.17-5_amd64.deb ### NEEDED FOR KALI-ROLLING ONLY` \
-		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra_4.4.3-r0-1_amd64.deb \
-		&& wget https://xpra.org/dists/sid/main/binary-amd64/xpra-html5-6.2-r1-1.deb \
-		&& dpkg -i *.deb \
-		&& rm -f /tmp/*.deb; }'
 RUN /pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/*.list; \
 		apt-get update ; }'
-RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
-	&& /pkg-install.sh HACK bin https://api.localxpose.io/api/v2/downloads/loclx-linux-amd64.zip loclx \
+RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
+	&& /pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-amd64.zip' loclx \
+	&& /pkg-install.sh HACK bin 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz' ngrok \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_amd64.zip$' httpx \
@@ -407,7 +413,7 @@ RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/katana 'linux_amd64.zip$' katana \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx 'linux_amd64.zip$' tlsx \
 	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_amd64.tar.xz$' smap \
-	&& /pkg-install.sh LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
+RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-amd64-filebrowser.tar.gz$' filebrowser \
 	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
@@ -417,6 +423,7 @@ RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
 	&& /pkg-install.sh HACK ghbin tomnomnom/anew 'linux-amd64' anew \
 	&& /pkg-install.sh HACK ghbin lc/gau 'linux_amd64.tar.gz$' gau \
+	&& /pkg-install.sh HACK ghbin praetorian-inc/fingerprintx 'linux_amd64.tar.gz$' fingerprintx \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
 	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/subfinder/goaltdns@latest; }' \
 	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/d3mondev/puredns | PREFIX=/usr/bin sh; }' \
@@ -426,79 +433,98 @@ RUN /pkg-install.sh HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
 	&& /pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \
 		&& git clone --depth 1 https://github.com/scipag/vulscan; }'
-RUN /pkg-install.sh HUGE bash -c '{ cd /tmp \
+RUN /pkg-install.sh HUGE bash -c '{ cd /usr/share \
 		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
 		&& cd pwndbg \
 		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
-		&& { dpkg --add-architecture i386 \
-			&& apt-get update \
-			&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
-			&& dpkg --force-architecture --remove-architecture i386 \
-			&& rm -f /var/lib/apt/lists/*-i386_Packages.lz4; } \
-		&& pip install -Ur requirements.txt \
-		&& cd .. \
-		&& mv pwndbg /usr/share \
+		&& ./setup.sh \
 		&& echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
 		&& mkdir -p /usr/src/glibc \
 		&& cd /usr/src/glibc \
 		&& apt-src install glibc \
 		&& echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
+		&& { dpkg --force-architecture --remove-architecture i386; \
+			rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
 		&& echo DONE; }'
-RUN /pkg-install.sh LARGE pip install --pre 'scapy[basic]' \
-	&& /pkg-install.sh WEB pip install \
-		'pelican[Markdown]' \
-	&& /pkg-install.sh HACK bash -c '{ cd /tmp \
-		&& git clone --depth 1 https://github.com/fullhunt/log4j-scan \
-		&& cd log4j-scan \
-		&& pip install -r requirements.txt \
-		&& cp log4j-scan.py /usr/local/bin/log4j-scan; }' \
-	&& /pkg-install.sh LARGE pip install \
-		discord \
-		git-dumper \
-		ipython \
-		shodan \
-		maigret \
-	&& /pkg-install.sh HACK pip install \
-		arsenal-cli \
-		git+https://github.com/vortexau/dnsvalidator \
-		h8mail \
+		# && { dpkg --add-architecture i386 \
+		# 	&& apt-get update \
+		# 	&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
+		# 	&& dpkg --force-architecture --remove-architecture i386; \
+		# 	rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
+		# && git clone --depth 1 https://github.com/pwndbg/pwndbg \
+		# && cd pwndbg \
+		# && apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
+		# && { dpkg --add-architecture i386 \
+		# 	&& apt-get update \
+		# 	&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
+		# 	&& dpkg --force-architecture --remove-architecture i386 \
+		# 	&& rm -f /var/lib/apt/lists/*-i386_Packages.lz4; } \
+		# && pip install -Ur requirements.txt --break-system-packages \
+		# && cd .. \
+		# && mv pwndbg /usr/share \
+		# && echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
+		# && mkdir -p /usr/src/glibc \
+		# && cd /usr/src/glibc \
+		# && apt-src install glibc \
+		# && echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
+		# && echo DONE; }'
+RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		python3-colorama \
+		crackmapexec \
+		python3-avahi \
+		python3-dnspython \
 		hashid \
-		holehe \
-		pyTelegramBotAPI \
-		git+https://github.com/EntySec/Shreder \
+		python3-netaddr \
+		python3-pycryptodome \
+		python3-pyinotify \
+		python3-requests \
 		sqlmap \
-		tgcrypto \
-		webtech \
-	&& /pkg-install.sh DEVEL pip install \
+		python3-termcolor \
+		python3-tldextract \
+		python3-urllib3 \
+		python3-zeroconf \
+	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/fullhunt/log4j-scan/master/log4j-scan.py log4j-scan
+RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		python3-aiohttp \
+		python3-discord
+RUN /pkg-install.sh    HACK pipx install arsenal-cli \
+	&& /pkg-install.sh HACK pipx install git+https://github.com/vortexau/dnsvalidator \
+	&& /pkg-install.sh HACK pipx install git-dumper \
+	&& /pkg-install.sh HACK pipx install h8mail \
+	`### /pkg-install.sh HACK pipx install hashid ### via apt` \
+	&& /pkg-install.sh HACK pipx install holehe \
+	&& /pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret `### 2023-03-07 pipx repo fails on aiohttp/longintrepr.h` \
+	&& /pkg-install.sh HACK pipx install git+https://github.com/EntySec/Shreder \
+	`### && /pkg-install.sh HACK pipx install sqlmap ### via apt ` \
+	&& /pkg-install.sh HACK pipx install webtech \
+	&& /pkg-install.sh DEVEL pipx install dulwich \
+	&& /pkg-install.sh DEVEL pipx install names
+RUN /pkg-install.sh WEB bash -c '{ apt-get remove -y pelican; true; }' \
+	&& /pkg-install.sh WEB pipx install 'pelican[Markdown]' `### apt/pelican causes missing /onion/theme directory`
+RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		cryptocode \
-		colorama \
-		cython \
-		dnspython \
-		dulwich \
 		ipaddress \
-		names \
-		netaddr \
-		PyCryptodome \
-		tgcrypto \
-		tldextract \
-		urllib3
-RUN /pkg-install.sh LARGE bash -c "{ curl -fsSL https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb -o /tmp/geonet.deb \
-		&& dpkg -i /tmp/geonet.deb; }" \
+		pyTelegramBotAPI \
+		tgcrypto
+RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb' \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
-	&& /pkg-install.sh DEVEL bash -c '{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }' \
-	&& { rm -f /tmp/*.deb; true; } \
-	&& /pkg-install.sh HACK bash -c "curl -fsSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xfvz - -C /usr/local/bin" \
-	&& echo "DONE."
+	&& /pkg-install.sh DEVEL bash -c '{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }'
 ### AFter 0.4.3a release
 RUN /pkg-install.sh GAMES apt-get install -y --no-install-recommends \
-	pacman4console
+		pacman4console
 RUN /pkg-install.sh EMU apt-get install -y --no-install-recommends \
 		dosbox \
 		fs-uae fs-uae-arcade \
 		vice
+RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
+		clojure \
+		leiningen
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		cups-client \
+		fish
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
-	maven \
-	rust-src
+		maven \
+		rust-src
 RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit.tgz$' spirit \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest; }' \
@@ -526,10 +552,10 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
-	i3 \
-	pavucontrol \
-	pulseaudio \
-	tigervnc-tools
+		i3 \
+		pavucontrol \
+		pulseaudio \
+		tigervnc-tools
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 

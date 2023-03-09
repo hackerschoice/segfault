@@ -69,8 +69,9 @@ logout()
 	# in this function.
 	trap '' SIGHUP
 	trap '' SIGTERM
-	touch "${TS_LOGOUT_FILE:?}"
 	[[ -f "${LG_PID_FILE:?}" ]] && rm -f "${LG_PID_FILE}"
+	[[ -d "${SF_USER_DB_DIR}" ]] && touch "${TS_LOGOUT_FILE:?}"
+
 	# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
 	is_last=1
 	for fn in "${LG_PID_DIR:?}/pid-${LID:?}."*; do
@@ -87,7 +88,7 @@ logout()
 	done
 
 	[[ -n $is_last ]] && {
-		LOG "Last PID"
+		# LOG "Last PID"
 		[[ -f "${IS_LOGGED_IN_FILE:?}" ]] && rm -f "${IS_LOGGED_IN_FILE}"
 	}
 }

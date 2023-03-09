@@ -36,7 +36,7 @@ rm -rf /root /home
 mkdir -p /sec/root
 ln -s /sec/root /root
 ln -s /sec/home /home
-cp -a /etc/skel /sec/root
+cp -a /etc/skel/.* /sec/root
 
 echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt
 
@@ -61,7 +61,7 @@ chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
 fixr /usr/share/www
 fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat
-ln -s crackmapexec /usr/bin/cme
+[[ ! -e /usr/bin/cme ]] && ln -s crackmapexec /usr/bin/cme
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
 ln -s /sf/bin/sf-motd.sh /usr/bin/help
 ln -s /sf/bin/sf-motd.sh /usr/bin/info

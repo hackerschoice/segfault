@@ -211,6 +211,9 @@ str=$(mount | grep ^cgroup2 | grep -F "$SF_CG_DIR" )
 	mount -o "remount,${str}" "${SF_CG_DIR}" || ERREXIT 255
 }
 
+# sf.slice's parent is root (/). Any siblings (e.g. /user.slice, /system.slice) also need to do
+# IO Accounting or otherwise /sf.slice can starve those.
+systemctl status system.slice | head -n8 | grep -F "IO: " &>/dev/null || WARN "IO Accounting not enabled. Check /etc/systemd/systemd.conf"
 grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
 # If there was a warning then wait...
 WARN_ENTER

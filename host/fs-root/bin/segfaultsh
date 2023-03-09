@@ -493,7 +493,7 @@ spawn_shell_exit()
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
-	docker-exec-sigproxy exec --workdir=/sec/root --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
+	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
 	logout

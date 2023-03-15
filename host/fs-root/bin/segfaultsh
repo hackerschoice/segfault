@@ -69,6 +69,7 @@ logout()
 	# in this function.
 	trap '' SIGHUP
 	trap '' SIGTERM
+	trap '' SIGPIPE
 	[[ -f "${LG_PID_FILE:?}" ]] && rm -f "${LG_PID_FILE}"
 	[[ -d "${SF_USER_DB_DIR}" ]] && touch "${TS_LOGOUT_FILE:?}"
 
@@ -95,7 +96,7 @@ logout()
 
 sem_wait()
 {
-	redq BLPOP "${LG_SEM:?}" 15 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
+	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
 	IS_SEM_WAIT=1
 }
 
@@ -116,8 +117,8 @@ ERREXIT()
 	shift 1
 	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
 
-	logout
 	sem_release
+	logout
 	exit "$code"
 }
 
@@ -344,6 +345,7 @@ init_vars()
 
 	trap cb_sighup SIGHUP
 	trap cb_sigterm SIGTERM
+	trap cb_sighup SIGPIPE
 }
 
 mk_portforward()
@@ -443,7 +445,9 @@ print_to_many_servers()
 {
 	echo >&2 -e "\
 [${CR}ERROR${CN}]
---> ${CDY}You ($YOUR_IP) have to many servers running${CN}
+--> ${CDY}You ($YOUR_IP) already have ${SF_LIMIT_SERVER_BY_IP} servers running.${CN}
+--> Log in to your already running servers before starting any more new servers.
+--> Read ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}
 --> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 }

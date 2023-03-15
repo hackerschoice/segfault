@@ -33,10 +33,10 @@ sed 's/\/home\//\/sec\/home\//g' -i /etc/passwd
 # [process_linux.go:545: container init caused: mkdir /root: file exists: unknown]
 # shellcheck disable=SC2114
 rm -rf /root /home
-mkdir -p /sec/root
+mkdir -p /sec
+cp -a /etc/skel /sec/root
 ln -s /sec/root /root
 ln -s /sec/home /home
-cp -a /etc/skel/.* /sec/root
 
 echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt
 

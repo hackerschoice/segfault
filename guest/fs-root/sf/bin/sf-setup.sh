@@ -82,6 +82,20 @@ xmkdir()
 	mkdir -p "$1"
 }
 
+link_etc()
+{
+	[[ ! -d /sec/usr/etc ]] && return
+
+	cd /sec/usr/etc || return
+	for fn in ./*; do
+		[[ ! -e "$fn" ]] && break
+		[[ "/etc/${fn}" -ef "${fn}" ]] && continue # Already linked
+		[[ -e "/etc/${fn}" ]] && rm -rf "/etc/${fn:?}"
+		DEBUGF "Linking /etc/${fn} -> /sec/usr/etc/${fn}"
+		ln -sf "/sec/usr/etc/${fn}" "/etc/${fn}"
+	done
+}
+
 # Setup the instance
 # - Create home directories in /sec/root and /sec/home
 # - 
@@ -113,8 +127,11 @@ setup()
 		sed "s/^SITEURL.*/SITEURL = '\/${SF_HOSTNAME,,}'/" -i /sec/www/pelicanconf.py
 	}
 
-	# Setup rc.local (if not exist) and execute rc.local
+	# Setup rc.local (if not exist)
 	[[ ! -f /sec/usr/etc/rc.local ]] && setup_rclocal
+	# Link any /etc/* file to /sec/usr/etc if it exists...
+	link_etc
+	# Execute rc.local startup script
 	/bin/bash /sec/usr/etc/rc.local
 
 	return 0 # TRUE

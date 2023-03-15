@@ -60,9 +60,12 @@ _sf_usage()
 	echo -e "${CDC}lgio${CN}                                   # Sorted list of Network OUT usage"
 	echo -e "${CDC}lgbio${CN}                                  # Sorted list of BlockIO usage"
 	echo -e "${CDC}sftop${CN}"
+	echo -e "${CDC}lghelp${CN}                                 # THIS HELP"
 
 	_sf_deinit
 }
+
+lghelp() { _sf_usage; }
 
 # Show overlay2 usage by container REGEX match.
 # container_df ^lg
@@ -163,15 +166,20 @@ _sfcfg_printlg()
 		local lglid
 		local geoip
 		local ip
+		local fn
+		local hn
 		lglid=$1
 
 		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
 		ip="${ip}                      "
 		ip="${ip:0:16}"
+		[[ -f "${_sf_basedir}/config/db/user/${lglid}/hostname" ]] && hn=$(<"${_sf_basedir}/config/db/user/${lglid}/hostname")
+		hn="${hn}                      "
+		hn="${hn:0:16}"
 		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
 		fn="${_sf_basedir}/config/db/user/${lglid}/created.txt"
 		[[ -f "${fn}" ]] && t_created=$(date '+%F %T' -u -r "${fn}")
-		echo -e "${CDY}====> ${CDC}${t_created:-????-??-?? ??-??-??} ${CB}${lglid} ${CG}${ip} ${CDG}${geoip}${CN}"
+		echo -e "${CDY}====> ${CDC}${t_created:-????-??-?? ??-??-??} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CDG}${geoip}${CN}"
 }
 
 lgls()
@@ -197,9 +205,12 @@ lgps()
 	local lglid
 	local match
 	local stoparr
-	local stopmsg
+	local msg
+	local is_stop
 	match=$1
-	stopmsg="$3"
+	msg="$3"
+
+	[[ "$2" == "stop" ]] && is_stop=1
 
 	_sf_init
 	stoparr=()
@@ -213,10 +224,8 @@ lgps()
 		else
 			echo "$str" | grep -E "${match:?}"'|$'
 		fi
-		[[ -n $2 ]] && {
-			[[ -n $stopmsg ]] && lgwall "${lglid}" "$stopmsg"
-			stoparr+=("${lglid}")
-		}
+		[[ -n $msg ]] && lgwall "${lglid}" "$msg"
+		[[ -n $is_stop ]] && stoparr+=("${lglid}")
 	done
 	[[ ${#stoparr[@]} -gt 0 ]] && docker stop "${stoparr[@]}"
 

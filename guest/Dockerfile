@@ -500,7 +500,8 @@ RUN /pkg-install.sh    HACK pipx install arsenal-cli \
 	&& /pkg-install.sh DEVEL pipx install dulwich \
 	&& /pkg-install.sh DEVEL pipx install names
 RUN /pkg-install.sh WEB bash -c '{ apt-get remove -y pelican; true; }' \
-	&& /pkg-install.sh WEB pipx install 'pelican[Markdown]' `### apt/pelican causes missing /onion/theme directory`
+	&& /pkg-install.sh WEB pipx install 'pelican[Markdown]' `### apt/pelican causes missing /onion/theme directory` \
+	&& /pkg-install.sh WEB pipx install 'tiny-http-server'
 RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		cryptocode \
 		ipaddress \
@@ -556,6 +557,39 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		pavucontrol \
 		pulseaudio \
 		tigervnc-tools
+RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
+		libnginx-mod-http-auth-pam \
+		libnginx-mod-http-brotli-filter \
+		libnginx-mod-http-brotli-static \
+		libnginx-mod-http-cache-purge \
+		libnginx-mod-http-dav-ext \
+		libnginx-mod-http-echo \
+		libnginx-mod-http-fancyindex \
+		libnginx-mod-http-geoip \
+		libnginx-mod-http-geoip2 \
+		libnginx-mod-http-headers-more-filter \
+		libnginx-mod-http-image-filter \
+		libnginx-mod-http-js \
+		libnginx-mod-http-lua \
+		libnginx-mod-http-memc \
+		libnginx-mod-http-modsecurity \
+		libnginx-mod-http-ndk \
+		libnginx-mod-http-ndk-dev \
+		libnginx-mod-http-perl \
+		libnginx-mod-http-set-misc \
+		libnginx-mod-http-srcache-filter \
+		libnginx-mod-http-subs-filter \
+		libnginx-mod-http-uploadprogress \
+		libnginx-mod-http-upstream-fair \
+		libnginx-mod-http-xslt-filter \
+		libnginx-mod-mail \
+		libnginx-mod-nchan \
+		libnginx-mod-rtmp \
+		libnginx-mod-stream \
+		libnginx-mod-stream-geoip \
+		libnginx-mod-stream-geoip2 \
+		libnginx-mod-stream-js \
+		njs
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 

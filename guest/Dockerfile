@@ -527,6 +527,8 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		fish \
 		sshuttle
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		gopls \
+		golang-golang-x-tools \
 		maven \
 		rust-src
 RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \

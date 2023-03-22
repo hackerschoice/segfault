@@ -70,23 +70,25 @@ logout()
 	trap '' SIGHUP
 	trap '' SIGTERM
 	trap '' SIGPIPE
-	[[ -f "${LG_PID_FILE:?}" ]] && rm -f "${LG_PID_FILE}"
+	[[ -f "${LG_PID_FILE}" ]] && rm -f "${LG_PID_FILE:?}"
 	[[ -d "${SF_USER_DB_DIR}" ]] && touch "${TS_LOGOUT_FILE:?}"
 
-	# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
-	is_last=1
-	for fn in "${LG_PID_DIR:?}/pid-${LID:?}."*; do
-		[[ ! -f "$fn" ]] && break # No pid file exists for this LID
-		pid=${fn##*.}
-		[[ ! -d "/proc/${pid}" ]] && {
-			# FIXME: This should never happen...but it does
-			# (e.g. when 'Failed to set up guest instance' is triggered)
-			LOG_E "Stale: pid-${LID}.${pid} [removed]"
-			rm -f "${fn}" 
-			continue
-		}
-		unset is_last
-	done
+	[[ -n $LG_PID_DIR ]] && [[ -n $LID ]] && {
+		# Delete IS_LOGGED_IN_FILE if this is the last session to exit.
+		is_last=1
+		for fn in "${LG_PID_DIR}/pid-${LID}."*; do
+			[[ ! -f "$fn" ]] && break # No pid file exists for this LID
+			pid=${fn##*.}
+			[[ ! -d "/proc/${pid}" ]] && {
+				# FIXME: This should never happen...but it does
+				# (e.g. when 'Failed to set up guest instance' is triggered)
+				LOG_E "Stale: pid-${LID}.${pid} [removed]"
+				rm -f "${fn}" 
+				continue
+			}
+			unset is_last
+		done
+	}
 
 	[[ -n $is_last ]] && {
 		# LOG "Last PID"
@@ -96,15 +98,17 @@ logout()
 
 sem_wait()
 {
-	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
 	IS_SEM_WAIT=1
+	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
+	LOG "SEM lock ${LG_SEM}"  ## FIXME-2023 remove
 }
 
 sem_release()
 {
+	LOG "SEM release ${LG_SEM} / $IS_SEM_WAIT"  ## FIXME-2023 remove
 	[[ -z $IS_SEM_WAIT ]] && return
-	unset IS_SEM_WAIT
 	echo -e "DEL '${LG_SEM}'\nRPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
+	unset IS_SEM_WAIT
 }
 
 ERREXIT()
@@ -286,6 +290,7 @@ init_defaults()
 # shellcheck disable=SC2317 # Not reachable
 cb_sighup()
 {
+	sem_release
 	logout
 	exit 200
 }
@@ -293,6 +298,7 @@ cb_sighup()
 # shellcheck disable=SC2317 # Not reachable
 cb_sigterm()
 {
+	sem_release
 	logout
 	exit 201
 }
@@ -306,9 +312,11 @@ init_vars()
 	[[ -f "/sf/run/logs/segfault.log" ]] && IS_LOGGING=1
 
 	NOW="$(date +%s)"
-	YOUR_IP="${SSH_CONNECTION%%[[:space:]]*}"
-	YOUR_IP="${YOUR_IP//[^0-9.:]/}"
-	[[ -z $YOUR_IP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
+	[[ -z $YOUR_IP ]] && {
+		YOUR_IP="${SSH_CONNECTION%%[[:space:]]*}"
+		YOUR_IP="${YOUR_IP//[^0-9.:]/}"
+		[[ -z $YOUR_IP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
+	}
 	# Do not store IP addresses. Hash it with a secret (SEED) instead.
 	local str
 	str="$(echo -n "IP-${YOUR_IP}-${SF_SEED}" | sha512sum)"
@@ -539,17 +547,22 @@ setup_fs_limit()
 	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_SIZE:?}")
 }
 
-# Set INODE limit per container. Docker does not support this via any
+# 1. Set INODE limit per container. Docker does not support this via any
 # --storage-opt. Instead we start the container and add ourself to the
 # xfs quota group that docker set up. Yeahaaa..
+# 2. Move encfsd into lg's cgroup.
 setup_encfsd()
 {
 	local dir
+	local ilimit
+
+	ilimit="$SF_USER_ROOT_FS_INODE"
+	[[ -z "${SF_USER_ROOT_FS_SIZE_NUM}" ]] && ilimit=0
 
 	dir=$(docker inspect "lg-${LID}" --format '{{.GraphDriver.Data.UpperDir }}') || return 255
 	dir=${dir#*overlay2/}
 
-	res=$(echo -e "RPUSH encfs \"$$ ${LID} X ${CID} ${SF_USER_ROOT_FS_INODE:-0} ${dir}\"\n\
+	res=$(echo -e "RPUSH encfs \"$$ ${LID} X ${CID} ${ilimit:-0} ${dir}\"\n\
 BLPOP \"encfs-$$-${LID}-X\" 10" | red) || return 255
 
 	return 0
@@ -580,10 +593,13 @@ load_limits()
 	# dd bs=1M count=10024 if=/dev/zero of=/dump.dat oflag=direct status=progress
 
 	# HACK: Use eval-trick to 'source' in a restricted bash shell
-	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(grep ^SF_ "${SF_ETCSF_DIR}/sf.conf")"
+	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf.conf")"
 
-	# Then souce user specific limits
-	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(grep ^SF_ "${SF_USER_DB_DIR}/limits.conf")"
+	# Then source IP specific limits
+	[[ -f "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf")"
+
+	# Then source user specific limits
+	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(<"${SF_USER_DB_DIR}/limits.conf")"
 
 	# Set swap limit if not set in sf.conf
 	[[ -z $SF_USER_MEMORY_AND_SWAP_LIMIT ]] && SF_USER_MEMORY_AND_SWAP_LIMIT="$SF_USER_MEMORY_LIMIT"
@@ -858,6 +874,14 @@ else
 fi
 
 [[ -n $SF_DEBUG ]] && SF_DEBUG=1
+
+[[ -n $SF_IS_WEBSHELL ]] && {
+	# Correct YOUR_IP
+	# REMOTE_PORT="${REMOTE_PORT//[^0-9]/}"
+	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]/}"
+	[[ -z $REMOTE_ADDR || ${#REMOTE_ADDR} -gt 32 ]] && ERREXIT "Bad REMOTE_ADDR: len=${#REMOTE_ADDR}"
+	YOUR_IP="${REMOTE_ADDR}"
+}
 ### ----END SANITIZE----
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)
@@ -994,6 +1018,7 @@ xmkdir "${selfdir}"
 
 # Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
 # cgroup-v2 only sf-guest.slice need to be specified.
+[[ -n $SF_IS_GOLD_PROMPT ]] && export SF_IS_GOLD_PROMPT
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
@@ -1011,14 +1036,13 @@ exec_devnull docker run \
 	--dns "${SF_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
 	--env SF_TOR_IP="${SF_TOR_IP}" \
-	--env SF_VER="${SF_VER}" \
 	--env SF_USER="${SF_USER}" \
 	--env SF_FQDN="${SF_FQDN}" \
 	--env SF_DEBUG="${SF_DEBUG}" \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
 	--env SF_LID="${LID}" \
 	--env SF_IS_LOGINSHELL=1 \
-	--env SF_IS_GOLD_PROMPT="${SF_IS_GOLD_PROMPT}" \
+	-e SF_IS_GOLD_PROMPT \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \

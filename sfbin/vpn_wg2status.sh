@@ -32,9 +32,6 @@ create_vpn_status()
 		[[ ! -f "${f}" ]] && break
 		# shellcheck disable=SC1090
 		source "${f}"
-		# loc+=("${SFVPN_LOCATION}[$SFVPN_EXIT_IP]")
-		# loc+=("${SFVPN_LOCATION}")
-		# exit_ip+=("$SFVPN_EXIT_IP")
 
 		provider+="'${SFVPN_PROVIDER}' "
 		exit_ip+="'${SFVPN_EXIT_IP}' "

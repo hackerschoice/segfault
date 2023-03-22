@@ -28,6 +28,9 @@ function dmesg {
 	alias vim='nvim'
 }
 
+alias norg="gron --ungron"
+alias ungron="gron --ungron"
+
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	_grccmd()
 	{

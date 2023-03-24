@@ -532,6 +532,7 @@ services:
       - SF_RPC_IP=${SF_RPC_IP}
       - SF_SEED=${SF_SEED}
       - SF_HM_SIZE_LG=8
+      - SF_LOG_IP
       - SF_DIRECT
       - SF_DEBUG
     volumes:

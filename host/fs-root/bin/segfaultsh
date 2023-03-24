@@ -34,6 +34,7 @@ CG="\e[1;32m" # green
 CDG="\e[0;32m" # green
 CDC="\e[0;36m" # cyan
 CDR="\e[0;31m" # red
+CDM="\e[0;35m" # magenta
 CN="\e[0m"    # none
 CW="\e[1;37m" # white
 CF="\e[2m"    # faint
@@ -52,7 +53,7 @@ _log()
 	# Replace ' with '"'"'
 	str="${*//\'/\'\"\'\"\'}"
 	# NOTE: segfault.log must be owned 1000:1000
-	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${LID}][$$] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
+	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${CDM}${LID}${CN}] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
 }
 
 LOG(){ _log "" "$@"; }
@@ -882,6 +883,8 @@ fi
 	[[ -z $REMOTE_ADDR || ${#REMOTE_ADDR} -gt 32 ]] && ERREXIT "Bad REMOTE_ADDR: len=${#REMOTE_ADDR}"
 	YOUR_IP="${REMOTE_ADDR}"
 }
+
+[[ -n $PRJ ]] && SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
 ### ----END SANITIZE----
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)
@@ -960,7 +963,11 @@ else
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
-LOG "${CDG}${SF_HOSTNAME}${CN}, ${CDC}$*${CN}"
+unset str
+[[ -n $SF_LOG_IP ]] && str="[${CDY}${YOUR_IP}${CN}] "
+str+="${CDG}${SF_HOSTNAME}"
+[[ -n $SF_PRJ ]] && str+="/${CW}${SF_PRJ}"
+LOG "${str}${CN} ${CDC}$*${CN}"
 
 # Record which SSHD process is connect to guest LG.
 tofile "SSHD_PID=$PPID
@@ -1019,6 +1026,7 @@ xmkdir "${selfdir}"
 # Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
 # cgroup-v2 only sf-guest.slice need to be specified.
 [[ -n $SF_IS_GOLD_PROMPT ]] && export SF_IS_GOLD_PROMPT
+[[ -n $SF_PRJ ]] && export SF_PRJ
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
@@ -1042,6 +1050,7 @@ exec_devnull docker run \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
 	--env SF_LID="${LID}" \
 	--env SF_IS_LOGINSHELL=1 \
+	-e SF_PRJ \
 	-e SF_IS_GOLD_PROMPT \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 \

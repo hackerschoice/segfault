@@ -104,6 +104,7 @@ GatewayPorts yes
 #X11UseLocalhost yes
 #PermitTTY yes
 PrintMotd no
+AcceptEnv PRJ
 AcceptEnv SF_DEBUG
 AcceptEnv SECRET
 #PrintLastLog yes

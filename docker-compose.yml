@@ -147,7 +147,7 @@ services:
   nordvpn:
     image: hackerschoice/cryptostorm
     container_name: sf-nordvpn
-    restart: ${SF_RESTART:-on-failure}
+    restart: "no"
     cgroup_parent: sf.slice
     depends_on:
       - dnsmasq
@@ -182,7 +182,7 @@ services:
     image: hackerschoice/cryptostorm
     container_name: sf-cryptostorm
     cgroup_parent: sf.slice
-    restart: ${SF_RESTART:-on-failure}
+    restart: "no"
     depends_on:
       - dnsmasq
       - sf-redis
@@ -215,7 +215,7 @@ services:
   mullvad:
     image: hackerschoice/cryptostorm
     container_name: sf-mullvad
-    restart: ${SF_RESTART:-on-failure}
+    restart: "no"
     cgroup_parent: sf.slice
     depends_on:
       - dnsmasq
@@ -244,6 +244,38 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+
+  novpn:
+    build: router
+    image: sf-router
+    hostname: sf-novpn
+    container_name: sf-novpn
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
+    depends_on:
+      - dnsmasq
+      - sf-redis
+      - router
+    cap_add:
+      - NET_ADMIN #required
+    environment:
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - SF_NOVPN_IP=${SF_NOVPN_IP}
+      - SF_DIRECT
+      - SF_DEBUG
+    networks:
+      vpn-net:
+        ipv4_address: ${SF_NOVPN_IP}
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv4.conf.all.rp_filter=2
+      - net.ipv4.ip_forward=1
+    volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+    entrypoint: ["/init-novpn.sh"]
 
   router:
     build: router
@@ -290,6 +322,7 @@ services:
       - NET_VPN=${SF_NET_VPN:?}
       - NET_ONION=${SF_NET_ONION:?}
       - TOR_IP=${SF_TOR_IP:?}
+      - NOVPN_IP=${SF_NOVPN_IP:?}
       - GSNC_IP=${SF_GSNC_IP:?}
       - SSHD_IP=${SF_SSHD_IP:?}
       - NGINX_IP=${SF_NGINX_IP:?}
@@ -299,6 +332,7 @@ services:
       - NET_VPN_DNS_IP=${SF_NET_VPN_DNS_IP:?}
       - NET_ACCESS_ROUTER_IP=${SF_NET_ACCESS_ROUTER_IP:?}
       - NET_DMZ_ROUTER_IP=${SF_NET_DMZ_ROUTER_IP:?}
+      - SF_DIRECT
       - SF_NORDVPN_IP=${SF_NORDVPN_IP:?}
       - SF_CRYPTOSTORM_IP=${SF_CRYPTOSTORM_IP:?}
       - SF_MULLVAD_IP=${SF_MULLVAD_IP:?}
@@ -499,6 +533,7 @@ services:
       - SF_RPC_IP=${SF_RPC_IP}
       - SF_SEED=${SF_SEED}
       - SF_HM_SIZE_LG=8
+      - SF_DIRECT
       - SF_DEBUG
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"

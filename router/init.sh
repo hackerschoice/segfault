@@ -154,10 +154,30 @@ use_tor()
 	ip route add default via "${TOR_IP}"
 }
 
+use_novpn()
+{
+	echo -e >&2 "$(date) Switching to NoVPN"
+	ip route del default 2>/dev/null
+	ip route add default via "${NOVPN_IP}"
+}
+
+use_other()
+{
+	[[ -z $SF_DIRECT ]] && {
+		use_tor
+		return
+	}
+	use_novpn
+}
+
 monitor_failover()
 {
 	local status_sha
 
+	[[ -z $SF_DIRECT ]] && {
+		exec -a '[novpn-sleep]' sleep infinity
+		exit 255 # NOT REACHED
+	}
 	# FIXME: use redis here instead of polling
 	while :; do
 		bash -c "exec -a '[sleep router failover]' sleep 1"
@@ -168,7 +188,7 @@ monitor_failover()
 		status_sha="${sha}"
 
 		# If vpn_status no longer exists then switch to TOR
-		[[ ! -f /config/guest/vpn_status ]] && { use_tor; continue; }
+		[[ ! -f /config/guest/vpn_status ]] && { use_other; continue; }
 
 		use_vpn
 	done
@@ -429,8 +449,8 @@ echo -e >&2 "FW: SUCCESS"
 echo -e >&2 "TC: SUCCESS"
 
 set +e
-# By default go via TOR until vpn_status exists
-use_tor
+# By default go via DIRECTO or TOR + VPN until vpn_status exists
+use_other
 monitor_failover
 
 # REACHED IF ANY CMD FAILS

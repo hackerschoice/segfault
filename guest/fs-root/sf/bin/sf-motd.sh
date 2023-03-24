@@ -26,7 +26,11 @@ CUL="\e[4m"
 source "/config/guest/vpn_status" 2>/dev/null
 
 if [[ -z $IS_VPN_CONNECTED ]]; then
-	VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
+	if [[ -e "/config/guest/vpn_status.direct" ]]; then
+		VPN_DST="VPN Exit Node     : ${CR}DIRECT ${CF}(no VPN)${CN}"$'\n'
+	else
+		VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
+	fi
 else
 	i=0
 	while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do

@@ -524,6 +524,7 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		cron \
 		cups-client \
+		byobu \
 		fish \
 		sshuttle
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \

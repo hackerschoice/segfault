@@ -101,12 +101,12 @@ sem_wait()
 {
 	IS_SEM_WAIT=1
 	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
-	LOG "SEM lock ${LG_SEM}"  ## FIXME-2023 remove
+	# LOG "SEM lock ${LG_SEM}"  ## FIXME-2023 remove
 }
 
 sem_release()
 {
-	LOG "SEM release ${LG_SEM} / $IS_SEM_WAIT"  ## FIXME-2023 remove
+	# LOG "SEM release ${LG_SEM} / $IS_SEM_WAIT"  ## FIXME-2023 remove
 	[[ -z $IS_SEM_WAIT ]] && return
 	echo -e "DEL '${LG_SEM}'\nRPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
 	unset IS_SEM_WAIT

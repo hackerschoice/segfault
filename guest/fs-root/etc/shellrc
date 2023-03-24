@@ -28,6 +28,9 @@ function dmesg {
 	alias vim='nvim'
 }
 
+alias norg="gron --ungron"
+alias ungron="gron --ungron"
+
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	_grccmd()
 	{
@@ -37,8 +40,8 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 		[[ ! -t 1 ]] && { command "$cmd" "$@"; return; }
 
 		command "$cmd" "$@" | /usr/bin/python3 /usr/bin/grcat "conf.${cmd##*/}"
-		[[ -n ${PIPESTATUS[0]} ]] && return ${PIPESTATUS[0]}
-		return ${pipestatus[1]}
+		[[ -n ${PIPESTATUS[0]} ]] && return ${PIPESTATUS[0]} # bash
+		return ${pipestatus[1]}  # zsh
 	}
 
 	_grcset()

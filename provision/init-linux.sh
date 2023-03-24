@@ -269,14 +269,15 @@ command -v snap >/dev/null && snap list --all | awk '/disabled/{print $1, $3}' |
     snap remove "$pkg" --revision="$revision"
 done
 if grep "^#SystemMaxUse=$" /etc/systemd/journald.conf >/dev/null; then
-  sed -E -i  's/#(SystemMaxUse)=$/\1=10M/g' /etc/systemd/journald.conf
+  sed 's/#SystemMaxFileSize.*/SystemMaxFileSize=50M/' -i /etc/systemd/journald.conf
+  sed 's/#SystemMaxUse.*/SystemMaxUse=10M/' -i /etc/systemd/journald.conf
   systemctl restart systemd-journald
 fi
 journalctl --vacuum-size=20M
 journalctl --vacuum-time=10d
 
 # NOTE: Only needed if source is mounted into vmbox (for testing)
-[[ "$(stat -c %G /segfault 2>/dev/null)" = "vboxsf" ]] && usermod -a -G vboxsf "${SF_HOST_USER}"
+[[ "$(stat -c %G /research/segfault 2>/dev/null)" == "vboxsf" ]] && usermod -a -G vboxsf "${SF_HOST_USER}"
 
 # SNAPSHOT #3 (2022-07-22)
 # exit
@@ -286,6 +287,12 @@ init_config_run
 ### Create guest, encfs and other docker images.
 [[ -z $SF_NO_INTERNET ]] && { cd "${SFI_SRCDIR}" && make || exit; }
 
+# Only needed if installed via 
+[[ "$(stat -c %G /research/segfault 2>/dev/null)" == "vboxsf" ]] && {
+  chmod 644 "${SF_CONFDIR}/etc/redis/redis.conf"
+  chmod 755 "${SF_BASEDIR}/sfbin"
+  chmod 644 "${SF_BASEDIR}/sfbin/funcs*"
+}
 # SNAPSHOT #4 (2022-07-22)
 # SNAPSHOT #4.1 (2022-07-23)
 # exit

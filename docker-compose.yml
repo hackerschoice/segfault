@@ -33,7 +33,6 @@ services:
     # NOTE: _MUST_ not run in host's pid space because we use 'pgrep' to find lg's encfsd pid.
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
-      # - SF_REDIS_IP=${SF_REDIS_IP}
       - SF_SEED=${SF_SEED}
       - SF_DEBUG
     command: ["/encfsd.sh"]

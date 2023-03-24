@@ -84,7 +84,7 @@ xmkdir()
 
 link_etc()
 {
-	[[ ! -d /sec/usr/etc ]] && return
+	[[ ! -d /sec/usr/etc ]] && mkdir -p /sec/usr/etc
 
 	cd /sec/usr/etc || return
 	for fn in ./*; do

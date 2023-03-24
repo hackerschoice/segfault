@@ -78,6 +78,10 @@ else
 	[[ -e /usr/bin/firefox ]] && WARN "Firefox config could not be updated."
 fi
 ln -s /usr/games/lolcat /usr/bin/lolcat
+
+[[ -f /usr/share/wordlists/rockyou.txt.gz ]] && gunzip /usr/share/wordlists/rockyou.txt.gz
+cd /var/log
+rm -f dpkg.log alternatives.log fontconfig.log apt/*
 set +e
 
 # Non-Fatal. WARN but continue if any of the following commands fail

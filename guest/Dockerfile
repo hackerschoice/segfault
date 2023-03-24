@@ -500,6 +500,7 @@ RUN /pkg-install.sh    HACK pipx install arsenal-cli \
 	&& /pkg-install.sh DEVEL pipx install dulwich \
 	&& /pkg-install.sh DEVEL pipx install names
 RUN /pkg-install.sh WEB bash -c '{ apt-get remove -y pelican; true; }' \
+	&& /pkg-install.sh WEB pipx install 'grip' \
 	&& /pkg-install.sh WEB pipx install 'pelican[Markdown]' `### apt/pelican causes missing /onion/theme directory` \
 	&& /pkg-install.sh WEB pipx install 'tiny-http-server'
 RUN /pkg-install.sh DEVEL pip install --break-system-packages \
@@ -521,9 +522,14 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		clojure \
 		leiningen
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		cron \
 		cups-client \
-		fish
+		byobu \
+		fish \
+		sshuttle
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		gopls \
+		golang-golang-x-tools \
 		maven \
 		rust-src
 RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
@@ -541,10 +547,13 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Hackmanit/Web-Cache-Vulnerability-Scanner@latest && ln -s Web-Cache-Vulnerability-Scanner /usr/bin/wcvs; }' \
 	&& /pkg-install.sh HACK ghbin 'tomnomnom/qsreplace' 'linux-amd64' qsreplace \
 	&& /pkg-install.sh HACK ghbin 'tomnomnom/unfurl' 'linux-amd64' unfurl \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/gron' 'linux-amd64-' gron \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/meg' 'linux-amd64-' meg \
 	&& /pkg-install.sh HACK ghbin 'projectdiscovery/notify' 'linux_amd64' notify \
 	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_amd64' interactsh-client \
 	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_amd64' mapcidr \
 	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64' subjs \
+	&& /pkg-install.sh MINI ghbin 'qsocket/qs-netcat' 'linux_amd64' qs-netcat \
 	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_amd64' rush \
 	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64' Gxss \
 	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_amd64' crlfuzz \

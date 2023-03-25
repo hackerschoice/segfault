@@ -878,13 +878,16 @@ fi
 
 [[ -n $SF_IS_WEBSHELL ]] && {
 	# Correct YOUR_IP
-	# REMOTE_PORT="${REMOTE_PORT//[^0-9]/}"
-	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]/}"
+	# REMOTE_PORT="${REMOTE_PORT//[^0-9]}"
+	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]}"
 	[[ -z $REMOTE_ADDR || ${#REMOTE_ADDR} -gt 32 ]] && ERREXIT "Bad REMOTE_ADDR: len=${#REMOTE_ADDR}"
 	YOUR_IP="${REMOTE_ADDR}"
 }
 
-[[ -n $PRJ ]] && SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
+[[ -n $PRJ ]] && {
+	SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
+	SF_PRJ="${SF_PRJ:0:32}"
+}
 ### ----END SANITIZE----
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)

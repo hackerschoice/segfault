@@ -98,6 +98,26 @@ blockio_init()
 	docker run --rm --blkio-weight=100 alpine  true 2>&1 | grep "does not support Block" >/dev/null && { WARN "DOCKER: Your kernel does not support Block I/O weight."; return; }
 }
 
+sysinc()
+{
+	local key
+	local val
+	key=$1
+	val=$2
+	[[ $(sysctl -n "$key") -ge $val ]] && return
+	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+}
+
+sysdec()
+{
+	local key
+	local val
+	key=$1
+	val=$2
+	[[ $(sysctl -n "$key") -le $val ]] && return
+	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+}
+
 warn_file()
 {
 	[[ -f "$1" ]] && return
@@ -149,24 +169,33 @@ blockio_init
 # 2. Limit the User's local network (to /22 or /24)
 # 3. Increase the global size of the kernel's arp table (gc_thresh3)
 
-sysinc()
-{
-	local key
-	local val
-	key=$1
-	val=$2
-	[[ $(sysctl -n "$key") -ge $val ]] && return
-	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
-}
 # These are global and shared among all containers
+# Increase unless already higher
 sysinc net.ipv4.neigh.default.gc_thresh3 65536
-sysinc net.netfilter.nf_conntrack_buckets 16384 # 65536 for >4GB systems
+sysinc net.netfilter.nf_conntrack_buckets 16384 # default is 65536 for >4GB systems
 sysinc net.netfilter.nf_conntrack_max 1048576
+
+# Conntrack & Namespaces is a mess. Restricting these inside a container
+# only results that the connection is dropped sooner but the state still
+# remains on the host's container. Thus we also reduce the host's timers
+# to deal with this. The host does not do CONNTRACKING and thus these
+# settings should only affect the containers.
+# Decrease unless already lower.
+sysdec net.netfilter.nf_conntrack_tcp_timeout_syn_sent 10
+sysdec net.netfilter.nf_conntrack_tcp_timeout_syn_recv 5        # default is 30, 5 because of reverse tunnels
+sysdec net.netfilter.nf_conntrack_tcp_timeout_last_ack 5        # default is 30
+sysdec net.netfilter.nf_conntrack_tcp_timeout_fin_wait 10       # default is 120
+sysdec net.netfilter.nf_conntrack_tcp_timeout_close 1           # default is 10
+sysdec net.netfilter.nf_conntrack_tcp_timeout_close_wait 10     # default is 60
+sysdec net.netfilter.nf_conntrack_tcp_timeout_unacknowledged 30 # default is 300
+sysdec net.netfilter.nf_conntrack_tcp_timeout_established 10800 # 3h, default is 5 days
+sysdec net.netfilter.nf_conntrack_icmp_timeout 10 # default is 30
+sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
 
 # Each Hugepagesize is 2MB (grep HUGE /proc/meminfo)
 #  512 => 1g as HUGE 
 # 8192 => 16g as HUGE
-[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN 'Huge Tables not set. Consider `echo "vm.nr_hugepages=8192" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192`'
+[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN 'Huge Tables not set. Consider '\''echo "vm.nr_hugepages=8192" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192'\'
 
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx-rpc.conf"
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx.conf"

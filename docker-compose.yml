@@ -204,6 +204,7 @@ services:
     environment:
       - CONFIG=${SF_CRYPTOSTORM_CONFIG:-}
       - PROVIDER=CryptoStorm
+      - NETWORK=${SF_NET_LG}
       - DNS=1.1.1.1 # Cryptostorm's DNS is often broken
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
@@ -297,6 +298,8 @@ services:
       - NET_ADMIN #required
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - NET_LG=${SF_NET_LG:?}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
       - SF_NOVPN_IP=${SF_NOVPN_IP}
       - SF_DIRECT
       - SF_DEBUG

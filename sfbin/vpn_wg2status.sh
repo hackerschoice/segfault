@@ -120,7 +120,9 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 
 	create_vpn_status
 
-	# For Reverse Port Forward:
+	# Old cryptostorm containers set a network route to default IP.
+	# Remote old one as we need to route to SF_ROUTER_IP instead.
+	ip route del 10.11.0.0/24 2>/dev/null
 	ip route add 10.11.0.0/16 via "${SF_ROUTER_IP}" 2>/dev/null
 
 	# Delete all old port forwards.

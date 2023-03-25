@@ -38,9 +38,10 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 
 touch "/config/guest/vpn_status.direct"
 
+ip route add "${NET_LG}" via "${NET_VPN_ROUTER_IP}"
 # All outgoing needs to be MASQ'ed.
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
 # Keep 1 process alive so that we can use `nsenter` to enter this network namespace
-[[ -z $SF_DEBUG ]] && exit 0
+# [[ -z $SF_DEBUG ]] && exit 0
 exec -a '[novpn-sleep]' sleep infinity

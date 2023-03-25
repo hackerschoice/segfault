@@ -148,9 +148,21 @@ blockio_init
 # 1. Use static IPs where possible for inter-container communication.
 # 2. Limit the User's local network (to /22 or /24)
 # 3. Increase the global size of the kernel's arp table (gc_thresh3)
-sysctl -q -w net.ipv4.neigh.default.gc_thresh3=65536 || WARN "Could not set /proc/.../gc_thresh3"
-sysctl -q -w net.netfilter.nf_conntrack_buckets=16384 || WARN "Could not set /proc/.../nf_conntrack_buckets"
-sysctl -q -w net.netfilter.nf_conntrack_max=131072 || WARN "Could not set /proc/.../nf_conntrack_max"
+
+sysinc()
+{
+	local key
+	local val
+	key=$1
+	val=$2
+	[[ $(sysctl -n "$key") -ge $val ]] && return
+	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+}
+# These are global and shared among all containers
+sysinc net.ipv4.neigh.default.gc_thresh3 65536
+sysinc net.netfilter.nf_conntrack_buckets 16384 # 65536 for >4GB systems
+sysinc net.netfilter.nf_conntrack_max 1048576
+
 # Each Hugepagesize is 2MB (grep HUGE /proc/meminfo)
 #  512 => 1g as HUGE 
 # 8192 => 16g as HUGE

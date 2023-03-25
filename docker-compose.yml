@@ -169,8 +169,20 @@ services:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
-      # - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
+      - net.netfilter.nf_conntrack_frag6_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=1        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
+      - net.netfilter.nf_conntrack_tcp_timeout_close_wait=10     # default is 60
+      - net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=30 # default is 300
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 # 3h, default is 5 days
+      - net.netfilter.nf_conntrack_icmp_timeout=10 # default is 30
+      - net.netfilter.nf_conntrack_udp_timeout=10  # default is 30
+      # - net.nf_conntrack_udp_timeout_stream=       # leave as default of 120
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
@@ -205,6 +217,19 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
+      - net.netfilter.nf_conntrack_frag6_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5        # default is 30, 5 because of reverse tunnels
+      - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
+      - net.netfilter.nf_conntrack_tcp_timeout_close_wait=10     # default is 60
+      - net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=30 # default is 300
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 # 3h, default is 5 days
+      - net.netfilter.nf_conntrack_icmp_timeout=10 # default is 30
+      - net.netfilter.nf_conntrack_udp_timeout=10  # default is 30
+      # - net.nf_conntrack_udp_timeout_stream=       # leave as default of 120
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
@@ -238,6 +263,19 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
+      - net.netfilter.nf_conntrack_frag6_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=1        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
+      - net.netfilter.nf_conntrack_tcp_timeout_close_wait=10     # default is 60
+      - net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=30 # default is 300
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 # 3h, default is 5 days
+      - net.netfilter.nf_conntrack_icmp_timeout=10 # default is 30
+      - net.netfilter.nf_conntrack_udp_timeout=10  # default is 30
+      # - net.nf_conntrack_udp_timeout_stream=       # leave as default of 120
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
@@ -315,12 +353,18 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1 # SNAT
       - net.ipv4.conf.all.rp_filter=2
       - net.netfilter.nf_conntrack_frag6_timeout=10
-      - net.netfilter.nf_conntrack_generic_timeout=180 # default is 600
-      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10
-      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
-      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
-      # - net.netfilter.nf_conntrack_udp_timeout=10
-      - net.netfilter.nf_conntrack_icmp_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5        # default is 30, 5 because of reverse tunnels
+      - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
+      - net.netfilter.nf_conntrack_tcp_timeout_close_wait=10     # default is 60
+      - net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=30 # default is 300
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 # 3h, default is 5 days
+      - net.netfilter.nf_conntrack_icmp_timeout=10 # default is 30
+      - net.netfilter.nf_conntrack_udp_timeout=10  # default is 30
+      # - net.nf_conntrack_udp_timeout_stream=       # leave as default of 120
     ports:
       - "${SF_SSH_PORT:-22}:22"
       - "${SF_SSH_PORT2:-443}:22"
@@ -425,12 +469,18 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1 # SNAT
       - net.ipv4.conf.all.rp_filter=2
       - net.netfilter.nf_conntrack_frag6_timeout=10
-      - net.netfilter.nf_conntrack_generic_timeout=180 # default is 600
-      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10
-      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10
-      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 #3h idle
-      # - net.netfilter.nf_conntrack_udp_timeout=10
-      - net.netfilter.nf_conntrack_icmp_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=1        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
+      - net.netfilter.nf_conntrack_tcp_timeout_close_wait=10     # default is 60
+      - net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=30 # default is 300
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 # 3h, default is 5 days
+      - net.netfilter.nf_conntrack_icmp_timeout=10 # default is 30
+      - net.netfilter.nf_conntrack_udp_timeout=10  # default is 30
+      # - net.nf_conntrack_udp_timeout_stream=       # leave as default of 120
     environment:
       - SF_DEBUG
     volumes:

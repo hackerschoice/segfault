@@ -158,6 +158,7 @@ services:
     environment:
       - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
       - PROVIDER=NordVPN
+      - NETWORK=${SF_NET_LG}
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
@@ -252,6 +253,7 @@ services:
     environment:
       - CONFIG=${SF_MULLVAD_CONFIG:-}
       - PROVIDER=Mullvad
+      - NETWORK=${SF_NET_LG}
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
@@ -301,6 +303,7 @@ services:
       - NET_LG=${SF_NET_LG:?}
       - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
       - SF_NOVPN_IP=${SF_NOVPN_IP}
+      - PROVIDER=NoVPN
       - SF_DIRECT
       - SF_DEBUG
     networks:

@@ -9,6 +9,7 @@ RUN    apt-get update \
               iptables \
               iproute2 \
               iperf \
+              jq \
               lsb-release \
               gnupg \
               net-tools \

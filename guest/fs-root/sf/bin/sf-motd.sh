@@ -26,8 +26,11 @@ CUL="\e[4m"
 source "/config/guest/vpn_status" 2>/dev/null
 
 if [[ -z $IS_VPN_CONNECTED ]]; then
-	if [[ -e "/config/guest/vpn_status.direct" ]]; then
-		VPN_DST="VPN Exit Node     : ${CR}DIRECT ${CF}(no VPN)${CN}"$'\n'
+	if source "/config/guest/vpn_status.direct" 2>/dev/null; then
+		str="${SFVPN_EXIT_IP}                   "
+		VPN_DST="VPN Exit Node     : ${CDG}${str:0:15}"
+		[[ -n $SFVPN_GEOIP ]] && VPN_DST+=" ${CF}(${SFVPN_GEOIP})${CN}"
+		VPN_DST+=" ${CR}>>> DIRECT <<<${CF} (no VPN)${CN}"$'\n'
 	else
 		VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
 	fi

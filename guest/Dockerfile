@@ -46,6 +46,7 @@ RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		python3-pip \
 		screen \
 		sharutils \
+		sshfs \
 		supervisor \
 		tmux \
 		unrar \
@@ -95,7 +96,6 @@ RUN /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		iperf \
 		iperf3 \
 		iputils-tracepath \
-		gsocket \
 		man-db \
 		manpages-dev \
 		mosh \
@@ -392,8 +392,8 @@ RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.
 		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
 		&& apt-get update \
-		&& apt-get install -y xpra xpra-html5; \
-		rm -f /var/lib/apt/lists/xpra*; }' \
+		&& apt-get install -y xpra xpra-html5 \
+		&& rm -f /var/lib/apt/lists/xpra*; }'
 RUN /pkg-install.sh GUI bash -c '{ cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
@@ -412,7 +412,7 @@ RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify 'linux_amd64.zip$' proxify \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/katana 'linux_amd64.zip$' katana \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx 'linux_amd64.zip$' tlsx \
-	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_amd64.tar.xz$' smap \
+	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_amd64.tar.xz$' smap
 RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-amd64.deb$' \
 	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-amd64-filebrowser.tar.gz$' filebrowser \

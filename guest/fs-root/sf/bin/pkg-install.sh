@@ -25,7 +25,7 @@ dlx()
 			;;
 		*.deb)
 			curl -SsfL -o /tmp/pkg.deb "$url" \
-			&& dpkg -i /tmp/pkg.deb \
+			&& dpkg -i --ignore-depends=sshfs /tmp/pkg.deb \
 			&& rm -rf /tmp/pkg.deb \
 			&& return 0
 			;;

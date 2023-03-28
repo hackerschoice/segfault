@@ -599,6 +599,9 @@ RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		libnginx-mod-stream-geoip2 \
 		libnginx-mod-stream-js \
 		njs
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		lftp
+RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 

@@ -392,7 +392,7 @@ RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.
 		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
 		&& apt-get update \
-		&& apt-get install -y xpra xpra-html5 \
+		&& apt-get install -y --no-install-recommends xpra xpra-html5 \
 		&& rm -f /var/lib/apt/lists/xpra*; }'
 RUN /pkg-install.sh GUI bash -c '{ cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \

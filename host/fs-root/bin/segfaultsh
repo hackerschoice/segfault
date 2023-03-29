@@ -1056,7 +1056,7 @@ exec_devnull docker run \
 	-e SF_PRJ \
 	-e SF_IS_GOLD_PROMPT \
 	--log-driver "${SF_DOCKER_LOG}" \
-	--mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 \
+	--tmpfs /tmp:exec                                       `# GoLang needs /tmp to be executeable` \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \

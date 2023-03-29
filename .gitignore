@@ -2,6 +2,6 @@ segfault-*.tar.gz
 segfault-0*/
 data/
 .env
-.DS_Store
+**/.DS_Store
 info.txt
 host/dev/open*

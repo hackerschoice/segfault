@@ -181,7 +181,9 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 # Make the Project name visibile in the PS1 prompt
 [[ -z $VIRTUAL_ENV ]] && VIRTUAL_ENV="${SF_PRJ}"
 
-PATH="/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
+PATH="${HOME:-/sec/root}/go/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
+#[[ -d /sec/usr/bin ]] && PATH="/sec/usr/bin:$PATH"
+#[[ -d /sec/usr/sbin ]] && PATH="/sec/usr/sbin:$PATH"
 
 _sf_info_non_perm()
 {

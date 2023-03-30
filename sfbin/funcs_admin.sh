@@ -57,6 +57,7 @@ _sf_usage()
 	echo -e "${CDC}lghst [regex]${CN}                          # grep in zsh_history [FOR TESTING]"
 	echo -e "${CDC}lgcpu${CN}                                  # Sorted list of CPU usage"
 	echo -e "${CDC}lgmem${CN}                                  # Sorted list of MEM usage"
+	echo -e "${CDC}lgdf${CN}                                   # Sorted list of storage usage"
 	echo -e "${CDC}lgio${CN}                                   # Sorted list of Network OUT usage"
 	echo -e "${CDC}lgbio${CN}                                  # Sorted list of BlockIO usage"
 	echo -e "${CDC}sftop${CN}"
@@ -100,6 +101,36 @@ lgwall()
 	done
 }
 
+#                               Blocks                                          Inodes
+# Project ID       Used       Soft       Hard    Warn/Grace           Used       Soft       Hard    Warn/ Grace	
+# #9                   0    4194304    4194304     00 [--------]          0          0      65536     00 [--------]
+lgdf()
+{
+	# TODO: translate prjid to lg-LID (or centrally record prjid -> lg-lid id)
+	local l
+	local arr
+	local psz
+	local pin
+	local perctt
+	xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data" | while read l; do
+			arr=($l)
+			# #10041175
+			prjid=${arr[0]##*#}
+			[[ $prjid -lt ${_sf_prjid_start:-10000000} ]] && continue
+			# Check if quota is missing (and force to 100.00%)
+			[[ ${arr[1]} -eq 0 ]] && continue
+			[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [$prjid]: Missing quota"; arr[3]=${arr[1]}; }
+			perctt=$((arr[1] * 10000 / arr[3]))
+			psz=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+
+			[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [$prjid]: Missing iquota"; arr[3]=${arr[6]}; }
+			perctt=$((arr[6] * 10000 / arr[8]))
+			pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+
+			echo "${psz}% ${pin}%    #${prjid}"
+	done | sort -n
+}
+
 # <lg-LID> <MESSAGE>
 lgstop()
 {
@@ -114,7 +145,7 @@ lgban()
 	fn="${_self_for_guest_dir}/${1}/ip"
 	[[ -f "$fn" ]] && {
 		ip=$(<"$fn")
-		fn="/sf/config/db/banned/ip-${ip:0:18}"
+		fn="${_sf_basedir}/config/db/banned/ip-${ip:0:18}"
 		[[ ! -e "$fn" ]] && touch "$fn"
 		echo "Banned: $ip"
 	}

@@ -57,7 +57,7 @@ _sf_usage()
 	echo -e "${CDC}lghst [regex]${CN}                          # grep in zsh_history [FOR TESTING]"
 	echo -e "${CDC}lgcpu${CN}                                  # Sorted list of CPU usage"
 	echo -e "${CDC}lgmem${CN}                                  # Sorted list of MEM usage"
-	echo -e "${CDC}lgdf${CN}                                   # Sorted list of storage usage"
+	echo -e "${CDC}lgdf <lg-LID>${CN}                          # Storage usage (Try '|sort -n -k3' for inode)"
 	echo -e "${CDC}lgio${CN}                                   # Sorted list of Network OUT usage"
 	echo -e "${CDC}lgbio${CN}                                  # Sorted list of BlockIO usage"
 	echo -e "${CDC}sftop${CN}"
@@ -103,32 +103,51 @@ lgwall()
 
 #                               Blocks                                          Inodes
 # Project ID       Used       Soft       Hard    Warn/Grace           Used       Soft       Hard    Warn/ Grace	
-# #9                   0    4194304    4194304     00 [--------]          0          0      65536     00 [--------]
+# #9                   0    0    4194304     00 [--------]          0          0      65536     00 [--------]
 lgdf()
 {
-	# TODO: translate prjid to lg-LID (or centrally record prjid -> lg-lid id)
 	local l
 	local arr
 	local psz
 	local pin
 	local perctt
-	xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data" | while read l; do
-			arr=($l)
-			# #10041175
-			prjid=${arr[0]##*#}
-			[[ $prjid -lt ${_sf_prjid_start:-10000000} ]] && continue
-			# Check if quota is missing (and force to 100.00%)
-			[[ ${arr[1]} -eq 0 ]] && continue
-			[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [$prjid]: Missing quota"; arr[3]=${arr[1]}; }
-			perctt=$((arr[1] * 10000 / arr[3]))
-			psz=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+	local p2lid
+	local str
+	local lid
+	local dst
 
-			[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [$prjid]: Missing iquota"; arr[3]=${arr[6]}; }
-			perctt=$((arr[6] * 10000 / arr[8]))
-			pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+	dst="$1"
+	[[ -z $dst ]] && dst="lg-*"
+	declare -A p2lid
 
-			echo "${psz}% ${pin}%    #${prjid}"
-	done | sort -n
+	# Create map to translate PRJID to LID name
+	eval p2lid=( $(lsattr -dp "${_sf_basedir:-/sf}/data/user"/${dst} | while read l; do
+		echo -n "['${l%% *}']='${l##*/}' "
+	done;) )
+
+	xfs_quota -x -c "report -p -ibnN ${_sf_basedir:-/sf}/data" | while read l; do
+		[[ -z $l ]] && continue
+		arr=($l)
+		# #10041175
+		prjid=${arr[0]##*#}
+		[[ -z ${p2lid[$prjid]} ]] && continue
+		lid="${p2lid[$prjid]}"
+
+		# Check if quota is missing (and force to 100.00%)
+		[[ ${arr[1]} -eq 0 ]] && continue
+		[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing quota"; arr[3]=${arr[1]}; }
+		perctt=$((arr[1] * 10000 / arr[3]))
+		psz=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+
+		[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing iquota"; arr[8]=${arr[6]}; }
+		perctt=$((arr[6] * 10000 / arr[8]))
+		pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+
+		str="${arr[1]}          "
+		l="${str:0:10} "
+		str="${psz}       "
+		echo "${l} ${str:0:5}% ${pin}%  ${lid}"
+	done
 }
 
 # <lg-LID> <MESSAGE>
@@ -142,16 +161,26 @@ lgban()
 {
 	local fn
 	local ip
-	fn="${_self_for_guest_dir}/${1}/ip"
+	local msg
+	local lid
+
+	lid="${1}"
+	shift 1
+
+	fn="${_self_for_guest_dir}/${lid}/ip"
 	[[ -f "$fn" ]] && {
 		ip=$(<"$fn")
 		fn="${_sf_basedir}/config/db/banned/ip-${ip:0:18}"
-		[[ ! -e "$fn" ]] && touch "$fn"
+		[[ ! -e "$fn" ]] && {
+			[[ $# -gt 0 ]] && msg="$*\n"
+			echo -en "$msg" >"${fn}"
+		}
 		echo "Banned: $ip"
 	}
 
-	lgstop "$@"	
+	lgstop "${lid}" "$@"	
 }
+# FIXME: check if net-a.b.c should be created instead to ban entire network.
 
 _sfcg_forall()
 {

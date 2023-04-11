@@ -154,10 +154,30 @@ use_tor()
 	ip route add default via "${TOR_IP}"
 }
 
+use_novpn()
+{
+	echo -e >&2 "$(date) Switching to NoVPN"
+	ip route del default 2>/dev/null
+	ip route add default via "${NOVPN_IP}"
+}
+
+use_other()
+{
+	[[ -z $SF_DIRECT ]] && {
+		use_tor
+		return
+	}
+	use_novpn
+}
+
 monitor_failover()
 {
 	local status_sha
 
+	[[ -n $SF_DIRECT ]] && {
+		exec -a '[novpn-sleep]' sleep infinity
+		exit 255 # NOT REACHED
+	}
 	# FIXME: use redis here instead of polling
 	while :; do
 		bash -c "exec -a '[sleep router failover]' sleep 1"
@@ -168,7 +188,7 @@ monitor_failover()
 		status_sha="${sha}"
 
 		# If vpn_status no longer exists then switch to TOR
-		[[ ! -f /config/guest/vpn_status ]] && { use_tor; continue; }
+		[[ ! -f /config/guest/vpn_status ]] && { use_other; continue; }
 
 		use_vpn
 	done
@@ -405,11 +425,12 @@ iptables -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -d "${NET_LG_ROUTER_IP}" 
 iptables -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${GSNC_IP}" -j MARK --set-mark 22
 # -----END GSNC traffic is routed via Internet----
 
-# MASQ all traffic because the VPN/TOR instances dont know the route back
-# to sf-guest (169.254.224/20).
-iptables -t nat -A POSTROUTING -o "${DEV_GW}" -j MASQUERADE
-# MASQ SSHD's forward to user's server
-iptables -t nat -A POSTROUTING -s "${SSHD_IP}" -o "${DEV_LG}" -j MASQUERADE
+# Dont MASQ LG's. FORWARD instead. They are MASQ'ed at VPN endpoints.
+iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -j ACCEPT
+# DNSMASQ does not know route back to LG => MASQ is here.
+iptables -t nat -A POSTROUTING -s "${NET_LG}" -d "${NET_VPN_DNS_IP}" -o "${DEV_GW}" -j MASQUERADE
+# MASQ all traffic from NON-LG's (the VPN/TOR/DNS dont know the route back to them).
+# iptables -t nat -A POSTROUTING ! -s "${NET_LG}" -o "${DEV_GW}" -j MASQUERADE
 # MASQ GSNC to (direct) Internet
 iptables -t nat -A POSTROUTING -s "${GSNC_IP}" -o "${DEV_DIRECT}" -j MASQUERADE
 # MASQ traffic from TOR to DMZ (nginx)
@@ -429,8 +450,8 @@ echo -e >&2 "FW: SUCCESS"
 echo -e >&2 "TC: SUCCESS"
 
 set +e
-# By default go via TOR until vpn_status exists
-use_tor
+# By default go via DIRECT or TOR + VPN until vpn_status exists
+use_other
 monitor_failover
 
 # REACHED IF ANY CMD FAILS

@@ -9,6 +9,7 @@ RUN    apt-get update \
               iptables \
               iproute2 \
               iperf \
+              jq \
               lsb-release \
               gnupg \
               net-tools \
@@ -25,6 +26,6 @@ RUN bash -c '{ true \
               && apt-get install -y --no-install-recommends docker-ce-cli; }' \
        && rm -rf /var/lib/apt/lists/*
 
-COPY user-limit.sh tc.sh init.sh init-wg.sh fix-network.sh /
+COPY user-limit.sh tc.sh init.sh init-wg.sh init-novpn.sh fix-network.sh /
 CMD ["bash", "-il"]
 

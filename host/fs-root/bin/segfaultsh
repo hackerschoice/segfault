@@ -413,7 +413,8 @@ Thereafter use these commands:
 print_goodbye()
 {
 	local str
-	[[ -z $IS_PTY ]] && return
+	[[ -z $IS_LOGIN ]] && return
+	[[ -n $SF_HUSHLOGIN ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
 	# Note: pgrep is executed in user's context. Treat the output with care and do not trust it.
@@ -435,17 +436,19 @@ print_goodbye()
 -------> Type ${CC}halt${CN} instead to stop this server. This will
 -------> also make /sec unavailabe until your next log in."
 	fi
+	echo -en "\r"
 	[[ -z $SF_IS_PAYING ]] && {
 		echo -e "\
-\r${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
-@@@          ${CB}${CUL}https://www.thc.org/segfault/buy-an-upgrade${CN}${CDY}          @@@
 @@@           ${CDR}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}${CDY}           @@@
+@@@             ${CB}${CUL}https://www.thc.org/segfault/upgrade${CN}${CDY}              @@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${CN}"
 
 	}
+	[[ -n $SF_IS_NEW_SERVER ]] && echo -e "\
+Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}"
 	echo -e "\
-Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 }
 
@@ -462,7 +465,7 @@ print_to_many_servers()
 
 echo_pty()
 {
-	[[ -n $IS_PTY ]] || return
+	[[ -n $IS_LOGIN ]] || return
 	echo "$@"
 }
 
@@ -505,7 +508,7 @@ spawn_shell_exit()
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
-	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
+	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --user 0:0 "$DOCKER_EXEC_ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
 	logout
@@ -838,16 +841,13 @@ sysmsg()
 	eval "$(<"$fn")"
 }
 
-# Find out if SSHD spawns a shell or a command.
-# and if SSHD insists on a TTY (ssh -t <user@host> <command>)
-# - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
-if bash -c "tty >/dev/null"; then
+# Instruct docker to assign TTY if this is a TTY (ssh -t <user@host> <command>)
+DOCKER_EXEC_ARG="-i"
+if [[ -t 0 ]]; then
 	# Disable SIGINT and SIGSTP. Use 'trap' first as 'stty' can be interrupted itself!
 	trap "" SIGINT
 	stty -isig
-	ARG="-it"
-else
-	ARG="-i"
+	DOCKER_EXEC_ARG="-it"
 fi
 
 if [[ ${#} -eq 2 ]]; then
@@ -857,12 +857,14 @@ elif [[ ${#} -eq 0 ]]; then
 	# - Set docker arguments to login-shell or profile wont get read.
 	PARAM=("-il")
 	# For -c "cmd" we silence output but for login shells we show
-	IS_PTY=1
+	IS_LOGIN=1
 else
 	ERREXIT 255 "BAD PARAMS: '${*}'"
 fi
 
 ### ----BEGIN SANTIZE----
+[[ -n $HUSHLOGIN ]] && SF_HUSHLOGIN=1
+[[ -n $HIDEIP ]] && SF_HIDEIP=1
 # SECRET and SF_DEBUG are user supplied.
 # Connect to existing session
 if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 24 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
@@ -876,7 +878,6 @@ fi
 
 [[ -n $SF_IS_WEBSHELL ]] && {
 	# Correct YOUR_IP
-	# REMOTE_PORT="${REMOTE_PORT//[^0-9]/}"
 	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]/}"
 	[[ -z $REMOTE_ADDR || ${#REMOTE_ADDR} -gt 32 ]] && ERREXIT "Bad REMOTE_ADDR: len=${#REMOTE_ADDR}"
 	YOUR_IP="${REMOTE_ADDR}"
@@ -948,7 +949,7 @@ else
 		}
 		unset lid_old
 	}
-	IS_NEW_SERVER=1
+	SF_IS_NEW_SERVER=1
 
 	mkdir -p "${SF_USER_DB_DIR}" || ERREXIT
 	touch "${SF_USER_DB_DIR}/created.txt" || ERREXIT
@@ -1042,6 +1043,8 @@ exec_devnull docker run \
 	--env SF_LID="${LID}" \
 	--env SF_IS_LOGINSHELL=1 \
 	-e SF_IS_GOLD_PROMPT \
+	-e SF_HUSHLOGIN \
+	-e SF_IS_NEW_SERVER \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--tmpfs /tmp:exec                                       `# GoLang needs /tmp to be executeable` \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
@@ -1109,7 +1112,7 @@ tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 echo_pty -e "....[${CG}OK${CN}]"
 
 # Show help how to connect elegantly
-[[ -n $IS_NEW_SERVER ]] && print_ssh_access
+[[ -n $SF_IS_NEW_SERVER ]] && print_ssh_access
 
 # Spawn shell
 spawn_shell_exit "$@"

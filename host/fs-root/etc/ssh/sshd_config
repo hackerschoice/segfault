@@ -106,6 +106,9 @@ GatewayPorts yes
 PrintMotd no
 AcceptEnv SF_DEBUG
 AcceptEnv SECRET
+AcceptEnv REMOTE_ADDR
+AcceptEnv HUSHLOGIN
+AcceptEnv HIDEIP
 #PrintLastLog yes
 #TCPKeepAlive yes
 #PermitUserEnvironment no

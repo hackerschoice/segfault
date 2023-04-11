@@ -530,6 +530,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gopls \
 		golang-golang-x-tools \
+		gobjc++-mingw-w64-i686-posix gobjc++-mingw-w64-i686-win32 gobjc-mingw-w64-i686-posix gobjc-mingw-w64-i686-win32 \
 		maven \
 		rust-src
 RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
@@ -599,9 +600,30 @@ RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		libnginx-mod-stream-geoip2 \
 		libnginx-mod-stream-js \
 		njs
+RUN /pkg-install.sh DEV apt-get install -y --no-install-recommends \
+		ninja-build
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
-		lftp
-RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb
+		aria2 \
+		buildtorrent \
+		ffmpeg \
+		lftp \
+		libfdk-aac2 libdav1d-dev libvorbis-dev libopus-dev libmp3lame-dev libfdk-aac-dev libx264-dev libx265-dev libxvidcore-dev libvpx-dev libspeex-dev libsox-dev libsoxr-dev \
+		magic-wormhole \
+		mediainfo \
+		'softether-*' \
+		yt-dlp
+RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb \
+	&& /pkg-install.sh NET bash -c '{ apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys B5A08F01796E7F521861B449372D1FF271F2DD50 \
+		&& echo "deb http://deb.ooni.org/ unstable main" | tee /etc/apt/sources.list.d/ooniprobe.list \
+		&& apt-get update \
+		&& apt-get install ooniprobe-cli \
+		&& rm /etc/apt/sources.list.d/ooniprobe.list \
+		&& apt-get update; }' \
+	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust 'x86_64.*linux.musl.tar.xz$' \
+	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux' sthp \
+	&& /pkg-install.sh NET ghbin schollz/croc 'Linux-64bit.deb' \
+	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
+		tinyproxy
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 

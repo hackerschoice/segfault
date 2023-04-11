@@ -650,10 +650,9 @@ check_banned()
 	[[ -z $blfn ]] && return
 
 	sleep 5
+	echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	if [[ -s "$blfn" ]]; then
 		cat "$blfn"
-	else
-		echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	fi
 	sleep 30
 	exit 255

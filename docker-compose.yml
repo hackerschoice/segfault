@@ -603,6 +603,7 @@ services:
       - SF_HM_SIZE_LG=8
       - SF_DIRECT
       - SF_DEBUG
+      - SF_BACKING_FS
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"

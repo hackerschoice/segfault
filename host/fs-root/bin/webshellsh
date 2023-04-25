@@ -1,0 +1,6 @@
+#! /bin/sh
+
+# Called when SF-UI uses id_ed25519-webshell to log in. In this case
+# let segfaultsh know (via SF_IS_WEBSHELL) so that it accepts REMOTE_ADDR
+SF_IS_WEBSHELL=1 exec /bin/segfaultsh "$@"
+exit 255

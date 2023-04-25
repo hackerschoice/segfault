@@ -8,8 +8,9 @@ unset _basedir
 
 _cgbdir="/sys/fs/cgroup"
 [[ -d /sys/fs/cgroup/unified/ ]] && _cgbdir="/sys/fs/cgroup/unified"
-_self_for_guest_dir="/dev/shm/sf-u1000/self-for-guest"
-[[ -d /dev/shm/sf/self-for-guest ]] && _self_for_guest_dir="/dev/shm/sf/self-for-guest"
+_sf_shmdir="/dev/shm/sf-u1000"
+[[ -d "/dev/shm/sf" ]] && _sf_shmdir="/dev/shm/sf"
+_self_for_guest_dir="${_sf_shmdir}/self-for-guest"
 _sf_basedir="/sf"
 
 _sf_deinit()
@@ -50,14 +51,17 @@ _sf_usage()
 	echo -e "${CDC}lgwall [lg-LID] <message>${CN}              # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
 	echo -e "${CDC}lgstop [lg-LID] <message>${CN}              # eg \`lgstop lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
 	echo -e "${CDC}lgban  [lg-LID] <message>${CN}              # Stop & Ban IP address, eg \`lgban lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
+	echo -e "${CDC}lgrm   [lg-LID]${CN}                        # Remove all data for LID"
 	echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}       # eg \`lgps 'dd if=/dev/zero' stop "'"***ABUSE***\\nContact Sysop"`'
 	echo -e "${CDC}lg_cleaner [max_pid_count=3] <stop>${CN}    # eg \`lg_cleaner 3 stop\` or \`lg_cleaner 0\`"
 	echo -e "${CDC}docker_clean${CN}                           # Delete all containers & images"
 	echo -e "${CDC}lgsh [lg-LID]${CN}                          # Enter bash [FOR TESTING]"
 	echo -e "${CDC}lghst [regex]${CN}                          # grep in zsh_history [FOR TESTING]"
+	echo -e "${CDC}lgx [regex]${CN}                            # Output LIDs that match process"
+	echo -e "> ${CDR}"'for x in $(lgx xmrig); do lgban "$x" "Mining not allowed."; done'"${CN}"
 	echo -e "${CDC}lgcpu${CN}                                  # Sorted list of CPU usage"
 	echo -e "${CDC}lgmem${CN}                                  # Sorted list of MEM usage"
-	echo -e "${CDC}lgdf${CN}                                   # Sorted list of storage usage"
+	echo -e "${CDC}lgdf <lg-LID>${CN}                          # Storage usage (Try '|sort -n -k3' for inode)"
 	echo -e "${CDC}lgio${CN}                                   # Sorted list of Network OUT usage"
 	echo -e "${CDC}lgbio${CN}                                  # Sorted list of BlockIO usage"
 	echo -e "${CDC}sftop${CN}"
@@ -103,32 +107,51 @@ lgwall()
 
 #                               Blocks                                          Inodes
 # Project ID       Used       Soft       Hard    Warn/Grace           Used       Soft       Hard    Warn/ Grace	
-# #9                   0    4194304    4194304     00 [--------]          0          0      65536     00 [--------]
+# #9                   0    0    4194304     00 [--------]          0          0      65536     00 [--------]
 lgdf()
 {
-	# TODO: translate prjid to lg-LID (or centrally record prjid -> lg-lid id)
 	local l
 	local arr
 	local psz
 	local pin
 	local perctt
-	xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data" | while read l; do
-			arr=($l)
-			# #10041175
-			prjid=${arr[0]##*#}
-			[[ $prjid -lt ${_sf_prjid_start:-10000000} ]] && continue
-			# Check if quota is missing (and force to 100.00%)
-			[[ ${arr[1]} -eq 0 ]] && continue
-			[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [$prjid]: Missing quota"; arr[3]=${arr[1]}; }
-			perctt=$((arr[1] * 10000 / arr[3]))
-			psz=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+	local p2lid
+	local str
+	local lid
+	local dst
 
-			[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [$prjid]: Missing iquota"; arr[3]=${arr[6]}; }
-			perctt=$((arr[6] * 10000 / arr[8]))
-			pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+	dst="$1"
+	[[ -z $dst ]] && dst="lg-*"
+	declare -A p2lid
 
-			echo "${psz}% ${pin}%    #${prjid}"
-	done | sort -n
+	# Create map to translate PRJID to LID name
+	eval p2lid=( $(lsattr -dp "${_sf_basedir:-/sf}/data/user"/${dst} | while read l; do
+		echo -n "['${l%% *}']='${l##*/}' "
+	done;) )
+
+	xfs_quota -x -c "report -p -ibnN ${_sf_basedir:-/sf}/data" | while read l; do
+		[[ -z $l ]] && continue
+		arr=($l)
+		# #10041175
+		prjid=${arr[0]##*#}
+		[[ -z ${p2lid[$prjid]} ]] && continue
+		lid="${p2lid[$prjid]}"
+
+		# Check if quota is missing (and force to 100.00%)
+		[[ ${arr[1]} -eq 0 ]] && continue
+		[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing quota"; arr[3]=${arr[1]}; }
+		perctt=$((arr[1] * 10000 / arr[3]))
+		psz=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+
+		[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing iquota"; arr[8]=${arr[6]}; }
+		perctt=$((arr[6] * 10000 / arr[8]))
+		pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
+
+		str="${arr[1]}          "
+		l="${str:0:10} "
+		str="${psz}       "
+		echo "${l} ${str:0:5}% ${pin}%  ${lid}"
+	done
 }
 
 # <lg-LID> <MESSAGE>
@@ -138,20 +161,65 @@ lgstop()
 	docker stop "${1}"
 }
 
+_sf_xrmdir()
+{
+	[[ ! -d "${1:?}" ]] && return
+	rm -rf "${1}"
+}
+
+_sf_xrm()
+{
+	[[ ! -f "${1:?}" ]] && return
+	rm -f "${1}"
+}
+
+lgrm()
+{
+	local l
+	local fn
+	local hn
+
+	l="$1"
+	[[ -z $l ]] && return
+
+	fn="${_sf_basedir:-/sf}/config/db/user/${l}/hostname"
+	[[ -f "$fn" ]] && hn="$(<"$fn")"
+	[[ -n $hn ]] && {
+		_sf_xrm "${_sf_basedir:-/sf}/config/db/hn/hn2lid-${hn}"
+		_sf_xrmdir "${_sf_shmdir}/encfs-sec/www-root/www/${hn,,}"
+		_sf_xrmdir "${_sf_shmdir}/encfs-sec/everyone-root/everyone/${hn}"
+	}
+
+	_sf_xrmdir "${_sf_basedir:-/sf}/data/user/${l}"
+	_sf_xrm "${_sf_basedir:-/sf}/config/db/cg/${l}.txt"
+	_sf_xrmdir "${_sf_basedir:-/sf}/config/db/user/${l}"
+}
+
 lgban()
 {
 	local fn
 	local ip
-	fn="${_self_for_guest_dir}/${1}/ip"
+	local msg
+	local lid
+
+	lid="${1}"
+	shift 1
+
+	fn="${_self_for_guest_dir}/${lid}/ip"
 	[[ -f "$fn" ]] && {
 		ip=$(<"$fn")
 		fn="${_sf_basedir}/config/db/banned/ip-${ip:0:18}"
-		[[ ! -e "$fn" ]] && touch "$fn"
+		[[ ! -e "$fn" ]] && {
+			[[ $# -gt 0 ]] && msg="$*\n"
+			echo -en "$msg" >"${fn}"
+		}
 		echo "Banned: $ip"
 	}
 
-	lgstop "$@"	
+	lgstop "${lid}" "$@"
+	lgrm "${lid}"
 }
+# FIXME: check if net-a.b.c should be created instead to ban entire network.
 
 _sfcg_forall()
 {
@@ -238,6 +306,7 @@ lgps()
 	local stoparr
 	local msg
 	local is_stop
+	local IFS
 	match=$1
 	msg="$3"
 
@@ -259,6 +328,26 @@ lgps()
 		[[ -n $is_stop ]] && stoparr+=("${lglid}")
 	done
 	[[ ${#stoparr[@]} -gt 0 ]] && docker stop "${stoparr[@]}"
+
+	_sf_deinit
+}
+
+lgx()
+{
+	local lglid
+	local match
+    local IFS
+	match="$1"
+
+	_sf_init
+	[[ -z $match ]] && return
+
+    IFS=$'\n' arr=($(_sfcg_forall))
+	for lglid in "${arr[@]}"; do
+		_sfcg_psarr "$lglid" "$match" >/dev/null && continue
+		echo "$lglid "
+        echo >&2 $(_sfcfg_printlg "$lglid")
+	done
 
 	_sf_deinit
 }
@@ -306,9 +395,16 @@ docker_clean()
 	docker rmi $(docker images -q)
 }
 
+# [Sort Row] <info-string> <Keep Stats>
 _sfmax()
 {
-	docker stats --no-stream --format "table {{.Name}}\t{{.Container}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}" | grep -E '(^lg-|^NAME)' | sort -k "$1" -h
+	local s
+	s="${CN}"
+	[[ -n $2 ]] && s="         ${CN}(${CDR}$2${CN})"
+	[[ -z $_sf_stats ]] && _sf_stats=$(docker stats --no-stream --format "table {{.Name}}\t{{.Container}}\t{{.CPUPerc}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}" | grep ^lg-)
+	echo "$_sf_stats" | sort -k "$1" -h
+	echo -e "${CDG}NAME                CONTAINER      CPU %     MEM %     NET I/O           BLOCK I/O${s}"
+	[[ -z $3 ]] && unset _sf_stats
 }
 
 lgsh() { docker exec -w/root -u0 -e HISTFILE=/dev/null -it "$1" bash -c 'exec -a [cached] bash'; }
@@ -329,10 +425,10 @@ lghst() {
 	done
 }
 
-lgcpu() { _sfmax 3; }
-lgmem() { _sfmax 4; }
-lgio() { _sfmax 7; }
-lgbio() { echo "========= INPUT"; _sfmax 8; echo "=========== OUTPUT"; _sfmax 10; }
+lgcpu() { _sf_init; _sfmax 3; _sf_deinit; }
+lgmem() { _sf_init; _sfmax 4; _sf_deinit; }
+lgio()  { _sf_init; _sfmax 5 "INPUT" 1; _sfmax 7  "OUTPUT"; _sf_deinit; }
+lgbio() { _sf_init; _sfmax 8 "INPUT" 1; _sfmax 10 "OUTPUT"; _sf_deinit; }
 
 
 sftop()

@@ -1,5 +1,9 @@
 #! /bin/bash
 
+BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
+source "${BINDIR}/funcs.sh" || exit 254
+
+command -v jq >/dev/null || ERREXIT 255 "Command 'jq' not found."
 
 down()
 {
@@ -21,6 +25,9 @@ down()
 	export SF_REDIS_AUTH
 }
 
+export SF_BACKING_FS="$(docker info --format '{{json .DriverStatus}}' | jq -r '.[0][1]')"
+[[ "$SF_BACKING_FS" != "xfs" ]] && WARN "Backing FS is not XFS (SF_USER_ROOT_FS_SIZE wont work)"
+
 [[ "$1" == down ]] && {
 	down "$@"
 	exit 
@@ -28,8 +35,6 @@ down()
 [[ "$1" != up ]] && exec docker-compose "$@"
 
 # HERE: "up"
-BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
-source "${BINDIR}/funcs.sh" || exit 254
 
 [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set"
 
@@ -254,7 +259,7 @@ str=$(mount | grep ^cgroup2 | grep -F "$SF_CG_DIR" )
 
 # sf.slice's parent is root (/). Any siblings (e.g. /user.slice, /system.slice) also need to do
 # IO Accounting or otherwise /sf.slice can starve those.
-systemctl status system.slice | head -n8 | grep -F "IO: " &>/dev/null || WARN "IO Accounting not enabled. Check /etc/systemd/systemd.conf"
+systemctl status system.slice | head -n8 | grep -F "IO: " &>/dev/null || WARN "IO Accounting not enabled. Check /etc/systemd/system.conf"
 grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
 # If there was a warning then wait...
 WARN_ENTER

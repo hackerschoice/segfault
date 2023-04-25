@@ -1,3 +1,5 @@
+# iptables 'nft' needs rolling.
+# FROM ubuntu:rolling
 FROM ubuntu:22.04
 RUN    apt-get update \
        && apt-get install -y --no-install-recommends \
@@ -13,11 +15,14 @@ RUN    apt-get update \
               lsb-release \
               gnupg \
               net-tools \
-              netcat \
+              netcat-traditional \
               tcpdump \
               wireguard-tools \
               wget \
               vim
+
+# RUN    apt-get install -y --no-install-recommends \
+#               nftables
 
 RUN bash -c '{ true \
               && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
@@ -26,6 +31,6 @@ RUN bash -c '{ true \
               && apt-get install -y --no-install-recommends docker-ce-cli; }' \
        && rm -rf /var/lib/apt/lists/*
 
-COPY user-limit.sh tc.sh init.sh init-wg.sh init-novpn.sh fix-network.sh /
+COPY user-limit.sh init.sh init-wg.sh init-novpn.sh fix-network.sh /
 CMD ["bash", "-il"]
 

@@ -12,6 +12,7 @@ WORKDIR /root/
 #   SF_PACKAGES=ALLALL make  # All _and_ kali-linux-everything
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
+ARG GITHUB_TOKEN
 
 COPY fs-root/sf/bin/pkg-install.sh /
 
@@ -40,6 +41,7 @@ RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		ed \
 		file \
 		git \
+		gnupg \
 		jq \
 		less \
 		openssh-sftp-server \
@@ -177,7 +179,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		flatpak \
 		fossil \
 		fzf \
-		gnupg \
 		hashcat \
 		highlight \
 		httpie \
@@ -425,8 +426,8 @@ RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
 	&& /pkg-install.sh HACK ghbin lc/gau 'linux_amd64.tar.gz$' gau \
 	&& /pkg-install.sh HACK ghbin praetorian-inc/fingerprintx 'linux_amd64.tar.gz$' fingerprintx \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
+	&& /pkg-install.sh LARGE ghbin d3mondev/puredns 'inux-amd64' puredns \
 	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/subfinder/goaltdns@latest; }' \
-	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/d3mondev/puredns | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/asciimoo/wuzz | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/gwen001/github-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh LARGE bash -c '{ mkdir -p /usr/share/cheatsheets/community \
@@ -564,6 +565,7 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		i3 \
+		jupyter \
 		pavucontrol \
 		pulseaudio \
 		tigervnc-tools
@@ -601,30 +603,67 @@ RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		libnginx-mod-stream-js \
 		njs
 RUN /pkg-install.sh DEV apt-get install -y --no-install-recommends \
-		ninja-build
+		ninja-build \
+		repo
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		aria2 \
 		buildtorrent \
+		caddy \
+		ccache \
+		expat \
+		evilginx2 \
 		ffmpeg \
+		g++-multilib \
+		gcc-multilib \
+		git-lfs \
+		icecream icecream-sundae icecc icecc-monitor \
 		lftp \
+		lib32ncurses5-dev lib32z1-dev libmpc-dev libmpfr-dev libncurses5-dev libsdl1.2-dev \
+		'^lzma.*' '^liblz4-.*' '^liblzma.*' \
 		libfdk-aac2 libdav1d-dev libvorbis-dev libopus-dev libmp3lame-dev libfdk-aac-dev libx264-dev libx265-dev libxvidcore-dev libvpx-dev libspeex-dev libsox-dev libsoxr-dev \
+		libxml-simple-perl libswitch-perl \
+		lzip \
+		lzop \
 		magic-wormhole \
 		mediainfo \
+		ncftp \
+		patchelf \
+		pngcrush \
+		pngquant \
+		python-all-dev \
+		re2c \
+		schedtool \
 		'softether-*' \
-		yt-dlp
-RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb \
-	&& /pkg-install.sh NET bash -c '{ apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys B5A08F01796E7F521861B449372D1FF271F2DD50 \
+		texinfo \
+		yt-dlp \
+	&& /pkg-install.sh LARGE bash -c '{ apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys B5A08F01796E7F521861B449372D1FF271F2DD50 \
 		&& echo "deb http://deb.ooni.org/ unstable main" | tee /etc/apt/sources.list.d/ooniprobe.list \
 		&& apt-get update \
-		&& apt-get install ooniprobe-cli \
+		&& apt-get install -y --no-install-recommends ooniprobe-cli \
 		&& rm /etc/apt/sources.list.d/ooniprobe.list \
 		&& apt-get update; }' \
+	&& /pkg-install.sh LARGE ghbin 'zellij-org/zellij' 'x86_64.*linux.*tar.gz$' zellij
+RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb \
 	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust 'x86_64.*linux.musl.tar.xz$' \
+	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-amd64.*gz$' gost \
 	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux' sthp \
 	&& /pkg-install.sh NET ghbin schollz/croc 'Linux-64bit.deb' \
+	&& /pkg-install.sh NET ghbin vi/websocat 'x86_64.*linux' websocat \
+	&& /pkg-install.sh NET ghbin ViRb3/wgcf  'linux_amd64$' wgcf \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
+		microsocks \
 		tinyproxy
+# gophish vommits user-data into the system-wide install directory. Unix
+# doesnt work like this. Impossible to install system-wide. Instead each user
+# shall check out his own. No system-wide install for gophish. Sorry. Someone
+# give gophish a helping hand or send them a Unix manual...
+RUN /pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish \
+		&& bash -c '{ [[ ! -d /usr/gophish ]] && exit 0; chmod 755 /usr/gophish/gophish \
+			&& echo -e "#! /bin/bash\ncd /usr/gophish && exec ./gophish \"\$@\"" >/usr/bin/gophish \
+			&& chmod 755 /usr/bin/gophish; }'
+RUN /pkg-install.sh HUGE npm install -g wscat
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
+	&& apt-get autoremove -y \
 	&& apt-get update
 
 # Keep the apt/lists in case user does an apt update -y

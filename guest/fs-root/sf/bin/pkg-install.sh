@@ -5,22 +5,31 @@ export PIPX_HOME=/usr
 export PIPX_BIN_DIR=/usr/bin
 
 # Download & Extract
-# [URL] [asset]
+# [URL] [asset] <dstdir>
 dlx()
 {
 	local url
 	local asset
+	local dstdir
 	url="$1"
 	asset="$2"
+	dstdir="$3"
+	[[ -z $dstdir ]] && dstdir="/usr/bin"
 
 	[[ -z "$url" ]] && { echo >&2 "URL: '$loc'"; return 255; }
 	case $url in
 		*.zip)
 			[[ -f /tmp/pkg.zip ]] && rm -f /tmp/pkg.zip
-			curl -SsfL -o /tmp/pkg.zip "$url" \
-			&& unzip -o -j /tmp/pkg.zip "$asset" -d /usr/bin \
-			&& chmod 755 "/usr/bin/${asset}" \
-			&& rm -f /tmp/pkg.zip \
+			curl -SsfL -o /tmp/pkg.zip "$url" || return
+			if [[ -z $asset ]]; then
+				# HERE: Directory
+				unzip /tmp/pkg.zip -d "${dstdir}" || return
+			else
+				# HERE: Single file
+				unzip -o -j /tmp/pkg.zip "$asset" -d "${dstdir}" || return
+				chmod 755 "${dstdir}/${asset}" || return
+			fi
+			rm -f /tmp/pkg.zip \
 			&& return 0
 			;;
 		*.deb)
@@ -30,36 +39,51 @@ dlx()
 			&& return 0
 			;;
 		*.tar.gz|*.tgz)
-			curl -SsfL "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin "$asset" \
-			&& chmod 755 "/usr/bin/${asset}" \
+			curl -SsfL "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" "$asset" \
+			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
 		*.gz)
-			curl -SsfL "$url" | gunzip >"/usr/bin/${asset}" \
-			&& chmod 755 "/usr/bin/${asset}" \
+			curl -SsfL "$url" | gunzip >"${dstdir}/${asset}" \
+			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
 		*.tar.bz2)
-			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin "$asset" \
-			&& chmod 755 "/usr/bin/${asset}" \
+			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" "$asset" \
+			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
 		*.bz2)
-			curl -SsfL "$url" | bunzip2 >"/usr/bin/${asset}" \
-			&& chmod 755 "/usr/bin/${asset}" \
+			curl -SsfL "$url" | bunzip2 >"${dstdir}/${asset}" \
+			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
 		*.xz)
 			curl -SsfL "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin "$asset" \
-			&& chmod 755 "/usr/bin/${asset}" \
+			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
 		*)
-			curl -SsfL "$url" >"/usr/bin/${asset}" \
-			&& chmod 755 "/usr/bin/${asset}" \
+			curl -SsfL "$url" >"${dstdir}/${asset}" \
+			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			# echo >&2 "Unknown file extension in '$url'"
 	esac
+}
+
+ghlatest()
+{
+	local loc
+	local regex
+	local args
+	loc="$1"
+	regex="$2"
+
+	[[ -n $GITHUB_TOKEN ]] && args=("-H" "Authorization: Bearer $GITHUB_TOKEN")
+	loc="https://api.github.com/repos/${loc}/releases/latest"
+	url=$(curl "${args[@]}" -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
+	[[ -z $url ]] && return 251
+	echo "$url"
 }
 
 # Install latest Binary from GitHub and smear it into /usr/bin
@@ -71,24 +95,26 @@ dlx()
 # ghbin Peltoche/lsd "lsd_.*_amd64.deb$" 
 ghbin()
 {
-	local loc
-	local regex
 	local url
 	local asset
-	loc="$1"
-	regex="$2"
 	asset="$3"
 
-	loc="https://api.github.com/repos/${loc}/releases/latest"
-	url=$(curl -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
+	url=$(ghlatest "$1" "$2") || { echo >&2 "Try setting GITHUB_TOKEN=..."; return 255; }
 	dlx "$url" "$asset"
+}
+
+ghdir()
+{
+	local url
+
+	url=$(ghlatest "$1" "$2") || { echo >&2 "Try setting GITHUB_TOKEN=..."; return 255; }
+	dlx "$url" "" "$3"
 }
 
 bin()
 {
 	dlx "$1" "$2"
 }
-
 
 TAG="${1^^}"
 shift 1
@@ -110,6 +136,18 @@ shift 1
 [[ "$1" == ghbin ]] && {
 	shift 1
 	ghbin "$@"
+	exit
+}
+
+[[ "$1" == ghdir ]] && {
+	shift 1
+	ghdir "$@"
+	exit
+}
+
+[[ "$1" == ghlatest ]] && {
+	shift 1
+	ghlatest "$@"
 	exit
 }
 

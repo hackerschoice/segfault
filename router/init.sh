@@ -5,6 +5,7 @@
 
 # shellcheck disable=SC1091 # Do not follow
 source "/sf/bin/funcs.sh"
+source "/sf/bin/funcs_net.sh"
 
 ASSERT_EMPTY "NET_VPN" "$NET_VPN"
 ASSERT_EMPTY "NET_LG" "$NET_LG"
@@ -442,14 +443,25 @@ ip route add "${NET_ONION}" via "${TOR_IP}"
 # Everything else REJECT with RST or ICMP
 iptables -A FORWARD -p tcp -j REJECT --reject-with tcp-reset
 iptables -A FORWARD -j REJECT
-
+set +e
 echo -e >&2 "FW: SUCCESS"
 
 # Set up Traffic Control (limit bandwidth)
-/tc.sh "${DEV_LG}" "${DEV_GW}" "${DEV_DIRECT}"
+
+unset err
+### Shape/Limit EGRESS  LG  -> VPN
+tc_set "${DEV_GW}" "${SF_MAXOUT}" "nfct-src" || err=1
+### Shape/Limit INGRESS VPN -> LG
+tc_set "${DEV_LG}" "${SF_MAXIN}" "dst"  || err=1
+
+### Shape/Limit EGRESS  SSHD -> SSH (direct internet)
+tc_set "${DEV_DIRECT}" "${SF_MAXOUT}" "dst" || err=1
+### Shape/Limit INGRESS SSH  -> SSHD (sf-host)
+tc_set "${DEV_ACCESS}" "${SF_MAXIN}" "src" || err=1
+
+[[ -n $err ]] && SLEEPEXIT 0 5 "cls_matchall.ko not available? NO TRAFFIC LIMIT."
 echo -e >&2 "TC: SUCCESS"
 
-set +e
 # By default go via DIRECT or TOR + VPN until vpn_status exists
 use_other
 monitor_failover

@@ -63,7 +63,6 @@ fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat
 [[ ! -e /usr/bin/cme ]] && ln -s crackmapexec /usr/bin/cme
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
-ln -s /sf/bin/sf-motd.sh /usr/bin/help
 ln -s /sf/bin/sf-motd.sh /usr/bin/info
 rm -f /usr/sbin/shutdown /usr/sbin/reboot
 ln -s /usr/sbin/halt /usr/sbin/shutdown

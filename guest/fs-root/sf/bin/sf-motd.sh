@@ -61,25 +61,31 @@ loc="${loc:0:15}"
 }
 [[ -z $IPPORT ]] && IPPORT="${CDR}N/A${CN}"
 
-str="${SF_HOSTNAME}                            "
-echo -e "\
+echo -en "\
 Your workstation  : ${CDY}${loc}${CN}
-${VPN_DST}\
-TOR Proxy         : ${CDG}${SF_TOR_IP:-UNKNOWN}:9050${CN}
-Reverse Port      : ${IPPORT}${CN}"
+Reverse Port      : ${IPPORT}${CN}
+${VPN_DST}"
 
 # All below should only be displayed if user types 'info' or a newly created server.
 [[ -n $SF_IS_NEW_SERVER ]] && _IS_SHOW_MORE=1
 [[ "${0##*/}" == "info" ]] && _IS_SHOW_MORE=1
-[[ -z $_IS_SHOW_MORE ]] && return
+[[ -z $_IS_SHOW_MORE ]] && {
+	echo -e "\
+Hint              : ${CDC}Type ${CC}info${CDC} for more details.${CN}"
+	exit
+}
 unset _IS_SHOW_MORE
 
+echo -e "\
+TOR Proxy         : ${CDG}${SF_TOR_IP:-UNKNOWN}:9050${CN}"
+
+str="${SF_HOSTNAME}                            "
 echo -e "\
 Shared storage    : ${CDM}/everyone/${str:0:16} ${CF}(encrypted)${CN}
 Your storage      : ${CDM}/sec                       ${CF}(encrypted)${CN}"
 [[ -e /config/guest/onion_hostname-80 ]] && {
 	echo -e "\
-Your Onion WWW    : ${CDM}/onion    ${CF}(encrypted)${CN}"
+Your Onion WWW    : ${CDM}/onion                     ${CF}(encrypted)${CN}"
 
 	echo -e "\
 Your Web Page     : ${CB}${CUL}http://$(cat /config/guest/onion_hostname-80)/${SF_HOSTNAME,,}/${CN}"

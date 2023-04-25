@@ -78,7 +78,7 @@ SLEEPEXIT()
 
 	ERR "$@"
 
-	slee "$s"
+	sleep "$s"
 	exit "$code"
 }
 

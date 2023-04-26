@@ -539,7 +539,6 @@ LOG "FW" "SUCCESS"
 
 unset err
 ### Shape/Limit EGRESS  LG  -> VPN
-# tc_set "${DEV_GW}" "${SF_MAXOUT}" "nfct-src" || err=1
 tc_set "${DEV_GW}" "${SF_MAXOUT}" "dual-srchost" "src" || err=1
 ### Shape/Limit INGRESS VPN -> LG
 tc_set "${DEV_LG}" "${SF_MAXIN}" "dual-dsthost" "dst"  || err=1

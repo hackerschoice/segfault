@@ -468,7 +468,7 @@ GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 
 	echo -en "Would you like to see the ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}? (y/N) "
 	read -r -n1 -t10 yn || echo -n "N"
-	echo ""
+	[[ -n $yn ]] && echo ""
 	[[ "${yn^^}" != "Y" ]] && return
 
 	echo -e "\

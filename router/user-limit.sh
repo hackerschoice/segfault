@@ -47,8 +47,7 @@ source /dev/shm/net-devs.txt || exit
 #     IPIDX=$((C * 256 + D))
 #     unset C D str
 
-#     echo "FOOBAR"
-#     # FIXME: use iptables quota2 or new nft to throttle upload speed after 8gb transfer?
+#     # FIXME: nft to throttle upload speed after 8gb transfer?
 # }
 
 exit 0

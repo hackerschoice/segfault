@@ -555,7 +555,7 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_amd64' interactsh-client \
 	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_amd64' mapcidr \
 	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64' subjs \
-	&& /pkg-install.sh MINI ghbin 'qsocket/qs-netcat' 'linux_amd64' qs-netcat \
+	&& /pkg-install.sh HACK ghbin 'qsocket/qs-netcat' 'linux_amd64' qs-netcat \
 	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_amd64' rush \
 	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64' Gxss \
 	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_amd64' crlfuzz \

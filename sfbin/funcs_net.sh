@@ -42,24 +42,24 @@ tc_set()
 {
 	local dev
 	local rate
+	local cakekey
 	local key
 	dev=$1
 	rate=$2
-	key=$3
+	cakekey=$3
+	key=$4
 
-	# Should not happen:
+	# Should not be set but lets make sure:
 	tc qdisc del dev "${dev}" root 2>/dev/null
 
-	set -e
-	sfq_parent=("root")
+	# use TC-CAKE if there is a rate limit. Otherwise use faster SFQ below.
 	[[ -n $rate ]] && {
-		tc qdisc  add dev "${dev}" root handle 1: htb
-		tc class  add dev "${dev}" parent 1: classid 1:10 htb rate "${rate}"
-		tc filter add dev "${dev}" parent 1: protocol ip matchall flowid 1:10
-		sfq_parent=("parent" "1:10")
+		tc qdisc add dev "${dev}" root cake bandwidth "${rate}" "${cakekey}"
+		return
 	}
 
-	tc qdisc  add dev "${dev}" "${sfq_parent[@]}" handle 11: sfq
+	set -e
+	tc qdisc  add dev "${dev}" root handle 11: sfq
 	tc filter add dev "${dev}" parent 11: handle 11 flow hash keys "${key}" divisor 1024
 	set +e
 }

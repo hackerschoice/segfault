@@ -1,4 +1,4 @@
-VER := 0.4.5b
+VER := 0.4.5b2
 
 all:
 	make -C router
@@ -96,7 +96,6 @@ FILES_ROUTER += "segfault-$(VER)/router/Makefile"
 FILES_ROUTER += "segfault-$(VER)/router/Dockerfile"
 FILES_ROUTER += "segfault-$(VER)/router/fix-network.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init.sh"
-FILES_ROUTER += "segfault-$(VER)/router/tc.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init-wg.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init-novpn.sh"
 FILES_ROUTER += "segfault-$(VER)/router/user-limit.sh"

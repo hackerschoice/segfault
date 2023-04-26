@@ -14,6 +14,7 @@ if [[ -f /dev/shm/env.txt ]]; then
 else
 	echo -e "SF_DEBUG=\"${SF_DEBUG}\"\n\
 SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"\n\
+IS_REDIRECTS_DNS=\"${IS_REDIRECTS_DNS}\"\n\
 PROVIDER=\"${PROVIDER}\"\n" >/dev/shm/env.txt
 fi
 
@@ -111,6 +112,7 @@ up()
 		myip="${myip#*inet }"
 		myip="${myip%%/*}"
 		echo -en "\
+SFVPN_IS_REDIRECTS_DNS=\"${IS_REDIRECTS_DNS}\"\n\
 SFVPN_MY_IP=\"${myip}\"\n\
 SFVPN_EXEC_TS=\"$(date -u +%s)\"\n\
 SFVPN_ENDPOINT_IP=\"${ep_ip}\"\n\

@@ -54,10 +54,10 @@ fixr()
 }
 ln -sf /sec/usr/etc/rc.local /etc/rc.local
 chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh
-chmod 755 /usr /usr/bin /usr/sbin /etc /etc/profile.d
+chmod 755 /usr /usr/bin /usr/sbin /usr/share /etc /etc/profile.d
 chmod 755 /usr/bin/mosh-server-hook /usr/bin/xpra-hook /usr/bin/brave-browser-stable-hook /usr/share/code/code-hook /usr/share/code/bin/code-hook /usr/bin/xterm-dark /usr/sbin/halt
 chmod 644 /etc/profile.d/segfault.sh
-chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
+chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile 
 fixr /usr/share/www
 fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat

@@ -447,8 +447,8 @@ print_goodbye()
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
--------> Type ${CC}halt${CN} instead to stop this server. This will
--------> also make /sec unavailabe until your next log in."
+-------> Log back in and type ${CC}halt${CN} instead to stop this server.
+-------> This will also make /sec unavailabe until your next log in."
 	fi
 	echo -en "\r"
 	[[ -z $SF_IS_PAYING ]] && {
@@ -460,12 +460,19 @@ ${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${CN}"
 
 	}
-	[[ -n $SF_IS_NEW_SERVER ]] && echo -e "\
-Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}"
 
 	echo -e "\
 RTFM             : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
+	[[ -z $SF_IS_NEW_SERVER ]] && return
+
+	echo -en "Would you like to see the ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}? (y/N) "
+	read -r -n1 -t10 yn || echo -n "N"
+	echo ""
+	[[ "${yn^^}" != "Y" ]] && return
+
+	echo -e "\
+Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}"
 }
 
 print_to_many_servers()
@@ -516,7 +523,7 @@ spawn_shell_exit()
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
-	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --user 0:0 "${DOCKER_EXEC_ARGS[@]}" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
+	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --env SF_IS_LOGINSHELL=1 --user 0:0 "${DOCKER_EXEC_ARGS[@]}" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
 	logout

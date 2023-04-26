@@ -3,6 +3,8 @@
     * SetEnv HIDEIP, HUSHLOGIN, PRJ
     * NOVPN/DIRECT support
     * conntrack improvements
+    * Fairer Network Scheduling (tc-cake)
+    * Private about SECRET and secret@
 
 0.4.4 - 2022-03-00
     * Updated for quarterly Kali-latest

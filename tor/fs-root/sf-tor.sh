@@ -8,9 +8,6 @@ ERREXIT()
 {
 	local code
 	code="$1"
-	# shellcheck disable=SC2181 #(style): Check exit code directly with e.g
-	[[ $? -ne 0 ]] && code="$?"
-	[[ -z $code ]] && code=99
 
 	shift 1
 	[[ -n "$1" ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
@@ -57,8 +54,8 @@ genkey_hidden()
 	}
 
 	# Always fix permission (and also when files already existed)
-	find "${dir}" -type d -exec chmod 700 {} \; || ERREXIT
-	find "${dir}" -type f -exec chmod 600 {} \; || ERREXIT
+	find "${dir}" -type d -exec chmod 700 {} \; || ERREXIT "$?"
+	find "${dir}" -type f -exec chmod 600 {} \; || ERREXIT "$?"
 }
 
 # Route all traffic that comes to this instance through TOR.
@@ -67,13 +64,15 @@ iptables -t nat -A PREROUTING -p tcp ! -d sf-tor --syn -j REDIRECT --to-ports 90
 if [[ -n $SF_TOR_VIA_VPN ]]; then
 	# Route TOR via VPN
 	ip route del default
-	ip route add default via 172.20.0.2
+	ip route add default via "${NET_VPN_ROUTER_IP}"
 else
 	# Route TOR directly to Internet but incoming
-	# onion connectoins to these two (via sf-router)
-	ip route add 172.22.0.22/32 via 172.20.0.2
-	ip route add 172.20.1.80/32 via 172.20.0.2
+	# .onion connections to these SSHD and NGINX
+	ip route add "${SSHD_IP}/32" via "${NET_VPN_ROUTER_IP}"
+	ip route add "${NGINX_IP}/32" via "${NET_VPN_ROUTER_IP}"
 fi
+# Route to LG
+ip route add "${NET_LG}" via "${NET_VPN_ROUTER_IP}"
 
 umask 0077
 genkey_hidden 22
@@ -83,7 +82,7 @@ xadd 22
 xadd 80
 
 chmod 700 /var/lib/tor
-chown -R tor /var/lib/tor/hidden || ERREXIT
+chown -R tor /var/lib/tor/hidden || ERREXIT "$?"
 
 if [[ -f /config/host/etc/tor/torrc ]]; then
 	exec su -s /bin/ash - tor -c "tor --hush -f /config/host/etc/tor/torrc"

@@ -29,10 +29,11 @@ setup_sshd()
 	# the true root out of the way for the docker-sshd to work.
 	tail -n1 /etc/passwd | grep ^"${SF_USER}" >/dev/null && return
 
-	if [[ "$SF_USER" = "root" ]]; then
+	if [[ "$SF_USER" == "root" ]]; then
 		# rename root user
 		sed -i 's/^root/toor/' /etc/passwd
 		sed -i 's/^root/toor/' /etc/shadow
+		sed -i 's/root/toor/g' /etc/group  # All occurances
 	fi
 
 	# The uid/gid must match the 'sleep' process in guest's container
@@ -46,6 +47,10 @@ setup_sshd()
 	mkdir -p /home/webshell/.ssh && \
 	chmod 700 /home/webshell/.ssh && \
 	chown -R webshell:user /home/webshell
+
+	echo "secret:x:1000:1000:SF asksec,,,:/home/${SF_USER}:/bin/asksecsh" >>/etc/passwd && \
+	echo "secret:*::0:::::" >>/etc/shadow && \
+	echo "secret:${SF_USER_PASSWORD}" | chpasswd || return
 }
 
 [[ -z $SF_BASEDIR ]] && {
@@ -194,6 +199,7 @@ hg="docker"
 addgroup -g "$(stat -c %g /var/run/docker.sock)" "${hg}" 2>/dev/null || hg="$(stat -c %G /var/run/docker.sock)" # Group already exists (e.g. 'ping')
 addgroup "$SF_USER" "${hg}"
 addgroup "webshell" "${hg}"
+addgroup "secret" "${hg}"
 chmod 770 /var/run/docker.sock
 
 # SSHD's user (normally "root" with uid 1000) needs write access to /config/db
@@ -206,6 +212,7 @@ hg="sf-dbrw"
 addgroup -g "$(stat -c %g "${SF_CFG_HOST_DIR}/db/user")" "${hg}" 2>/dev/null || hg="$(stat -c %G "${SF_CFG_HOST_DIR}/db/user")"
 addgroup "${SF_USER}" "${hg}"
 addgroup "webshell" "${hg}"
+addgroup "secret" "${hg}"
 chmod g+wx "${SF_CFG_HOST_DIR}/db/user" || exit $?
 
 # vbox hack for /bin/segfaultsh to access funcs_redis.sh

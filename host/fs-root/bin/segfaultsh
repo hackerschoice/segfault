@@ -427,6 +427,7 @@ Thereafter use these commands:
 print_goodbye()
 {
 	local str
+	local IFS
 	[[ -z $IS_LOGIN ]] && return
 	[[ -n $SF_HUSHLOGIN ]] && return
 
@@ -466,9 +467,11 @@ RTFM             : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 	[[ -z $SF_IS_NEW_SERVER ]] && return
 
-	echo -en "Would you like to see the ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}? (y/N) "
-	read -r -n1 -t10 yn || echo -n "N"
-	[[ -n $yn ]] && echo ""
+	echo -en "Would you like to see your ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}? (y/N) "
+	IFS=$'\n'
+	read -r -n1 -t10 yn || { echo "N"; return; } # Timeout. Print "N\n"
+	[[ -z $yn ]] && return                       # Enter pressed. \n already displayed (echo'ed)
+	echo "" # Print \n
 	[[ "${yn^^}" != "Y" ]] && return
 
 	echo -e "\
@@ -670,6 +673,7 @@ check_banned()
 	[[ -z $blfn ]] && [[ -e "${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}" ]] && blfn="${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}"
 	[[ -z $blfn ]] && return
 
+	LOG_W "BANNED (${YOUR_IP}) (${CDY}$(<"$blfn")${CN})"
 	sleep 5
 	echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	if [[ -s "$blfn" ]]; then
@@ -882,6 +886,23 @@ fi
 ### ----BEGIN SANTIZE----
 [[ -n $HUSHLOGIN ]] && { SF_HUSHLOGIN=1; DOCKER_EXEC_ARGS+=("--env" "SF_HUSHLOGIN=1"); }
 [[ -n $HIDEIP ]] && SF_HIDEIP=1
+[[ -n $SF_DEBUG ]] && SF_DEBUG=1
+
+[[ -n $SF_IS_ASKSECSH ]] && {
+	# login to secret@ to prompt for SECRET
+    unset err
+    while :; do
+        echo -e -n "\U1F480 ${CDY}SECRET${CN}: ${CDC}"
+        read -r -n128 -t30 SECRET || err=1
+        echo -en "${CN}"
+        [[ -n $err ]] && exit 255
+        SECRET="${SECRET//[^0-9a-zA-Z]}"
+        [[ ${#SECRET} -eq 24 ]] && break
+        [[ "$SECRET" == exit ]] && exit 0
+        [[ "$SECRET" == new ]] && { unset SECRET; break; }
+        echo -e "${CDR}ERROR${CN}: Must be 24 characters. Type ${CDC}exit${CN} to exit or ${CDC}new${CN} to generate."
+    done
+}
 # SECRET and SF_DEBUG are user supplied.
 # Connect to existing session
 if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 24 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
@@ -891,7 +912,7 @@ else
 	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 fi
 
-[[ -n $SF_DEBUG ]] && SF_DEBUG=1
+
 
 [[ -n $SF_IS_WEBSHELL ]] && {
 	# Correct YOUR_IP
@@ -904,6 +925,9 @@ fi
 	SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
 	SF_PRJ="${SF_PRJ:0:32}"
 }
+# Unset user supplied env variables
+unset SECRET HUSTLOGIN HIDEIP PRJ
+
 ### ----END SANITIZE----
 
 # Only output progress if this is a login shell _and_ not HUSHLOGIN
@@ -1108,7 +1132,7 @@ while :; do
 	[[ $n -gt 2 ]] && STOPEXIT "${LID}" 253 "Could not create container..."
 done
 echo_pty -n ".."
-LOG "Container started & RUNNING..."
+# LOG "Container started & RUNNING..."
 
 # NOTE: Race conditon (which is harmless): A user can connect to his container (docker exec)
 # _before_ everything below this is executed.

@@ -1,4 +1,4 @@
-VER := 0.4.5b1
+VER := 0.4.5b2
 
 all:
 	make -C router
@@ -66,6 +66,7 @@ FILES_HOST += "segfault-$(VER)/host/sf-sshd.patch"
 FILES_HOST += "segfault-$(VER)/host/setup.sh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/webshellsh"
+FILES_HOST += "segfault-$(VER)/host/fs-root/bin/asksecsh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/sf_trace-DISABLED"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/mmdbinspect"

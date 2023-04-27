@@ -1,0 +1,5 @@
+#! /bin/bash
+
+# Called when login via secret@ to allow user to insert secret in terminal.
+SF_IS_ASKSECSH=1 exec /bin/segfaultsh "$@"
+exit 255

@@ -5,6 +5,7 @@
 
 # shellcheck disable=SC1091 # Do not follow
 source "/sf/bin/funcs.sh"
+source "/sf/bin/funcs_net.sh"
 
 ASSERT_EMPTY "NET_VPN" "$NET_VPN"
 ASSERT_EMPTY "NET_LG" "$NET_LG"
@@ -120,44 +121,72 @@ use_vpn()
 {
 	local gw
 	local gw_ip
+	local gw_dns_ip
 
 	# Configure FW rules for reverse port forwards.
 	# Any earlier than this and the MAC of the routers are not known. Thus do it here.
 
 	init_revport_once
 
-	local _ip
 	local f
 	for f in /sf/run/vpn/status-*; do
 		[[ ! -f "$f" ]] && break
-		_ip="$(<"$f")"
-		_ip="${_ip%%$'\n'*}"
-		_ip="${_ip##*=}"
-		_ip="${_ip//[^0-9\.]/}" # Sanitize
-		[[ -z $_ip ]] && continue
-		gw+=("nexthop" "via" "${_ip}" "weight" "100")
-		gw_ip+=("${_ip}")
+		source "$f"
+		[[ -z $SFVPN_MY_IP ]] && continue
+		gw+=("nexthop" "via" "${SFVPN_MY_IP}" "weight" "100")
+		[[ -z $SFVPN_IS_REDIRECTS_DNS ]] && gw_dns_ip+=("${SFVPN_MY_IP}")
+		gw_ip+=("${SFVPN_MY_IP}")
 	done
 
 	[[ ${#gw[@]} -eq 0 ]] && return
 
-	echo -e >&2 "[$(date '+%F %T' -u)] Switching to VPN (gw=${gw_ip[*]})" 
+	LOG "VPN" "Switching to VPN (gw=${gw_ip[*]})" 
 	ip route del default
+	ip route del default table 53 2>/dev/null
+	[[ ${#gw_dns_ip[@]} -gt 0 ]] && [[ ${#gw_dns_ip[@]} -ne ${#gw[@]} ]] && {
+		# At least 1 VPN redirects DNS. Make sure we dont route via that one....
+		# echo -e >&2 "DNS via ${gw_dns_ip[0]}..."
+		LOG "DNS" "DNS via ${gw_dns_ip[0]}...."
+		# iproute2 does not support nexthop-multipath and fwmark tables.
+		# ip route add default nexthop via 172.20.0.253 nexthop via 172.20.0.252 table 53
+		# Error: "nexthop" or end of line is expected instead of "table"
+		# Instead use the first for port 53 traffic.
+		ip route add default via "${gw_dns_ip[0]}" table 53
+	}
 	ip route add default "${gw[@]}"
-
 }
 
 use_tor()
 {
-	echo -e >&2 "$(date) Switching to TOR" 
+	LOG "VPN" "Switching to TOR" 
 	ip route del default 2>/dev/null
 	ip route add default via "${TOR_IP}"
+}
+
+use_novpn()
+{
+	LOG "VPN" "Switching to NoVPN"
+	ip route del default 2>/dev/null
+	ip route add default via "${NOVPN_IP}"
+}
+
+use_other()
+{
+	[[ -z $SF_DIRECT ]] && {
+		use_tor
+		return
+	}
+	use_novpn
 }
 
 monitor_failover()
 {
 	local status_sha
 
+	[[ -n $SF_DIRECT ]] && {
+		exec -a '[novpn-sleep]' sleep infinity
+		exit 255 # NOT REACHED
+	}
 	# FIXME: use redis here instead of polling
 	while :; do
 		bash -c "exec -a '[sleep router failover]' sleep 1"
@@ -168,10 +197,21 @@ monitor_failover()
 		status_sha="${sha}"
 
 		# If vpn_status no longer exists then switch to TOR
-		[[ ! -f /config/guest/vpn_status ]] && { use_tor; continue; }
+		[[ ! -f /config/guest/vpn_status ]] && { use_other; continue; }
 
 		use_vpn
 	done
+}
+
+# Some rules need no further processing.
+ipt_mark_ret()
+{
+	local id
+	id=$1
+
+	shift 1
+	iptables "$@" -j MARK --set-mark "$id"
+	iptables "$@" -j RETURN
 }
 
 # Set Iptables Forwarding rules
@@ -239,6 +279,59 @@ ipt_set()
 	# => Already set by SSHD -D1080 setup
 }
 
+ipset_add_ip()
+{
+	local ip
+	ip="$1"
+
+	# IPv6 not supported
+	[[ "$ip" == *:* ]] && return
+
+	ip="${ip//[^0-9\.\/]}"
+	ipset -exist -A direct "${ip}"
+}
+
+ipset_add_domain()
+{
+	local domain
+	domain="$1"
+	# Remove CNAME. Only output IP
+	for ip in $(dig +short "$domain" | grep -v '\.$'); do
+		ipset_add_ip "$ip" || ERR "DOMAIN='$domain', IP='$ip'"
+	done
+}
+
+# Some IP's are routed DIRECTLY and not via VPN
+# Mostly to save latency and data usage
+ipt_direct()
+{
+	ipset -N direct iphash
+
+	ipset_add_domain http.kali.org
+
+	# GitHub
+	ipset_add_domain github.com 
+	curl -SsfL https://api.github.com/meta | jq -r '.packages[], .git[] | select(. != null)' | while read ip; do
+		ipset_add_ip "$ip" || ERR "IP=$ip"
+	done
+
+	# Do not add Fastly
+	# ipset_add_domain pypi.python.org
+	# ipset_add_domain pypi.org
+	# curl -SsfL "https://api.fastly.com/public-ip-list" | jq -r '.addresses[] | select(. != null)' | while read ip; do
+	# 	ipset_add_ip "$ip" || ERR "IP=$ip"
+	# done
+
+	# Do not add gsocket
+	# for x {1..8}; do
+	# 	ipset -A direct gs${x}.thc.org 2>/dev/null
+	# done
+
+	# Do not add CloudFlared/ArgoTunnels, ngrok, pagekite etc etc.
+
+	ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_LG}" -p tcp -m set --match-set direct dst
+}
+
 ipt_syn_limit_set()
 {
 	local in
@@ -304,6 +397,10 @@ ipt_set
 
 ipt_syn_limit
 
+set +e
+ipt_direct
+set -e
+
 ip route del default
 
 # -----BEGIN SSH traffic is routed via Direct Internet-----
@@ -320,13 +417,13 @@ ip route del default
 # - ip rule show
 # - ip route show table 207
 # Forward all SSHD traffic to the router (172.28.0.2) to sf-host:22.
-iptables -t mangle -A PREROUTING -i "${DEV_DIRECT}" -p tcp -d "${NET_DIRECT_ROUTER_IP}" --dport 22 -j MARK --set-mark 722
+ipt_mark_ret "722" -t mangle -A PREROUTING -i "${DEV_DIRECT}" -p tcp -d "${NET_DIRECT_ROUTER_IP}" --dport 22
 ip rule add fwmark 722 table 207
 ip route add default via "${SSHD_IP}" dev "${DEV_ACCESS}" table 207
 
 # Any return traffic from the SSHD shall go out (directly) to the Internet or to TOR (if arrived from TOR)
 iptables -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${SSHD_IP}" --sport 22 -d "${TOR_IP}" -j RETURN
-iptables -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${SSHD_IP}" --sport 22 -j MARK --set-mark 22
+ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${SSHD_IP}" --sport 22
 ip rule add fwmark 22 table 201
 ip route add default via "${NET_DIRECT_BRIDGE_IP}" dev "${DEV_DIRECT}" table 201
 
@@ -397,23 +494,37 @@ iptables -A FORWARD -o "${DEV_DIRECT}" -i "${DEV_LG}" -p udp --sport 25002:26023
 iptables -t nat -A POSTROUTING -o "${DEV_LG}" -m mark --mark 52 -j MASQUERADE
 
 # Return traffic to _router_ should be routed via DIRECT (it's MASQ'ed return traffic)
-iptables -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -d "${NET_LG_ROUTER_IP}" --sport 25002:26023 -j MARK --set-mark 22
+ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -d "${NET_LG_ROUTER_IP}" --sport 25002:26023
 # -----END MOSH-----
+
+# -----BEGIN 53 ROUTE VIA GOOD VPN
+# Some VPN providers redirect port 53. We dont want this. Mark them and try to find a route
+# (via other VPN's).
+ip rule add fwmark 53 table 53
+ipt_mark_ret "53" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp --dport 53
+ipt_mark_ret "53" -t mangle -A PREROUTING -i "${DEV_LG}" -p tcp --dport 53
+# -----END 53 ROUTE VIA GOOD VPN
 
 # -----BEGIN GSNC traffic is routed via Internet----
 # GSNC TCP traffic to 443 and 7350 goes to (direct) Internet
-iptables -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${GSNC_IP}" -j MARK --set-mark 22
+ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${GSNC_IP}"
 # -----END GSNC traffic is routed via Internet----
 
-# MASQ all traffic because the VPN/TOR instances dont know the route back
-# to sf-guest (169.254.224/20).
-iptables -t nat -A POSTROUTING -o "${DEV_GW}" -j MASQUERADE
-# MASQ SSHD's forward to user's server
-iptables -t nat -A POSTROUTING -s "${SSHD_IP}" -o "${DEV_LG}" -j MASQUERADE
-# MASQ GSNC to (direct) Internet
-iptables -t nat -A POSTROUTING -s "${GSNC_IP}" -o "${DEV_DIRECT}" -j MASQUERADE
-# MASQ traffic from TOR to DMZ (nginx)
+# Dont MASQ LG's. FORWARD instead. They are MASQ'ed at VPN endpoints.
+iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -j ACCEPT
+
+# MASQ DNSMASQ as it does not know a route to LG
+iptables -t nat -A POSTROUTING -s "${NET_LG}" -d "${NET_VPN_DNS_IP}" -o "${DEV_GW}" -j MASQUERADE
+# MASQ traffic from TOR to DMZ (nginx) as DMZ does not know about TOR_IP.
 iptables -t nat -A POSTROUTING -o "${DEV_DMZ}" -j MASQUERADE
+
+# MASQ GSNC to (direct) Internet
+# iptables -t nat -A POSTROUTING -s "${GSNC_IP}" -o "${DEV_DIRECT}" -j MASQUERADE
+# MASQ traffic 'forced' via (direct) Internet (e.g ipt_set, sf-gsnc)
+iptables -t nat -A POSTROUTING -o "${DEV_DIRECT}" -m mark --mark 22 -m state --state NEW,ESTABLISHED -j MASQUERADE
+iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_DIRECT}" -p tcp -m mark --mark 22 -j ACCEPT
+iptables -A FORWARD -i "${DEV_DIRECT}" -o "${DEV_LG}" -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+
 # TOR traffic (169.254.240.0/21) always goes to TOR (transparent proxy)
 ip route add "${NET_ONION}" via "${TOR_IP}"
 
@@ -421,20 +532,30 @@ ip route add "${NET_ONION}" via "${TOR_IP}"
 # Everything else REJECT with RST or ICMP
 iptables -A FORWARD -p tcp -j REJECT --reject-with tcp-reset
 iptables -A FORWARD -j REJECT
-
-echo -e >&2 "FW: SUCCESS"
+set +e
+LOG "FW" "SUCCESS"
 
 # Set up Traffic Control (limit bandwidth)
-/tc.sh "${DEV_LG}" "${DEV_GW}" "${DEV_DIRECT}"
-echo -e >&2 "TC: SUCCESS"
 
-set +e
-# By default go via TOR until vpn_status exists
-use_tor
+unset err
+### Shape/Limit EGRESS  LG  -> VPN
+tc_set "${DEV_GW}" "${SF_MAXOUT}" "dual-srchost" "src" || err=1
+### Shape/Limit INGRESS VPN -> LG
+tc_set "${DEV_LG}" "${SF_MAXIN}" "dual-dsthost" "dst"  || err=1
+
+### Shape/Limit EGRESS  SSHD -> SSH (direct internet)
+tc_set "${DEV_DIRECT}" "${SF_MAXOUT}" "dsthost" "dst" || err=1
+### Shape/Limit INGRESS SSH  -> SSHD (sf-host)
+tc_set "${DEV_ACCESS}" "${SF_MAXIN}" "srchost" "src" || err=1
+
+[[ -n $err ]] && SLEEPEXIT 0 5 "TC failed. NO TRAFFIC LIMIT."
+LOG "TC" "SUCCESS"
+
+# By default go via DIRECT or TOR + VPN until vpn_status exists
+use_other
 monitor_failover
 
 # REACHED IF ANY CMD FAILS
 ip route del default
-echo -e >&2 "FAILED to set routes"
-exit 250
+ERREXIT 255 "FAILED to set routes"
 

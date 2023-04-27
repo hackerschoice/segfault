@@ -1,4 +1,4 @@
-VER := 0.4.4rc1
+VER := 0.4.5b2
 
 all:
 	make -C router
@@ -63,7 +63,10 @@ FILES_HOST += "segfault-$(VER)/host/Makefile"
 FILES_HOST += "segfault-$(VER)/host/docker-exec-sigproxy.c"
 FILES_HOST += "segfault-$(VER)/host/mk_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/sf-sshd.patch"
+FILES_HOST += "segfault-$(VER)/host/setup.sh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/segfaultsh"
+FILES_HOST += "segfault-$(VER)/host/fs-root/bin/webshellsh"
+FILES_HOST += "segfault-$(VER)/host/fs-root/bin/asksecsh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/sf_trace-DISABLED"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/docker_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/fs-root/bin/mmdbinspect"
@@ -94,8 +97,8 @@ FILES_ROUTER += "segfault-$(VER)/router/Makefile"
 FILES_ROUTER += "segfault-$(VER)/router/Dockerfile"
 FILES_ROUTER += "segfault-$(VER)/router/fix-network.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init.sh"
-FILES_ROUTER += "segfault-$(VER)/router/tc.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init-wg.sh"
+FILES_ROUTER += "segfault-$(VER)/router/init-novpn.sh"
 FILES_ROUTER += "segfault-$(VER)/router/user-limit.sh"
 
 FILES_GSNC += "segfault-$(VER)/gsnc/Makefile"

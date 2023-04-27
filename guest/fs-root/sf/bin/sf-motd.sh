@@ -26,7 +26,14 @@ CUL="\e[4m"
 source "/config/guest/vpn_status" 2>/dev/null
 
 if [[ -z $IS_VPN_CONNECTED ]]; then
-	VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
+	if source "/config/guest/vpn_status.direct" 2>/dev/null; then
+		str="${SFVPN_EXIT_IP}                   "
+		VPN_DST="VPN Exit Node     : ${CDG}${str:0:15}"
+		[[ -n $SFVPN_GEOIP ]] && VPN_DST+=" ${CF}(${SFVPN_GEOIP})${CN}"
+		VPN_DST+=" ${CR}>>> DIRECT <<<${CF} (no VPN)${CN}"$'\n'
+	else
+		VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
+	fi
 else
 	i=0
 	while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do
@@ -54,20 +61,36 @@ loc="${loc:0:15}"
 }
 [[ -z $IPPORT ]] && IPPORT="${CDR}N/A${CN}"
 
-echo -e "\
+echo -en "\
 Your workstation  : ${CDY}${loc}${CN}
-${VPN_DST}\
-TOR Proxy         : ${CDG}${SF_TOR_IP:-UNKNOWN}:9050${CN}
 Reverse Port      : ${IPPORT}${CN}
-Shared storage    : ${CDM}/everyone ${CF}(encrypted)${CN}
-Your storage      : ${CDM}/sec      ${CF}(encrypted)${CN}"
+${VPN_DST}"
+
+# All below should only be displayed if user types 'info' or a newly created server.
+[[ -n $SF_IS_NEW_SERVER ]] && _IS_SHOW_MORE=1
+[[ "${0##*/}" == "info" ]] && _IS_SHOW_MORE=1
+[[ -z $_IS_SHOW_MORE ]] && {
+	echo -e "\
+Hint              : ${CDC}Type ${CC}info${CDC} for more details.${CN}"
+	exit
+}
+unset _IS_SHOW_MORE
+
+echo -e "\
+TOR Proxy         : ${CDG}${SF_TOR_IP:-UNKNOWN}:9050${CN}"
+
+str="${SF_HOSTNAME}                            "
+echo -e "\
+Shared storage    : ${CDM}/everyone/${str:0:16} ${CF}(encrypted)${CN}
+Your storage      : ${CDM}/sec                       ${CF}(encrypted)${CN}"
 [[ -e /config/guest/onion_hostname-80 ]] && {
 	echo -e "\
-Your Onion WWW    : ${CDM}/onion    ${CF}(encrypted)${CN}"
+Your Onion WWW    : ${CDM}/onion                     ${CF}(encrypted)${CN}"
 
 	echo -e "\
 Your Web Page     : ${CB}${CUL}http://$(cat /config/guest/onion_hostname-80)/${SF_HOSTNAME,,}/${CN}"
 }
+	# HERE: Only display this ONCE when a new server is created.
 [[ -n $SF_SSH_PORT ]] && PORTSTR=" -p${SF_SSH_PORT} "
 echo -e "\
 SSH               : ${CC}ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\"${PORTSTR} ${CR}${CF}\\ ${CDC}\n\
@@ -83,6 +106,3 @@ SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UN
 SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
                        ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
-
-
-

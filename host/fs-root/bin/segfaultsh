@@ -34,6 +34,7 @@ CG="\e[1;32m" # green
 CDG="\e[0;32m" # green
 CDC="\e[0;36m" # cyan
 CDR="\e[0;31m" # red
+CDM="\e[0;35m" # magenta
 CN="\e[0m"    # none
 CW="\e[1;37m" # white
 CF="\e[2m"    # faint
@@ -52,7 +53,7 @@ _log()
 	# Replace ' with '"'"'
 	str="${*//\'/\'\"\'\"\'}"
 	# NOTE: segfault.log must be owned 1000:1000
-	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${LID}][$$] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
+	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${CDM}${LID}${CN}] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
 }
 
 LOG(){ _log "" "$@"; }
@@ -100,12 +101,10 @@ sem_wait()
 {
 	IS_SEM_WAIT=1
 	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
-	# LOG "SEM lock ${LG_SEM}"  ## FIXME-2023 remove
 }
 
 sem_release()
 {
-	# LOG "SEM release ${LG_SEM} / $IS_SEM_WAIT"  ## FIXME-2023 remove
 	[[ -z $IS_SEM_WAIT ]] && return
 	echo -e "DEL '${LG_SEM}'\nRPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
 	unset IS_SEM_WAIT
@@ -126,6 +125,15 @@ ERREXIT()
 	exit "$code"
 }
 
+STOPEXIT()
+{
+	local l
+	l="$1"
+
+	shift 1
+	exec_devnull docker stop "lg-${l}"
+	ERREXIT "$@"
+}
 
 if [[ -z $SF_DEBUG ]]; then
 	DEBUGF(){ :;}
@@ -317,6 +325,9 @@ init_vars()
 		YOUR_IP="${YOUR_IP//[^0-9.:]/}"
 		[[ -z $YOUR_IP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
 	}
+	YOUR_IP_DISPLAY="$YOUR_IP"
+	[[ -n $SF_HIDEIP ]] && YOUR_IP_DISPLAY="${YOUR_IP%%.*}.0.0.333"
+
 	# Do not store IP addresses. Hash it with a secret (SEED) instead.
 	local str
 	str="$(echo -n "IP-${YOUR_IP}-${SF_SEED}" | sha512sum)"
@@ -384,6 +395,10 @@ ${CR}######################################################################
 print_ssh_access()
 {
 	local key_suffix
+	# [[ -z $IS_LOGIN ]] && return => Still display help if this is a new server even if just cmd execution.
+	[[ -n $SF_HUSHLOGIN ]] && return
+	[[ -z $SF_IS_NEW_SERVER ]] && return
+
 	key_suffix="sf-${SF_FQDN//./-}"
 	echo 1>&2 -e "\
 :Cut & Paste these lines to your workstation's shell to retain access:
@@ -408,12 +423,13 @@ Thereafter use these commands:
 ----------------------------------------------------------------------"
 }
 
-
 # Output GOODBYE message with infos how to connect back to this shell
 print_goodbye()
 {
 	local str
-	[[ -z $IS_PTY ]] && return
+	local IFS
+	[[ -z $IS_LOGIN ]] && return
+	[[ -n $SF_HUSHLOGIN ]] && return
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
 	# Note: pgrep is executed in user's context. Treat the output with care and do not trust it.
@@ -432,21 +448,34 @@ print_goodbye()
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
--------> Type ${CC}halt${CN} instead to stop this server. This will
--------> also make /sec unavailabe until your next log in."
+-------> Log back in and type ${CC}halt${CN} instead to stop this server.
+-------> This will also make /sec unavailabe until your next log in."
 	fi
+	echo -en "\r"
 	[[ -z $SF_IS_PAYING ]] && {
 		echo -e "\
-\r${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
-@@@          ${CB}${CUL}https://www.thc.org/segfault/buy-an-upgrade${CN}${CDY}          @@@
 @@@           ${CDR}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}${CDY}           @@@
+@@@             ${CB}${CUL}https://www.thc.org/segfault/upgrade${CN}${CDY}              @@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${CN}"
 
 	}
+
 	echo -e "\
-Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}
+RTFM             : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
+	[[ -z $SF_IS_NEW_SERVER ]] && return
+
+	echo -en "Would you like to see your ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}? (y/N) "
+	IFS=$'\n'
+	read -r -n1 -t10 yn || { echo "N"; return; } # Timeout. Print "N\n"
+	[[ -z $yn ]] && return                       # Enter pressed. \n already displayed (echo'ed)
+	echo "" # Print \n
+	[[ "${yn^^}" != "Y" ]] && return
+
+	echo -e "\
+Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}"
 }
 
 print_to_many_servers()
@@ -454,18 +483,13 @@ print_to_many_servers()
 	echo >&2 -e "\
 [${CR}ERROR${CN}]
 --> ${CDY}You ($YOUR_IP) already have ${SF_LIMIT_SERVER_BY_IP} servers running.${CN}
---> Log in to your already running servers before starting any more new servers.
+--> Log in to your already running servers before creating any more new servers.
 --> Read ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}
 --> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 }
 
-echo_pty()
-{
-	[[ -n $IS_PTY ]] || return
-	echo "$@"
-}
-
+echo_pty() { :;}
 
 sshd_to_ns()
 {
@@ -495,17 +519,14 @@ spawn_shell_exit()
 	sem_release
 
 	# Update current IP:
-	tofile "${YOUR_IP:?}" "/config/self-for-guest/lg-${LID}/ip"
-	## DEBUG BEGIN
-	# tofile "${YOUR_IP:?}" "/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log-ip"
-	# tofile "$(ls -al "/config/self-for-guest/lg-${LID}/")" "/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log-ls"
-	## DEBUG END
+	tofile "${YOUR_IP_DISPLAY:?}" "/config/self-for-guest/lg-${LID}/ip"
+	tofile "${YOUR_IP:?}" "/sf/run/ips/lg-${LID}.ip"
 	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
 	# Request a reverse Port Forward
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
-	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --user 0:0 "$ARG" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
+	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --env SF_IS_LOGINSHELL=1 --user 0:0 "${DOCKER_EXEC_ARGS[@]}" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
 	DEBUGF "Exited with $ret"
 	logout
@@ -541,7 +562,7 @@ setup_fs_limit()
 	[[ ! "${SF_USER_ROOT_FS_SIZE_NUM}" -gt 0 ]] && return 0 # true
 
 	# Backing FS must be of type XFS
-	[[ "$(docker info --format '{{json .DriverStatus}}' | jq -r '.[0][1]')" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_SIZE is set"
+	[[ "${SF_BACKING_FS}" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_SIZE is set"
 
 	DOCKER_ARGS+=("--storage-opt")
 	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_SIZE:?}")
@@ -585,6 +606,9 @@ load_limits()
 	SF_ULIMIT_NOFILE="1024:8192"
 	SF_USER_SYN_BURST=8196
 	SF_USER_SYN_LIMIT=1
+	SF_USER_DL_BURST=8gb
+	SF_USER_UL_BURST=8gb
+
 	# No new shells until load goes below STRAIN*NPROC.
 	# Should be larger than ContainerGuard's strain when CG starts killing
 	SF_MAX_STRAIN=100
@@ -649,6 +673,7 @@ check_banned()
 	[[ -z $blfn ]] && [[ -e "${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}" ]] && blfn="${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}"
 	[[ -z $blfn ]] && return
 
+	LOG_W "BANNED (${YOUR_IP}) (${CDY}$(<"$blfn")${CN})"
 	sleep 5
 	echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	if [[ -s "$blfn" ]]; then
@@ -810,15 +835,14 @@ check_limit_server_by_ip()
 mk_geoip()
 {
 	local ip
-	ip=${1}
+	ip="${1}"
 	[[ ! -f /sf/share/GeoLite2-City.mmdb ]] && return
-
 	[[ -z ${ip} ]] && return
 
 	local city
 	local country
 	res=$(mmdbinspect --db /sf/share/GeoLite2-City.mmdb "${ip}")
-	city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
+	[[ -z $SF_HIDEIP ]] && city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
 	country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
 
 	unset YOUR_GEOIP
@@ -838,16 +862,13 @@ sysmsg()
 	eval "$(<"$fn")"
 }
 
-# Find out if SSHD spawns a shell or a command.
-# and if SSHD insists on a TTY (ssh -t <user@host> <command>)
-# - Execute `tty' in unrestricted shell (one day a clever hacker will exploit this)
-if bash -c "tty >/dev/null"; then
+# Instruct docker to assign TTY if this is a TTY (ssh -t <user@host> <command>)
+DOCKER_EXEC_ARGS=("-i")
+if [[ -t 0 ]]; then
 	# Disable SIGINT and SIGSTP. Use 'trap' first as 'stty' can be interrupted itself!
 	trap "" SIGINT
 	stty -isig
-	ARG="-it"
-else
-	ARG="-i"
+	DOCKER_EXEC_ARGS=("-it")
 fi
 
 if [[ ${#} -eq 2 ]]; then
@@ -857,12 +878,31 @@ elif [[ ${#} -eq 0 ]]; then
 	# - Set docker arguments to login-shell or profile wont get read.
 	PARAM=("-il")
 	# For -c "cmd" we silence output but for login shells we show
-	IS_PTY=1
+	IS_LOGIN=1
 else
 	ERREXIT 255 "BAD PARAMS: '${*}'"
 fi
 
 ### ----BEGIN SANTIZE----
+[[ -n $HUSHLOGIN ]] && { SF_HUSHLOGIN=1; DOCKER_EXEC_ARGS+=("--env" "SF_HUSHLOGIN=1"); }
+[[ -n $HIDEIP ]] && SF_HIDEIP=1
+[[ -n $SF_DEBUG ]] && SF_DEBUG=1
+
+[[ -n $SF_IS_ASKSECSH ]] && {
+	# login to secret@ to prompt for SECRET
+    unset err
+    while :; do
+        echo -e -n "\U1F480 ${CDY}SECRET${CN}: ${CDC}"
+        read -r -n128 -t30 SECRET || err=1
+        echo -en "${CN}"
+        [[ -n $err ]] && exit 255
+        SECRET="${SECRET//[^0-9a-zA-Z]}"
+        [[ ${#SECRET} -eq 24 ]] && break
+        [[ "$SECRET" == exit ]] && exit 0
+        [[ "$SECRET" == new ]] && { unset SECRET; break; }
+        echo -e "${CDR}ERROR${CN}: Must be 24 characters. Type ${CDC}exit${CN} to exit or ${CDC}new${CN} to generate."
+    done
+}
 # SECRET and SF_DEBUG are user supplied.
 # Connect to existing session
 if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 24 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
@@ -872,16 +912,28 @@ else
 	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 fi
 
-[[ -n $SF_DEBUG ]] && SF_DEBUG=1
+
 
 [[ -n $SF_IS_WEBSHELL ]] && {
 	# Correct YOUR_IP
-	# REMOTE_PORT="${REMOTE_PORT//[^0-9]/}"
-	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]/}"
+	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]}"
 	[[ -z $REMOTE_ADDR || ${#REMOTE_ADDR} -gt 32 ]] && ERREXIT "Bad REMOTE_ADDR: len=${#REMOTE_ADDR}"
 	YOUR_IP="${REMOTE_ADDR}"
 }
+
+[[ -n $PRJ ]] && {
+	SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
+	SF_PRJ="${SF_PRJ:0:32}"
+}
+# Unset user supplied env variables
+unset SECRET HUSTLOGIN HIDEIP PRJ
+
 ### ----END SANITIZE----
+
+# Only output progress if this is a login shell _and_ not HUSHLOGIN
+[[ -n $IS_LOGIN ]] && [[ -z $SF_HUSHLOGIN ]] && {
+	echo_pty() { echo "$@"; }
+}
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)
 LID="${LID//[^[:alpha:]]}"
@@ -948,7 +1000,8 @@ else
 		}
 		unset lid_old
 	}
-	IS_NEW_SERVER=1
+	SF_IS_NEW_SERVER=1
+	DOCKER_EXEC_ARGS+=("--env" "SF_IS_NEW_SERVER=1")
 
 	mkdir -p "${SF_USER_DB_DIR}" || ERREXIT
 	touch "${SF_USER_DB_DIR}/created.txt" || ERREXIT
@@ -959,7 +1012,11 @@ else
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
-LOG "${CDG}${SF_HOSTNAME}${CN}, ${CDC}$*${CN}"
+unset str
+[[ -n $SF_LOG_IP ]] && str="[${CDY}${YOUR_IP}${CN}] "
+str+="${CDG}${SF_HOSTNAME}"
+[[ -n $SF_PRJ ]] && str+="/${CW}${SF_PRJ}"
+LOG "${str}${CN} ${CDC}$*${CN}"
 
 # Record which SSHD process is connect to guest LG.
 tofile "SSHD_PID=$PPID
@@ -1018,6 +1075,8 @@ xmkdir "${selfdir}"
 # Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
 # cgroup-v2 only sf-guest.slice need to be specified.
 [[ -n $SF_IS_GOLD_PROMPT ]] && export SF_IS_GOLD_PROMPT
+[[ -n $SF_PRJ ]] && export SF_PRJ
+[[ -n $SF_DEBUG ]] && export SF_DEBUG
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
@@ -1037,11 +1096,11 @@ exec_devnull docker run \
 	--env SF_TOR_IP="${SF_TOR_IP}" \
 	--env SF_USER="${SF_USER}" \
 	--env SF_FQDN="${SF_FQDN}" \
-	--env SF_DEBUG="${SF_DEBUG}" \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
 	--env SF_LID="${LID}" \
-	--env SF_IS_LOGINSHELL=1 \
+	-e SF_PRJ \
 	-e SF_IS_GOLD_PROMPT \
+	-e SF_DEBUG \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--tmpfs /tmp:exec                                       `# GoLang needs /tmp to be executeable` \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
@@ -1070,13 +1129,10 @@ while :; do
 	DEBUGF "#${n} Waiting for sf-guest to be ready..."
 	if [[ $n -gt 0 ]]; then sleep 5; else sleep 0.1; fi
 	n=$((n+1))
-	[[ $n -gt 2 ]] && {
-		exec_devnull docker stop "lg-${LID}"
-		ERREXIT 253 "Could not create container..."
-	}
+	[[ $n -gt 2 ]] && STOPEXIT "${LID}" 253 "Could not create container..."
 done
 echo_pty -n ".."
-LOG "Container started & RUNNING..."
+# LOG "Container started & RUNNING..."
 
 # NOTE: Race conditon (which is harmless): A user can connect to his container (docker exec)
 # _before_ everything below this is executed.
@@ -1088,28 +1144,28 @@ C_IP=${arr[2]}
 tofile "${LG_PID:?}" "/sf/run/pids/lg-${LID}.pid"
 
 # Set up Root FS / inode limits and move encfsd to lg's cgroup
-setup_encfsd || ERREXIT 244 "Could not set FS quota."
+setup_encfsd || STOPEXIT "${LID}" 244 "Could not set FS quota."
 echo_pty -n ".."
 
 # Store LG information in Redis
-res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || ERREXIT 252 "Failed to set LID in Redis"
+res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || STOPEXIT "$LID" 252 "Failed to set LID in Redis"
 
 # Set FW rules for this container
-[[ $SF_USER_SYN_LIMIT -ne 0 ]] && { exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || ERREXIT 251 "Faild to set syn-limit..."; }
+exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" "$SF_USER_DL_RATE" "$SF_USER_DL_BURST" "$SF_USER_UL_RATE" "$SF_USER_UL_BURST" || STOPEXIT "${LID}" 251 "Faild to set syn-limit...";
 
 # 255.0.0.1 always points to guest's localhost: user can now set up a ssh -D1080 and connect with browser to
 # 255.0.0.1 and land on guest's 127.0.0.1.
 exec_devnull docker exec sf-master bash -c "nsenter.u1000 -t \"${LG_PID}\" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1"
 
 # Setup container
-exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || ERREXIT 252 "Failed-#2 to set up guest container..."
+exec_devnull docker exec --user 0:0 "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "Failed-#2 to set up guest container..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 
 echo_pty -e "....[${CG}OK${CN}]"
 
 # Show help how to connect elegantly
-[[ -n $IS_NEW_SERVER ]] && print_ssh_access
+print_ssh_access
 
 # Spawn shell
 spawn_shell_exit "$@"

@@ -14,6 +14,7 @@ if [[ -f /dev/shm/env.txt ]]; then
 else
 	echo -e "SF_DEBUG=\"${SF_DEBUG}\"\n\
 SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"\n\
+IS_REDIRECTS_DNS=\"${IS_REDIRECTS_DNS}\"\n\
 PROVIDER=\"${PROVIDER}\"\n" >/dev/shm/env.txt
 fi
 
@@ -93,8 +94,9 @@ up()
 			t=$(echo "$geo" | jq '.city |  select(. != null)')
 			city="${t//[^[:alnum:].-_ \/]}"
 			t=$(echo "$geo" | jq '.ip | select(. != null)')
+			unset geo
 			exit_ip="${t//[^0-9.]}"
-			geo="${city}/${country}"
+			[[ -n $city || -n $country ]] && geo="${city}/${country}"
 		}
 		# [[ -z $geo ]] && {
 			# Query local DB for info
@@ -110,6 +112,7 @@ up()
 		myip="${myip#*inet }"
 		myip="${myip%%/*}"
 		echo -en "\
+SFVPN_IS_REDIRECTS_DNS=\"${IS_REDIRECTS_DNS}\"\n\
 SFVPN_MY_IP=\"${myip}\"\n\
 SFVPN_EXEC_TS=\"$(date -u +%s)\"\n\
 SFVPN_ENDPOINT_IP=\"${ep_ip}\"\n\
@@ -120,7 +123,9 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 
 	create_vpn_status
 
-	# For Reverse Port Forward:
+	# Old cryptostorm containers set a network route to default IP.
+	# Remove; We need to route to SF_ROUTER_IP instead.
+	ip route del 10.11.0.0/24 2>/dev/null
 	ip route add 10.11.0.0/16 via "${SF_ROUTER_IP}" 2>/dev/null
 
 	# Delete all old port forwards.

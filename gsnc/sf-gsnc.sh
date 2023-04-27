@@ -13,4 +13,6 @@ GS_SECRET="${GS_SECRET:0:12}"
 
 echo "${GS_SECRET}" >/config/guest/gsnc-access-22.txt
 
+# Give sf-router time to boot up and set the routes...
+sleep 3
 exec /gs-netcat -l -d "$1" -p 22 -s "22-${GS_SECRET}"

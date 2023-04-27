@@ -19,6 +19,6 @@ diff:
 	diff -x '!*.[ch]' -u   openssh-9.2p1-orig/  openssh-9.2p1-sf/  | grep -Ev ^"(Only in|Common)" >../sf-sshd.patch
 
 clean:
-	rm -rf openssh-9.2p1-sf fs-root/usr/sfbin/sshd
+	rm -rf openssh-9.2p1-sf fs-root/usr/sbin/sshd
 	docker image rm alpine-gcc
 

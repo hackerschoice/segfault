@@ -1,8 +1,8 @@
-// The problem is that 'docker exec' does not proxy signals to the instance.
+// The problem is that 'docker exec' does not proxy signals to the container.
 // 'docker run' does (--sig-proxy=true is the default)
 //
 // The consequence of this is that any SIGHUP/SIGINT/SIGTERM to docker-cli
-// will keep the process inside the instance running.
+// will keep the process inside the container running.
 //
 // Details:
 // - https://github.com/moby/moby/issues/9098#issuecomment-702524998
@@ -17,16 +17,26 @@
 //
 // This problem kicked our butts at thc.org/segfault. We spawn user shells using
 // 'docker exec'. When sshd detects a network error it sends a SIGHUP to 'docker exec'.
-// Docker does not forward the signal to the started instance (to 'ash'). 
+// Docker does not forward the signal to the started container (to 'ash'). 
 // Thus we ended up with hundreds of stale 'ash -il' shells that were not
 // connected to any sshd.
 //
 // This hack solves the problem by intercepting the traffic between the docker sockets,
 // extracting container id and exec-id and then hocking all signals and forwarding them
-// correctly to the instance.
+// correctly to the container.
 //
+// Known Problems:
+// - docker-exec-sigproxy exits with 0 even if the container's process
+//   exits with a different error code. See 'FIXME'
+//
+// The PID tree
+// SSHD +--> docker-exec-sigproxy +--> 'docker exec'
+// The STDIN/OUT data flow:
+// SSHD -[stdin/out]-> 'docker exec' -[unix-socket]-> docker-exec-sigproxy -[unix-socket]-> dockerd
+//
+// Segfault specific:
 // In our setup the docker-cli is executed by sshd from within another
-// docker instance. Thus we need to 'break out' of that instance to get access
+// docker container. Thus we need to 'break out' of that container to get access
 // to the host's pid system and to find out the host-pid of the ash process.
 // If you do not do this then comment out "SIGPROXY_INSIDE_CONTAINER"....
 
@@ -210,8 +220,8 @@ dispatch(struct epoll_event *evs, int count)
 			sz = read(p->fd, buf, sizeof buf - 1);
 			if (sz <= 0)
 			{
-				snprintf(buf, sizeof buf, "/dev/null-flag-is-%d-fd-%d", p->flags, p->fd);
-				struct stat sb; stat(buf, &sb);
+				// snprintf(buf, sizeof buf, "/dev/null-flag-is-%d-fd-%d", p->flags, p->fd);
+				// struct stat sb; stat(buf, &sb);
 				if (p->flags == 0)
 					return -1; // dockerd closed?
 				return 200; // real 'docker exec' closed.
@@ -258,12 +268,12 @@ sig_forward(int sig)
 #else
 	snprintf(cmd, sizeof cmd, "kill -%d $(cat "DFL_CONTAINER_DIR"/%s/%s.pid)", sig, container_id, exec_id);
 #endif
-	int ret;
-	ret = system(cmd);
-	char buf[1024];
-	snprintf(buf, sizeof buf, "/dev/null-cmd-%d-%s", ret, cmd);
-	struct stat sb; stat(buf, &sb);
-
+	// int ret;
+	system(cmd);
+	// ret = system(cmd);
+	// char buf[1024];
+	// snprintf(buf, sizeof buf, "/dev/null-cmd-%d-%s", ret, cmd);
+	// struct stat sb; stat(buf, &sb);
 }
 
 static struct termios tios;
@@ -342,9 +352,9 @@ main(int argc, char *argv[])
 			break;
 	}
 
-	char buf[1024];
-	snprintf(buf, sizeof buf, "/dev/null-ret-is-%d", ret);
-	struct stat sb; stat(buf, &sb);
+	// char buf[1024];
+	// snprintf(buf, sizeof buf, "/dev/null-ret-is-%d", ret);
+	// struct stat sb; stat(buf, &sb);
 
 	if (ret > 0)
 	{

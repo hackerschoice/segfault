@@ -9,13 +9,16 @@ RUN	apk add --no-cache --upgrade \
 		iptables \
 		jq \
 		libcap \
+		openssh-client \
 		openssh-server \
 		redis \
 		strace \
+		vim \
 		xauth \
-		xfsprogs-extra \
-	&& echo "/bin/segfaultsh" >>/etc/shells
-COPY /fs-root/ /
+		xfsprogs-extra
+
+COPY setup.sh /fs-root/ /
+RUN		/setup.sh && rm -f /setup.sh
 
 CMD ["/bin/docker_sshd.sh"]
 

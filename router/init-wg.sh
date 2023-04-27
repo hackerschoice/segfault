@@ -11,7 +11,7 @@ eval "$(grep ^SF_MAX /config/host/etc/sf/sf.conf)"
 # The WG router goes directly to the Internet (and not via sf-router). Thus
 # we must traffic shape here (rather then sf-router).
 [[ -n $SF_MAXOUT ]] && {
-    tc_set eth0 "${SF_MAXOUT}" dst || SLEEPEXIT 255 5 "tc failed"
+    tc_set eth0 "${SF_MAXOUT}" "dsthost" "dst" || SLEEPEXIT 255 5 "tc failed"
 }
 
 # Could 'police' incoming traffic but it's ugly and incoming traffic is normally

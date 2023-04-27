@@ -29,17 +29,28 @@ setup_sshd()
 	# the true root out of the way for the docker-sshd to work.
 	tail -n1 /etc/passwd | grep ^"${SF_USER}" >/dev/null && return
 
-	if [[ "$SF_USER" = "root" ]]; then
+	if [[ "$SF_USER" == "root" ]]; then
 		# rename root user
 		sed -i 's/^root/toor/' /etc/passwd
 		sed -i 's/^root/toor/' /etc/shadow
+		sed -i 's/root/toor/g' /etc/group  # All occurances
 	fi
 
 	# The uid/gid must match the 'sleep' process in guest's container
 	# so that sshd can be moved (setns()) to the guest's network namespace.
 	addgroup -g 1000 user && \
 	adduser -D "${SF_USER}" -G user -s /bin/segfaultsh && \
-	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd
+	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd || return
+
+	echo 'webshell:x:1000:1000:SF webshell,,,:/home/webshell:/bin/webshellsh' >>/etc/passwd && \
+	addgroup webshell root && \
+	mkdir -p /home/webshell/.ssh && \
+	chmod 700 /home/webshell/.ssh && \
+	chown -R webshell:user /home/webshell
+
+	echo "secret:x:1000:1000:SF asksec,,,:/home/${SF_USER}:/bin/asksecsh" >>/etc/passwd && \
+	echo "secret:*::0:::::" >>/etc/shadow && \
+	echo "secret:${SF_USER_PASSWORD}" | chpasswd || return
 }
 
 [[ -z $SF_BASEDIR ]] && {
@@ -63,10 +74,20 @@ SF_CFG_GUEST_DIR="/config/guest"
 chown 1000:1000 "${SF_CFG_HOST_DIR}/db/hn"
 
 SF_RUN_DIR="/sf/run"
-LG_PID_DIR="${SF_RUN_DIR}/pids"
-[[ -d "${LG_PID_DIR}" ]] && rm -rf "${LG_PID_DIR}"
-mkdir -p "${LG_PID_DIR}"
-chown 1000 "${LG_PID_DIR}" || SLEEPEXIT 255 5 "${CR}Not found: ${LG_PID_DIR}${CN}"
+
+mk_userdir()
+{
+	local fn
+	fn="$1"
+
+	[[ -d "${fn}" ]] && rm -rf "${fn:?}"
+	mkdir -p "${fn}"
+	chown 1000 "${fn}" || SLEEPEXIT 255 5 "${CR}Not found: ${fn}${CN}"
+}
+
+mk_userdir "${SF_RUN_DIR}/pids"
+mk_userdir "${SF_RUN_DIR}/ips"
+
 [[ -d "${SF_RUN_DIR}/logs" ]] && chown 1000 "${SF_RUN_DIR}/logs"
 chmod 777 "/sf/run/redis/sock/redis.sock"
 
@@ -76,7 +97,7 @@ chmod 777 "/sf/run/redis/sock/redis.sock"
 # or wont get mounted to user.
 /sf/bin/wait_semaphore.sh /sec/www-root/.IS-ENCRYPTED bash -c exit || exit 123
 
-setup_sshd
+setup_sshd || exit
 
 ip route del default
 ip route add default via 172.22.0.254
@@ -90,20 +111,37 @@ ip route add default via 172.22.0.254
 	[[ ! -f "${SF_CFG_HOST_DIR}/etc/ssh/ssh_host_rsa_key" ]] && SLEEPEXIT 255 5
 }
 
-[[ ! -e "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" ]] && {
-	ssh-keygen -q -t ed25519 -C "" -N "" -f "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" 2>&1
-	[[ ! -f "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" ]] && SLEEPEXIT 255 5
+mk_userkey()
+{
+	local fn
+	local name
+	name="$1"
+	fn="id_ed25519"
+	[[ -n $name ]] && fn="id_ed25519-${name}"
+
+	[[ ! -e "${SF_CFG_HOST_DIR}/etc/ssh/${fn}" ]] && {
+		ssh-keygen -q -t ed25519 -C "$name" -N "" -f "${SF_CFG_HOST_DIR}/etc/ssh/${fn}" 2>&1
+		[[ ! -f "${SF_CFG_HOST_DIR}/etc/ssh/${fn}" ]] && SLEEPEXIT 255 5
+	}
 }
+
+mk_userkey ""
+mk_userkey "webshell"
 
 chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
 # Copy login-key to fake root's home directory
-[[ -e /home/"${SF_USER}"/.ssh/authorized_keys ]] || {
+[[ ! -e /home/"${SF_USER}"/.ssh/authorized_keys ]] && {
 	[[ -d "/home/${SF_USER}/.ssh" ]] || { mkdir "/home/${SF_USER}/.ssh"; chown "${SF_USER}":nobody "/home/${SF_USER}/.ssh"; }
 	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519.pub" "/home/${SF_USER}/.ssh/authorized_keys"
 	# Copy of private key so that segfaultsh (in uid=1000 context)
 	# can display the private key for future logins.
 	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "/home/${SF_USER}/.ssh/"
 	chown "${SF_USER}":nobody "/home/${SF_USER}/.ssh/authorized_keys" "/home/${SF_USER}/.ssh/id_ed25519"
+}
+
+[[ ! -e /home/webshell/.ssh/authorized_keys ]] && {
+	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519-webshell.pub" "/home/webshell/.ssh/authorized_keys"
+	chown webshell:nobody "/home/webshell/.ssh/authorized_keys"
 }
 
 # Always copy as it may have gotten updated:
@@ -134,6 +172,7 @@ SF_BASEDIR=\"${SF_BASEDIR}\"
 SF_SHMDIR=\"${SF_SHMDIR}\"
 SF_RAND_OFS=\"$RANDOM\"
 SF_HM_SIZE_LG=\"$SF_HM_SIZE_LG\"
+SF_BACKING_FS=\"$SF_BACKING_FS\"
 SF_NS_NET=\"$(readlink /proc/self/ns/net)\"
 SF_FQDN=\"${SF_FQDN}\"" >/dev/shm/env.txt
 
@@ -156,8 +195,12 @@ chown "$SF_USER" "/config/self-for-guest"
 # we need to dynamically add it so that the shell started by SSHD can
 # spwan ther SF-GUEST instance.
 [[ ! -e /var/run/docker.sock ]] && { echo "Not found: /var/run/docker.sock"; echo "Try -v /var/run/docker.sock:/var/run/docker.sock"; exit 255; }
-grep ^docker:x: /etc/group >/dev/null || echo "docker:x:$(stat -c %g /var/run/docker.sock):${SF_USER}" >>/etc/group && \
-chmod 770 /var/run/docker.sock && \
+hg="docker"
+addgroup -g "$(stat -c %g /var/run/docker.sock)" "${hg}" 2>/dev/null || hg="$(stat -c %G /var/run/docker.sock)" # Group already exists (e.g. 'ping')
+addgroup "$SF_USER" "${hg}"
+addgroup "webshell" "${hg}"
+addgroup "secret" "${hg}"
+chmod 770 /var/run/docker.sock
 
 # SSHD's user (normally "root" with uid 1000) needs write access to /config/db
 # That directory is mounted from the outside and we have no clue what the
@@ -165,13 +208,16 @@ chmod 770 /var/run/docker.sock && \
 # However, we dont like this to be group=0 (root) and if it is then we force it
 # to nogroup.
 [[ "$(stat -c %g "${SF_CFG_HOST_DIR}/db/user")" -eq 0 ]] && chgrp nogroup "${SF_CFG_HOST_DIR}/db/user" # Change root -> nogroup
-addgroup -g "$(stat -c %g "${SF_CFG_HOST_DIR}/db/user")" sf-dbrw 2>/dev/null # Ignore if already exists.
-addgroup "${SF_USER}" "$(stat -c %G "${SF_CFG_HOST_DIR}/db/user")" 2>/dev/null # Ignore if already exists.
+hg="sf-dbrw"
+addgroup -g "$(stat -c %g "${SF_CFG_HOST_DIR}/db/user")" "${hg}" 2>/dev/null || hg="$(stat -c %G "${SF_CFG_HOST_DIR}/db/user")"
+addgroup "${SF_USER}" "${hg}"
+addgroup "webshell" "${hg}"
+addgroup "secret" "${hg}"
 chmod g+wx "${SF_CFG_HOST_DIR}/db/user" || exit $?
 
 # vbox hack for /bin/segfaultsh to access funcs_redis.sh
-addgroup -g "$(stat -c %g /sf/bin)" vboxsf 2>/dev/null
-addgroup "${SF_USER}" "$(stat -c %G /sf/bin)" 2>/dev/null 
+# addgroup -g "$(stat -c %g /sf/bin)" vboxsf 2>/dev/null
+# addgroup "${SF_USER}" "$(stat -c %G /sf/bin)" 2>/dev/null 
 
 # This will execute 'segfaultsh' on root-login (uid=1000)
 exec 0<&- # Close STDIN

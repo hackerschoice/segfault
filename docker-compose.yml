@@ -146,7 +146,7 @@ services:
   nordvpn:
     image: hackerschoice/cryptostorm
     container_name: sf-nordvpn
-    restart: ${SF_RESTART:-on-failure}
+    restart: "no"
     cgroup_parent: sf.slice
     depends_on:
       - dnsmasq
@@ -158,6 +158,7 @@ services:
     environment:
       - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
       - PROVIDER=NordVPN
+      - NETWORK=${SF_NET_LG}
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
@@ -193,7 +194,7 @@ services:
     image: hackerschoice/cryptostorm
     container_name: sf-cryptostorm
     cgroup_parent: sf.slice
-    restart: ${SF_RESTART:-on-failure}
+    restart: "no"
     depends_on:
       - dnsmasq
       - sf-redis
@@ -204,6 +205,7 @@ services:
     environment:
       - CONFIG=${SF_CRYPTOSTORM_CONFIG:-}
       - PROVIDER=CryptoStorm
+      - NETWORK=${SF_NET_LG}
       - DNS=1.1.1.1 # Cryptostorm's DNS is often broken
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
@@ -220,7 +222,7 @@ services:
       - net.netfilter.nf_conntrack_frag6_timeout=10
       - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
       - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
-      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5        # default is 30, 5 because of reverse tunnels
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5        # default is 30, 5 because of reverse tunnels (CS)
       - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
       - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
       - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
@@ -239,7 +241,7 @@ services:
   mullvad:
     image: hackerschoice/cryptostorm
     container_name: sf-mullvad
-    restart: ${SF_RESTART:-on-failure}
+    restart: "no"
     cgroup_parent: sf.slice
     depends_on:
       - dnsmasq
@@ -251,6 +253,8 @@ services:
     environment:
       - CONFIG=${SF_MULLVAD_CONFIG:-}
       - PROVIDER=Mullvad
+      - NETWORK=${SF_NET_LG}
+      - IS_REDIRECTS_DNS=1
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
@@ -282,6 +286,54 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
+  novpn:
+    build: router
+    image: sf-router
+    hostname: sf-novpn
+    container_name: sf-novpn
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
+    depends_on:
+      - dnsmasq
+      - sf-redis
+      - router
+    cap_add:
+      - NET_ADMIN #required
+    environment:
+      - SF_REDIS_AUTH=${SF_REDIS_AUTH}
+      - NET_LG=${SF_NET_LG:?}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
+      - SF_NOVPN_IP=${SF_NOVPN_IP}
+      - PROVIDER=NoVPN
+      - SF_DIRECT
+      - SF_DEBUG
+    networks:
+      vpn-net:
+        ipv4_address: ${SF_NOVPN_IP}
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv4.conf.all.rp_filter=2
+      - net.ipv4.ip_forward=1
+      - net.netfilter.nf_conntrack_frag6_timeout=10
+      - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=1        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
+      - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
+      - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
+      - net.netfilter.nf_conntrack_tcp_timeout_close_wait=10     # default is 60
+      - net.netfilter.nf_conntrack_tcp_timeout_unacknowledged=30 # default is 300
+      - net.netfilter.nf_conntrack_tcp_timeout_established=10800 # 3h, default is 5 days
+      - net.netfilter.nf_conntrack_icmp_timeout=10 # default is 30
+      - net.netfilter.nf_conntrack_udp_timeout=10  # default is 30
+      # - net.nf_conntrack_udp_timeout_stream=       # leave as default of 120
+    volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"  # Between all VPNs
+      - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+    entrypoint: ["/init-novpn.sh"]
+
   router:
     build: router
     image: sf-router
@@ -310,7 +362,7 @@ services:
       - net.netfilter.nf_conntrack_frag6_timeout=10
       - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
       - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
-      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5        # default is 30, 5 because of reverse tunnels
+      - net.netfilter.nf_conntrack_tcp_timeout_syn_recv=5        # default is 30, 5 because of reverse tunnels (sf-router)
       - net.netfilter.nf_conntrack_tcp_timeout_last_ack=5        # default is 30
       - net.netfilter.nf_conntrack_tcp_timeout_fin_wait=10       # default is 120
       - net.netfilter.nf_conntrack_tcp_timeout_close=1           # default is 10
@@ -333,6 +385,7 @@ services:
       - NET_VPN=${SF_NET_VPN:?}
       - NET_ONION=${SF_NET_ONION:?}
       - TOR_IP=${SF_TOR_IP:?}
+      - NOVPN_IP=${SF_NOVPN_IP:?}
       - GSNC_IP=${SF_GSNC_IP:?}
       - SSHD_IP=${SF_SSHD_IP:?}
       - NGINX_IP=${SF_NGINX_IP:?}
@@ -342,6 +395,7 @@ services:
       - NET_VPN_DNS_IP=${SF_NET_VPN_DNS_IP:?}
       - NET_ACCESS_ROUTER_IP=${SF_NET_ACCESS_ROUTER_IP:?}
       - NET_DMZ_ROUTER_IP=${SF_NET_DMZ_ROUTER_IP:?}
+      - SF_DIRECT
       - SF_NORDVPN_IP=${SF_NORDVPN_IP:?}
       - SF_CRYPTOSTORM_IP=${SF_CRYPTOSTORM_IP:?}
       - SF_MULLVAD_IP=${SF_MULLVAD_IP:?}
@@ -478,6 +532,10 @@ services:
     environment:
       - SF_DEBUG
       - SF_TOR_VIA_VPN
+      - NET_LG=${SF_NET_LG:?}
+      - SSHD_IP=${SF_SSHD_IP:?}
+      - NGINX_IP=${SF_NGINX_IP:?}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
     dns: ${SF_NET_VPN_DNS_IP}
     depends_on:
       - dnsmasq
@@ -548,7 +606,9 @@ services:
       - SF_RPC_IP=${SF_RPC_IP}
       - SF_SEED=${SF_SEED}
       - SF_HM_SIZE_LG=8
+      - SF_DIRECT
       - SF_DEBUG
+      - SF_BACKING_FS
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"

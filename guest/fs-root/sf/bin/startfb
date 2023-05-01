@@ -1,0 +1,36 @@
+#! /bin/bash
+
+CDY="\e[0;33m"
+CDC="\e[0;36m"
+CB="\e[1;34m" # blue
+CN="\e[0m"
+CUL="\e[4m"
+
+
+cleanup()
+{
+	kill -SIGTERM $PID_V
+	killall filebrowser
+}
+
+sv_startfb()
+{
+	local ppid=$1
+
+	filebrowser --noauth -p 2900 &>/dev/null &
+	PID_V=$!
+
+	while [[ -d /proc/$PPID && -d /proc/$PID_V ]]; do
+		sleep 5
+	done
+	cleanup
+}
+
+sv_startfb $PPID &
+
+echo -e "Keep this shell open and log in again using:
+
+    ${CDC}ssh -L2900:0:2900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
+
+Then navigate to ${CB}${CUL}http://127.0.0.1:2900${CN} with your web browser.
+${CDY}DO NOT EXIT THIS SHELL${CN}: Exiting this shell will terminate the GUI session."

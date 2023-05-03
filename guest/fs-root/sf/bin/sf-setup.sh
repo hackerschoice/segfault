@@ -104,6 +104,8 @@ setup()
 	cd /
 	[[ -d /sec ]] || ERREXIT 254 "Not found: /sec" # EncFS failed (?)
 
+	[[ -f /.dockerenv ]] && rm -f /.dockerenv 2>/dev/null # / Might be mounted read-only
+
 	# Setup home-directories to /sec
 	mkhome root:root root
 	[[ -d /sec/home ]] || mkdir /sec/home
@@ -139,4 +141,10 @@ setup()
 
 DEBUGF "Setting up user's instance..."
 setup
-
+[[ -n $SF_IS_NEW_SERVER ]] && {
+	# Newly created server.
+	# It's easier for GUI users to find this file in their /onion directory
+	echo "# Dynamically Generated for information purposes only. Delete at any time.
+# You can access this directory via TOR:
+http://$(cat /config/guest/onion_hostname-80)/${SF_HOSTNAME,,}" >/onion/.your-onion-address.txt
+}

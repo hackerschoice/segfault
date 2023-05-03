@@ -12,22 +12,26 @@ _sf_shmdir="/dev/shm/sf-u1000"
 [[ -d "/dev/shm/sf" ]] && _sf_shmdir="/dev/shm/sf"
 _self_for_guest_dir="${_sf_shmdir}/self-for-guest"
 _sf_basedir="/sf"
+_sf_dbdir="${_sf_basedir}/config/db"
 
 _sf_deinit()
 {
 	unset CY CG CR CC CB CF CN CDR CDG CDY CDB CDM CDC CUL
+	unset _sf_now _sf_isinit
 }
 
 _sf_init()
 {
+	_sf_now=$(date '+%s' -u)
+	[[ -n $_sf_isinit ]] && return
 	[[ ! -t 1 ]] && return
 
 	CY="\e[1;33m" # yellow
 	CG="\e[1;32m" # green
 	CR="\e[1;31m" # red
 	CC="\e[1;36m" # cyan
-	# CM="\e[1;35m" # magenta
-	# CW="\e[1;37m" # white
+	CM="\e[1;35m" # magenta
+	CW="\e[1;37m" # white
 	CB="\e[1;34m" # blue
 	CF="\e[2m"    # faint
 	CN="\e[0m"    # none
@@ -40,6 +44,8 @@ _sf_init()
 	CDM="\e[0;35m" # magenta
 	CDC="\e[0;36m" # cyan
 	CUL="\e[4m"
+
+	_sf_isinit=1
 }
 
 _sf_usage()
@@ -120,16 +126,17 @@ lgdf()
 	local lid
 	local dst
 
+	_sf_init
 	dst="$1"
 	[[ -z $dst ]] && dst="lg-*"
 	declare -A p2lid
 
 	# Create map to translate PRJID to LID name
-	eval p2lid=( $(lsattr -dp "${_sf_basedir:-/sf}/data/user"/${dst} | while read l; do
+	eval p2lid=( $(lsattr -dp "${_sf_basedir}/data/user"/${dst} | while read l; do
 		echo -n "['${l%% *}']='${l##*/}' "
 	done;) )
 
-	xfs_quota -x -c "report -p -ibnN ${_sf_basedir:-/sf}/data" | while read l; do
+	xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data" | while read l; do
 		[[ -z $l ]] && continue
 		arr=($l)
 		# #10041175
@@ -152,6 +159,8 @@ lgdf()
 		str="${psz}       "
 		echo "${l} ${str:0:5}% ${pin}%  ${lid}"
 	done
+
+	_sf_deinit
 }
 
 # <lg-LID> <MESSAGE>
@@ -179,20 +188,23 @@ lgrm()
 	local fn
 	local hn
 
+	_sf_init
 	l="$1"
 	[[ -z $l ]] && return
 
-	fn="${_sf_basedir:-/sf}/config/db/user/${l}/hostname"
+	fn="${_sf_dbdir}/user/${l}/hostname"
 	[[ -f "$fn" ]] && hn="$(<"$fn")"
 	[[ -n $hn ]] && {
-		_sf_xrm "${_sf_basedir:-/sf}/config/db/hn/hn2lid-${hn}"
+		_sf_xrm "${_sf_dbdir}/hn/hn2lid-${hn}"
 		_sf_xrmdir "${_sf_shmdir}/encfs-sec/www-root/www/${hn,,}"
 		_sf_xrmdir "${_sf_shmdir}/encfs-sec/everyone-root/everyone/${hn}"
 	}
 
-	_sf_xrmdir "${_sf_basedir:-/sf}/data/user/${l}"
-	_sf_xrm "${_sf_basedir:-/sf}/config/db/cg/${l}.txt"
-	_sf_xrmdir "${_sf_basedir:-/sf}/config/db/user/${l}"
+	_sf_xrmdir "${_sf_basedir}/data/user/${l}"
+	_sf_xrm "${_sf_dbdir}/cg/${l}.txt"
+	_sf_xrmdir "${_sf_dbdir}/user/${l}"
+
+	_sf_deinit
 }
 
 lgban()
@@ -208,7 +220,7 @@ lgban()
 	fn="${_self_for_guest_dir}/${lid}/ip"
 	[[ -f "$fn" ]] && {
 		ip=$(<"$fn")
-		fn="${_sf_basedir}/config/db/banned/ip-${ip:0:18}"
+		fn="${_sf_dbdir}/banned/ip-${ip:0:18}"
 		[[ ! -e "$fn" ]] && {
 			[[ $# -gt 0 ]] && msg="$*\n"
 			echo -en "$msg" >"${fn}"
@@ -233,7 +245,7 @@ _sfcg_forall()
 
 	for l in "${arr[@]}"; do
 		ts=2147483647
-		fn="${_sf_basedir}/config/db/user/${l}/created.txt"
+		fn="${_sf_dbdir}/user/${l}/created.txt"
 		[[ -f "$fn" ]] && ts=$(date +%s -u -r "$fn")
 		a+=("$ts $l")
 	done
@@ -267,18 +279,37 @@ _sfcfg_printlg()
 		local ip
 		local fn
 		local hn
+		local age
+		local age_str
+		local days
 		lglid=$1
 
+		[[ ! -f "${_sf_dbdir}/user/${lglid}/is_logged_in" ]] && {
+			age=$(date '+%s' -u -r "${_sf_dbdir}/user/${lglid}/ts_logout")
+			age=$((_sf_now - age))
+			if [[ $age -lt 3600 ]]; then
+				# "59m59s"
+				str="${age}     "
+				age_str="${CY}   ${str:0:5}s"
+			elif [[ $age -lt 86400 ]]; then
+				age_str="${CDY}   $(date -d @"$age" -u '+%Hh%Mm')"
+			else
+				days=$((age / 86400))
+				age_str="${CDR}${days}d $(date -d@"$age" -u '+%Hh%Mm')"
+			fi
+		}
+		#                     
+		[[ -z $age ]] && age_str="${CG}-online--"
 		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
 		ip="${ip}                      "
 		ip="${ip:0:16}"
-		[[ -f "${_sf_basedir}/config/db/user/${lglid}/hostname" ]] && hn=$(<"${_sf_basedir}/config/db/user/${lglid}/hostname")
+		[[ -f "${_sf_dbdir}/user/${lglid}/hostname" ]] && hn=$(<"${_sf_dbdir}/user/${lglid}/hostname")
 		hn="${hn}                      "
 		hn="${hn:0:16}"
 		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
-		fn="${_sf_basedir}/config/db/user/${lglid}/created.txt"
+		fn="${_sf_dbdir}/user/${lglid}/created.txt"
 		[[ -f "${fn}" ]] && t_created=$(date '+%F %T' -u -r "${fn}")
-		echo -e "${CDY}====> ${CDC}${t_created:-????-??-?? ??-??-??} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CDG}${geoip}${CN}"
+		echo -e "${CDY}====> ${CDC}${t_created:-????-??-?? ??-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CDG}${geoip}${CN}"
 }
 
 lgls()
@@ -419,7 +450,7 @@ _grephst()
 	echo "=== ${fn}"
 }
 lghst() {
-	cd /dev/shm/sf-u1000/encfs-sec || return
+	cd "${_sf_shmdir}/encfs-sec" || return
 	for d in lg-*; do
 		_grephst "$1" "${d}/root/.zsh_history"
 	done

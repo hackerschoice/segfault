@@ -106,3 +106,4 @@ SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UN
 SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
                        ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
+echo -e "SECRET            : ${CDY}${SF_SEC}${CN}"

@@ -389,6 +389,7 @@ services:
       - GSNC_IP=${SF_GSNC_IP:?}
       - SSHD_IP=${SF_SSHD_IP:?}
       - NGINX_IP=${SF_NGINX_IP:?}
+      - RPC_IP=${SF_RPC_IP:?}
       - NET_DIRECT_ROUTER_IP=${SF_NET_DIRECT_ROUTER_IP:?}
       - NET_DIRECT_BRIDGE_IP=${SF_NET_DIRECT_BRIDGE_IP:?}
       - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
@@ -604,6 +605,7 @@ services:
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_RPC_IP=${SF_RPC_IP}
+      - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP}
       - SF_SEED=${SF_SEED}
       - SF_HM_SIZE_LG=8
       - SF_DIRECT

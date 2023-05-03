@@ -25,5 +25,14 @@ arr=($(docker inspect -f '{{.Id}} {{.State.Pid}}' "sf-wg"))
 echo "WG_CID=\"${arr[0]}\"
 WG_PID=\"${arr[1]}\"" >/dev/shm/config.txt
 
+# Store info for when "ready-lg.sh" is called.
+# MAC_SF_RPC=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.MacAddress}}{{end}}' sf-rpc)
+LG_RPC_MAC=$(docker inspect -f '{{ (index .NetworkSettings.Networks "sf-guest").MacAddress }}' sf-rpc)
+LG_ROUTER_MAC=$(docker inspect -f '{{ (index .NetworkSettings.Networks "sf-guest").MacAddress }}' sf-router)
+SF_ROUTER_PID=$(docker inspect --format '{{ .State.Pid }}' sf-router)
+echo "LG_RPC_MAC=\"$LG_RPC_MAC\"
+LG_ROUTER_MAC=\"$LG_ROUTER_MAC\"
+SF_ROUTER_PID=\"$SF_ROUTER_PID\"" >/dev/shm/config-lg.txt
+
 exec -a '[master] sleep' sleep infinity
 # sleep infinity

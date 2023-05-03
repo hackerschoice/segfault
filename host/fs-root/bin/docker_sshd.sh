@@ -43,14 +43,27 @@ setup_sshd()
 	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd || return
 
 	echo 'webshell:x:1000:1000:SF webshell,,,:/home/webshell:/bin/webshellsh' >>/etc/passwd && \
-	addgroup webshell root && \
+	addgroup webshell user && \
 	mkdir -p /home/webshell/.ssh && \
 	chmod 700 /home/webshell/.ssh && \
-	chown -R webshell:user /home/webshell
+	chown -R webshell:user /home/webshell || return
 
 	echo "secret:x:1000:1000:SF asksec,,,:/home/${SF_USER}:/bin/asksecsh" >>/etc/passwd && \
 	echo "secret:*::0:::::" >>/etc/shadow && \
 	echo "secret:${SF_USER_PASSWORD}" | chpasswd || return
+}
+
+vboxfix()
+{
+	local fn
+	local gid
+	fn="$1"
+
+	gid=$(stat -c %g "$fn")
+	# Return if owned by root. Not mounted via vbox (debugging)
+	[[ $gid -eq 0 ]] && return
+	addgroup -g "$gid" vboxsf 2>/dev/null # This might fail.
+	addgroup "${SF_USER}" "$(stat -c %G "$fn")" 2>/dev/null 
 }
 
 [[ -z $SF_BASEDIR ]] && {
@@ -131,17 +144,17 @@ mk_userkey "webshell"
 chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
 # Copy login-key to fake root's home directory
 [[ ! -e /home/"${SF_USER}"/.ssh/authorized_keys ]] && {
-	[[ -d "/home/${SF_USER}/.ssh" ]] || { mkdir "/home/${SF_USER}/.ssh"; chown "${SF_USER}":nobody "/home/${SF_USER}/.ssh"; }
+	[[ -d "/home/${SF_USER}/.ssh" ]] || { mkdir "/home/${SF_USER}/.ssh"; chown "${SF_USER}":user "/home/${SF_USER}/.ssh"; }
 	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519.pub" "/home/${SF_USER}/.ssh/authorized_keys"
 	# Copy of private key so that segfaultsh (in uid=1000 context)
 	# can display the private key for future logins.
 	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "/home/${SF_USER}/.ssh/"
-	chown "${SF_USER}":nobody "/home/${SF_USER}/.ssh/authorized_keys" "/home/${SF_USER}/.ssh/id_ed25519"
+	chown "${SF_USER}":user "/home/${SF_USER}/.ssh/authorized_keys" "/home/${SF_USER}/.ssh/id_ed25519"
 }
 
 [[ ! -e /home/webshell/.ssh/authorized_keys ]] && {
 	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519-webshell.pub" "/home/webshell/.ssh/authorized_keys"
-	chown webshell:nobody "/home/webshell/.ssh/authorized_keys"
+	chown webshell:user "/home/webshell/.ssh/authorized_keys"
 }
 
 # Always copy as it may have gotten updated:
@@ -166,6 +179,7 @@ SF_TOR_IP=\"${SF_TOR_IP}\"
 SF_SEED=\"${SF_SEED}\"
 SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"
 SF_RPC_IP=\"${SF_RPC_IP}\"
+SF_NET_LG_ROUTER_IP=\"${SF_NET_LG_ROUTER_IP}\"
 SF_USER=\"${SF_USER}\"
 SF_DEBUG=\"${SF_DEBUG}\"
 SF_BASEDIR=\"${SF_BASEDIR}\"
@@ -186,6 +200,8 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 ff02::3 ip6-allhosts
 ${SF_TOR_IP}	tor
+${SF_NET_LG_ROUTER}	router
+${SF_DNS}	dns
 ${SF_RPC_IP}	rpc" >"${SF_CFG_HOST_DIR}/etc/hosts"
 
 # segfaultsh needs to create directories in here..
@@ -215,9 +231,10 @@ addgroup "webshell" "${hg}"
 addgroup "secret" "${hg}"
 chmod g+wx "${SF_CFG_HOST_DIR}/db/user" || exit $?
 
-# vbox hack for /bin/segfaultsh to access funcs_redis.sh
-# addgroup -g "$(stat -c %g /sf/bin)" vboxsf 2>/dev/null
-# addgroup "${SF_USER}" "$(stat -c %G /sf/bin)" 2>/dev/null 
+# Allow sshd's user 1000 to execute segfaultsh if mounted from extern
+vboxfix /bin/segfaultsh
+# Allow segfaultsh access to /sf/bin if mounted from extern (during debugging)
+vboxfix /sf/bin
 
 # This will execute 'segfaultsh' on root-login (uid=1000)
 exec 0<&- # Close STDIN

@@ -22,7 +22,7 @@ RUN    apt-get update \
               wget \
               wireguard-tools \
               vim
-COPY init-master.sh /
+COPY init-master.sh ready-lg.sh /
 COPY /cgi-bin/ /cgi-bin
 
 RUN bash -c '{ true \

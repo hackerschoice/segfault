@@ -644,7 +644,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		&& apt-get update; }' \
 	&& /pkg-install.sh LARGE ghbin zellij-org/zellij 'x86_64.*linux.*tar.gz$' zellij \
 	&& /pkg-install.sh LARGE ghbin jkfran/killport 'x86_64-linux' killport
-RUN /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr \ 
+RUN /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr
 RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb \
 	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust 'x86_64.*linux.musl.tar.xz$' \
 	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-amd64.*gz$' gost \

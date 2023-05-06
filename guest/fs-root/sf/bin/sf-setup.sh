@@ -148,3 +148,5 @@ setup
 # You can access this directory via TOR:
 http://$(cat /config/guest/onion_hostname-80)/${SF_HOSTNAME,,}" >/onion/.your-onion-address.txt
 }
+
+exit 0

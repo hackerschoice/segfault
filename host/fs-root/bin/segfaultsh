@@ -25,6 +25,7 @@ eval "$(</sf/bin/funcs_redis.sh)"
 # Debug Trace. see sf_trace-DISABLED
 [[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
 
+[[ -t 1 ]] && {
 CY="\e[1;33m" # yellow
 CDY="\e[0;33m" # yellow
 CR="\e[1;31m" # red
@@ -39,6 +40,7 @@ CN="\e[0m"    # none
 CW="\e[1;37m" # white
 CF="\e[2m"    # faint
 CUL="\e[4m"
+}
 
 # [PREFIX] [MSG]
 _log()
@@ -475,6 +477,8 @@ GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 	[[ "${yn^^}" != "Y" ]] && return
 
 	echo -e "\
+SECRET           : ${CDY}${SF_SEC}${CN}
+Access with      : ${CDC}ssh secret@${SF_FQDN:-UNKNOWN}${CN}
 Access with      : ${CDC}ssh -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER}@${SF_FQDN:-UNKNOWN}${CN}"
 }
 
@@ -862,7 +866,7 @@ sysmsg()
 	eval "$(<"$fn")"
 }
 
-# Instruct docker to assign TTY if this is a TTY (ssh -t <user@host> <command>)
+# Instruct docker to assign TTY if input is a TTY (ssh -t <user@host> <command>)
 DOCKER_EXEC_ARGS=("-i")
 if [[ -t 0 ]]; then
 	# Disable SIGINT and SIGSTP. Use 'trap' first as 'stty' can be interrupted itself!
@@ -1110,7 +1114,6 @@ exec_devnull docker run \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/lg-${LID}:/sec:slave" \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:ro,slave" \
-	`#-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone/${SF_HOSTNAME}:/everyone/this:slave"` \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone/${SF_HOSTNAME}:/everyone/${SF_HOSTNAME}:slave"  `# Mount myself RW over RO` \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
 	--user 1000:1000 \
@@ -1137,8 +1140,6 @@ done
 echo_pty -n ".."
 # LOG "Container started & RUNNING..."
 
-# NOTE: Race conditon (which is harmless): A user can connect to his container (docker exec)
-# _before_ everything below this is executed.
 arr=($(docker inspect -f '{{.Id}} {{.State.Pid}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "lg-${LID}"))
 CID=${arr[0]}
 LG_PID=${arr[1]}

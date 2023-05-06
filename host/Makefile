@@ -1,5 +1,5 @@
 all: albuild fs-root/bin/docker-exec-sigproxy fs-root/usr/sbin/sshd Dockerfile
-	docker build --network host -t sf-host .
+	docker build --no-cache --network host -t sf-host .
 
 albuild:
 	bash -c "docker run --rm alpine-gcc true || \

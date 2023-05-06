@@ -30,6 +30,7 @@ function dmesg {
 
 alias norg="gron --ungron"
 alias ungron="gron --ungron"
+alias carbonyl="carbonyl --no-sandbox"
 
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	_grccmd()

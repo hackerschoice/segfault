@@ -424,6 +424,7 @@ docker_clean()
 	docker rm $(docker ps -a -q)
 	# shellcheck disable=SC2046
 	docker rmi $(docker images -q)
+	echo "May want to ${CDC}docker system prune -f -a${CN}"
 }
 
 # [Sort Row] <info-string> <Keep Stats>

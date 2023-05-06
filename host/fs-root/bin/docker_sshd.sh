@@ -101,7 +101,8 @@ mk_userdir()
 mk_userdir "${SF_RUN_DIR}/pids"
 mk_userdir "${SF_RUN_DIR}/ips"
 
-[[ -d "${SF_RUN_DIR}/logs" ]] && chown 1000 "${SF_RUN_DIR}/logs"
+[[ ! -d "${SF_RUN_DIR}/logs" ]] && mkdir -p "${SF_RUN_DIR}/logs"
+chown 1000 "${SF_RUN_DIR}/logs"
 chmod 777 "/sf/run/redis/sock/redis.sock"
 
 # Wait for systemwide encryption to be available.
@@ -200,7 +201,7 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 ff02::3 ip6-allhosts
 ${SF_TOR_IP}	tor
-${SF_NET_LG_ROUTER}	router
+${SF_NET_LG_ROUTER_IP}	router
 ${SF_DNS}	dns
 ${SF_RPC_IP}	rpc" >"${SF_CFG_HOST_DIR}/etc/hosts"
 

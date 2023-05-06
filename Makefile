@@ -1,4 +1,4 @@
-VER := 0.4.5b2
+VER := 0.4.5b3
 
 all:
 	make -C router

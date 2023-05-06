@@ -1,4 +1,8 @@
-[[ -f /usr/bin/strace ]] && {
-	strace -q -s 256 -o "/sf/run/logs/strace-$$.log" -p "$$" &
+[[ -d /sf/run/logs ]] && [[ -f /usr/bin/strace ]] && {
+	strace -q -s 256 -o "/sf/run/logs/strace-$$.log" -p "$$" 2>/dev/null &
 	sleep 0.1
 }
+
+# Docker >23.00.nn also needs SYS_PTRACE and:
+# chmod u+s /usr/bin/strace
+# [[ ! -d /sf/run/logs ]] && mkdir -p /sf/run/logs; chown 1000 /sf/run/logs

@@ -158,11 +158,11 @@ init_config_run()
   [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
   [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
 
-  # Setup /dev/shm/sf-u1001/run/log (in-memory /var/run...)
+  # Setup /dev/shm/sf/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then
-    SF_SHMDIR="/dev/shm/sf-u${SF_HOST_USER_ID}"
+    SF_SHMDIR="/dev/shm/sf"
   else
-    SF_SHMDIR="/tmp/sf-u${SF_HOST_USER_ID}"
+    SF_SHMDIR="/tmp/sf"
   fi
 
   # Copy over sfbin
@@ -178,6 +178,7 @@ init_config_run()
     # It could be that the kernel got upgraded.
     modprobe bfq || ERREXIT 255 "Cant load BFQ module. Please install the BFQ kernel module. Reboot may also work."
   }
+  "${PKG_INSTALL[@]}" jq
 }
 
 docker_fixdir()

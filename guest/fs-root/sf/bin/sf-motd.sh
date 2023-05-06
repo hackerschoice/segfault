@@ -1,5 +1,6 @@
 #! /bin/bash
 
+[[ -t 1 ]] && {
 # CY="\e[1;33m" # yellow
 # CG="\e[1;32m" # green
 CR="\e[1;31m" # red
@@ -20,6 +21,7 @@ CDB="\e[0;34m" # blue
 CDC="\e[0;36m" # cyan
 CDM="\e[0;35m" # magenta
 CUL="\e[4m"
+}
 # BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 
 # shellcheck disable=SC1091
@@ -106,4 +108,6 @@ SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UN
 SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
                        ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
-echo -e "SECRET            : ${CDY}${SF_SEC}${CN}"
+str="SECRET            : ${CDY}${SF_SEC}"
+[[ -n $SF_IS_LOGINSHELL ]] && str+=" \e[0;33;41m<<<  WRITE THIS DOWN  <<<"
+echo -e "${str}${CN}"

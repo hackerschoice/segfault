@@ -131,7 +131,7 @@ ev_peer_add(struct _peer *p, int fd, int flags)
 	epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ev);
 }
 
-static struct _peer *p_docker_exec;
+static int n_peers;
 // Relay between these two peers.
 static void
 buddy_up(int in /* lsox accept */, int out)
@@ -140,13 +140,21 @@ buddy_up(int in /* lsox accept */, int out)
 	struct _peer *buddy;
 
 	ev_peer_add(p, in, 1); // Real 'docker exec'
-	p_docker_exec = p;
 
 	p->buddy = malloc(sizeof *p);
 	buddy = p->buddy;
 	buddy->buddy = p;
 
+	n_peers++;
 	ev_peer_add(buddy, out, 0);
+}
+
+static void
+peer_del(struct _peer *p)
+{
+	epoll_ctl(efd, EPOLL_CTL_DEL, p->fd, NULL);
+	close(p->fd);
+	free(p);
 }
 
 // New incoming connection.
@@ -222,6 +230,14 @@ dispatch(struct epoll_event *evs, int count)
 			{
 				// snprintf(buf, sizeof buf, "/dev/null-flag-is-%d-fd-%d", p->flags, p->fd);
 				// struct stat sb; stat(buf, &sb);
+				n_peers--;
+				if (n_peers > 0)
+				{
+					peer_del(p->buddy);
+					peer_del(p);
+
+					continue;
+				}
 				if (p->flags == 0)
 					return -1; // dockerd closed?
 				return 200; // real 'docker exec' closed.
@@ -367,6 +383,9 @@ main(int argc, char *argv[])
 	{
 		// HERE: dockerd closed connection (kernel side).
 		// Did container/pid terminate?
+		// Very rarely does docker-cli call exit(255) without any particular reason. Thus we
+		// can not assume that shell exited but must forward signal.
+		sig_forward(SIGHUP);
 		// FIXME: find out exit status and exit with same value.
 		// How does 'docker exec' get the exit status of the
 		// container's process?

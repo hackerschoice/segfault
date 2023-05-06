@@ -6,6 +6,9 @@ FROM kalilinux/kali-last-release
 
 WORKDIR /root/
 
+# AARCH64: Some packages are not available for aarch64. In this case we try to
+# install the x86_64 versoin for static binaries and skip the package otherwise.
+
 # Valid options are:
 #   MINI BASE DEVEL NET WEB HACK LARGE HUGE GUI ALL
 #   SF_PACKAGES=ALL make     # All
@@ -70,14 +73,12 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		grc \
 		hexedit \
 		html2text \
-		lib32z1 \
 		libc-devtools \
 		libevent-dev \
 		libev-dev \
 		libfreetype6-dev `### ft2build.h missing otherwise` \
 		libsodium-dev \
 		libssl-dev \
-		ltrace \
 		lz4 \
 		make \
 		musl \
@@ -91,6 +92,10 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		wdiff \
 		whiptail \
 		xterm
+# x86_64 only:
+RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
+		lib32z1 \
+		ltrace || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		dnsutils \
 		ftp \
@@ -132,7 +137,6 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		ncrack \
 		nmap \
 		onesixtyone \
-		oracle-instantclient-sqlplus \
 		oscanner \
 		pagekite \
 		pwncat \
@@ -147,6 +151,9 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		upx \
 		webshells \
 		weevely
+# x86_64 only
+RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
+		oracle-instantclient-sqlplus || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		aha \
 		altdns \
@@ -164,7 +171,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		dirsearch \
 		dnsenum \
 		dnsrecon \
-		dotnet-runtime-6.0 \
 		dstat \
 		duf \
 		elinks \
@@ -172,7 +178,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		emailharvester \
 		enum4linux \
 		evil-winrm \
-		eyewitness \
 		exa \
 		exiftool \
 		fd-find \
@@ -224,6 +229,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \
+		python-cheroot \
 		python3-full \
 		python3-scapy \
 		python3-pwntools \
@@ -231,6 +237,9 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		python3-venv \
 		python3-virtualenv \
 		python3-ipython \
+		python3-all-dev \
+		python3-setuptools \
+		python-all-dev \
 		radare2 \
 		recon-ng \
 		redis-tools \
@@ -267,6 +276,10 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		xvfb \
 		zlib1g-dev \
 		zoxide
+# x86_64 only:
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		dotnet-runtime-6.0 \
+		eyewitness || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		pelican
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
@@ -284,8 +297,10 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		ripgrep \
 		rust-all \
 		ruby \
-		rubygems \
-		veil
+		rubygems
+# x86_64 only
+RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		veil || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		seclists
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
@@ -326,16 +341,15 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
 		&& wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | gpg --dearmor | tee /etc/apt/trusted.gpg.d/sublimehq-archive.gpg >/dev/null \
 		&& wget -qO - https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/microsoft.gpg >/dev/null \
-		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
+		&& echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" >/etc/apt/sources.list.d/brave-browser-release.list \
 		&& echo "deb https://download.sublimetext.com/ apt/stable/" | tee /etc/apt/sources.list.d/sublime-text.list \
-		&& echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" | tee /etc/apt/sources.list.d/microsoft.list \
+		&& echo "deb https://packages.microsoft.com/repos/vscode stable main" | tee /etc/apt/sources.list.d/microsoft.list \
 		&& apt-get update; }' \
 	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`###alacritty - Not available in stable release` \
 		aqemu \
 		awesome \
 		brave-browser \
-		code \
 		evince \
 		eterm \
 		enlightenment-data \
@@ -367,6 +381,9 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		xterm \
 		xorg \
 		xrdp
+# x86_64 only	
+RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		code || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`### xpra ### Using Xpra repo instead` \
 		libavformat59 \
@@ -393,40 +410,43 @@ RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.
 		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
 		&& apt-get update \
-		&& apt-get install -y --no-install-recommends xpra xpra-x11 xpra-html5 \
+		&& pkg=("xpra" "xpra-html5") \
+		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
+		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 		&& rm -f /var/lib/apt/lists/xpra*; }'
-RUN /pkg-install.sh GUI bash -c '{ cd /usr/lib \
+### x86_64 only
+RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
 RUN /pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/*.list; \
 		apt-get update ; }'
-RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-amd64.' sing-box \
-	&& /pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-amd64.zip' loclx \
-	&& /pkg-install.sh HACK bin 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz' ngrok \
-	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_amd64.zip$' uncover \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_amd64.zip$' httpx \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei 'linux_amd64.zip$' nuclei \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder 'linux_amd64.zip$' subfinder \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu 'linux_amd64.zip$' naabu \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify 'linux_amd64.zip$' proxify \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/katana 'linux_amd64.zip$' katana \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx 'linux_amd64.zip$' tlsx \
-	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_amd64.tar.xz$' smap
-RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
-	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-amd64.deb$' \
-	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-amd64-filebrowser.tar.gz$' filebrowser \
-	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-amd64.gz$' cheat \
-	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-amd64$' gowitness \
-	&& /pkg-install.sh LARGE ghbin t3rm1n4l/megacmd 'linux_amd64.zip$' megacmd \
-	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute \
-	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_amd64.deb$' \
-	&& /pkg-install.sh HACK ghbin tomnomnom/anew 'linux-amd64' anew \
-	&& /pkg-install.sh HACK ghbin lc/gau 'linux_amd64.tar.gz$' gau \
-	&& /pkg-install.sh HACK ghbin praetorian-inc/fingerprintx 'linux_amd64.tar.gz$' fingerprintx \
-	&& /pkg-install.sh LARGE ghbin denisidoro/navi 'x86_64-unknown-linux' navi \
-	&& /pkg-install.sh LARGE ghbin d3mondev/puredns 'inux-amd64' puredns \
+RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aarch64=arm64%.' sing-box \
+	&& /pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-%arch:x86_64=amd64:aarch64=arm64%.zip' loclx \
+	&& /pkg-install.sh HACK bin 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-%arch:x86_64=amd64:aarch64=arm64%.tgz' ngrok \
+	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls                                     `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' uncover \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' httpx \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' nuclei \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' subfinder \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu 'linux_amd64.zip$' naabu `### x86_64 only` \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' proxify \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/katana 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' katana \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' tlsx \
+	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_%arch:x86_64=amd64:aarch64=arm64%.tar.xz$' smap
+RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch64=arm64%.deb$' \
+	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-%arch:x86_64=amd64:aarch64=arm64%.deb$' \
+	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-%arch:x86_64=amd64:aarch64=arm64%-filebrowser.tar.gz$' filebrowser \
+	&& /pkg-install.sh LARGE ghbin cheat/cheat 'linux-%arch:x86_64=amd64:aarch64=arm64%.gz$' cheat \
+	&& /pkg-install.sh LARGE ghbin sensepost/gowitness 'linux-%arch:x86_64=amd64:aarch64=arm64%$' gowitness \
+	&& /pkg-install.sh LARGE ghbin t3rm1n4l/megacmd 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' megacmd \
+	&& /pkg-install.sh HACK ghbin ropnop/kerbrute 'linux_amd64$' kerbrute    `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin hmgle/graftcp '_%arch:x86_64=amd64:DEFAULT=SKIP%.deb$'                `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin tomnomnom/anew 'linux-amd64' anew          `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin lc/gau 'linux_amd64.tar.gz$' gau           `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin praetorian-inc/fingerprintx 'linux_%arch:x86_64=amd64:aarch64=arm64%.tar.gz$' fingerprintx \
+	&& /pkg-install.sh LARGE ghbin denisidoro/navi '%arch%-unknown-linux' navi \
+	&& /pkg-install.sh LARGE ghbin d3mondev/puredns 'inux-%arch:x86_64=amd64:aarch64=arm64%' puredns \
 	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/subfinder/goaltdns@latest; }' \
 	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/asciimoo/wuzz | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh LARGE bash -c '{ curl -sf https://gobinaries.com/gwen001/github-subdomains | PREFIX=/usr/bin sh; }' \
@@ -434,7 +454,8 @@ RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_amd64.deb$' \
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
 	&& /pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \
 		&& git clone --depth 1 https://github.com/scipag/vulscan; }'
-RUN /pkg-install.sh HUGE bash -c '{ cd /usr/share \
+### x86_64 only
+RUN /pkg-install.sh HUGE bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/share \
 		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
 		&& cd pwndbg \
 		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
@@ -447,28 +468,6 @@ RUN /pkg-install.sh HUGE bash -c '{ cd /usr/share \
 		&& { dpkg --force-architecture --remove-architecture i386; \
 			rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
 		&& echo DONE; }'
-		# && { dpkg --add-architecture i386 \
-		# 	&& apt-get update \
-		# 	&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
-		# 	&& dpkg --force-architecture --remove-architecture i386; \
-		# 	rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
-		# && git clone --depth 1 https://github.com/pwndbg/pwndbg \
-		# && cd pwndbg \
-		# && apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
-		# && { dpkg --add-architecture i386 \
-		# 	&& apt-get update \
-		# 	&& apt-get install -y --no-install-recommends libc6-dbg:i386 \
-		# 	&& dpkg --force-architecture --remove-architecture i386 \
-		# 	&& rm -f /var/lib/apt/lists/*-i386_Packages.lz4; } \
-		# && pip install -Ur requirements.txt --break-system-packages \
-		# && cd .. \
-		# && mv pwndbg /usr/share \
-		# && echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
-		# && mkdir -p /usr/src/glibc \
-		# && cd /usr/src/glibc \
-		# && apt-src install glibc \
-		# && echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
-		# && echo DONE; }'
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		python3-colorama \
 		crackmapexec \
@@ -492,11 +491,9 @@ RUN /pkg-install.sh    HACK pipx install arsenal-cli \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/vortexau/dnsvalidator \
 	&& /pkg-install.sh HACK pipx install git-dumper \
 	&& /pkg-install.sh HACK pipx install h8mail \
-	`### /pkg-install.sh HACK pipx install hashid ### via apt` \
 	&& /pkg-install.sh HACK pipx install holehe \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret `### 2023-03-07 pipx repo fails on aiohttp/longintrepr.h` \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/EntySec/Shreder \
-	`### && /pkg-install.sh HACK pipx install sqlmap ### via apt ` \
 	&& /pkg-install.sh HACK pipx install webtech \
 	&& /pkg-install.sh DEVEL pipx install dulwich \
 	&& /pkg-install.sh DEVEL pipx install names
@@ -508,11 +505,12 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		cryptocode \
 		ipaddress \
 		pyTelegramBotAPI \
-		tgcrypto
-RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.0/geonet_0.4.0_amd64.deb' \
+		tgcrypto \
+		wsgidav
+RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.3/geonet_0.4.3_%arch:x86_64=amd64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
-	&& /pkg-install.sh DEVEL bash -c '{ [[ $(uname -m) = "x86_64" ]] && apt-get install -y --no-install-recommends linux-headers-amd64; }'
-### AFter 0.4.3a release
+	&& /pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
+### After 0.4.3a release
 RUN /pkg-install.sh GAMES apt-get install -y --no-install-recommends \
 		pacman4console
 RUN /pkg-install.sh EMU apt-get install -y --no-install-recommends \
@@ -534,8 +532,8 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gobjc++-mingw-w64-i686-posix gobjc++-mingw-w64-i686-win32 gobjc-mingw-w64-i686-posix gobjc-mingw-w64-i686-win32 \
 		maven \
 		rust-src
-RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
-	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit.tgz$' spirit \
+RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_%arch:x86_64=amd64:aarch64=arm64%$' fscan \
+	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/hacks/inscope@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/analyticsrelationships@latest; }' \
@@ -547,20 +545,20 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'amd64$' fscan \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/enumerepo@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/lobuhi/byp4xx@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Hackmanit/Web-Cache-Vulnerability-Scanner@latest && ln -s Web-Cache-Vulnerability-Scanner /usr/bin/wcvs; }' \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/qsreplace' 'linux-amd64' qsreplace \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/unfurl' 'linux-amd64' unfurl \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/gron' 'linux-amd64-' gron \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/meg' 'linux-amd64-' meg \
-	&& /pkg-install.sh HACK ghbin 'projectdiscovery/notify' 'linux_amd64' notify \
-	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_amd64' interactsh-client \
-	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_amd64' mapcidr \
-	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64' subjs \
-	&& /pkg-install.sh HACK ghbin 'qsocket/qs-netcat' 'linux_amd64' qs-netcat \
-	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_amd64' rush \
-	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64' Gxss \
-	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_amd64' crlfuzz \
-	&& /pkg-install.sh HACK ghbin 'hahwul/dalfox' 'inux_amd64' dalfox \
-	&& /pkg-install.sh HACK ghbin 'pwnesia/dnstake' 'linux_amd64' dnstake \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/qsreplace' 'linux-amd64' qsreplace                                `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/unfurl' 'linux-amd64' unfurl                                      `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/gron' 'linux-%arch:x86_64=amd64:aarch64=arm64%-' gron \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/meg' 'linux-amd64-' meg                                           `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/notify' 'linux_%arch:x86_64=amd64:aarch64=arm64%' notify \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_%arch:x86_64=amd64:aarch64=arm64%' interactsh-client \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_%arch:x86_64=amd64:aarch64=arm64%' mapcidr \
+	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64' subjs                                               `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'qsocket/qs-netcat' 'linux_%arch:x86_64=amd64:aarch64=arm64%' qs-netcat \
+	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_%arch:x86_64=amd64:aarch64=arm64%' rush \
+	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64' Gxss                                          `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_%arch:x86_64=amd64:aarch64=arm64%' crlfuzz \
+	&& /pkg-install.sh HACK ghbin 'hahwul/dalfox' 'inux_%arch:x86_64=amd64:aarch64=arm64%' dalfox \
+	&& /pkg-install.sh HACK ghbin 'pwnesia/dnstake' 'linux_%arch:x86_64=amd64:aarch64=arm64%' dnstake \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
@@ -568,7 +566,8 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		jupyter \
 		pavucontrol \
 		pulseaudio \
-		tigervnc-tools
+		tigervnc-tools \
+	&& /pkg-install.sh GUI npm install -g carbonyl
 RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		libnginx-mod-http-auth-pam \
 		libnginx-mod-http-brotli-filter \
@@ -613,12 +612,10 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		expat \
 		evilginx2 \
 		ffmpeg \
-		g++-multilib \
-		gcc-multilib \
 		git-lfs \
 		icecream icecream-sundae icecc icecc-monitor \
 		lftp \
-		lib32ncurses5-dev lib32z1-dev libmpc-dev libmpfr-dev libncurses5-dev libsdl1.2-dev \
+		libmpc-dev libmpfr-dev libncurses-dev libsdl1.2-dev \
 		'^lzma.*' '^liblz4-.*' '^liblzma.*' \
 		libfdk-aac2 libdav1d-dev libvorbis-dev libopus-dev libmp3lame-dev libfdk-aac-dev libx264-dev libx265-dev libxvidcore-dev libvpx-dev libspeex-dev libsox-dev libsoxr-dev \
 		libxml-simple-perl libswitch-perl \
@@ -630,7 +627,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		patchelf \
 		pngcrush \
 		pngquant \
-		python-all-dev \
 		re2c \
 		schedtool \
 		'softether-*' \
@@ -642,16 +638,21 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		&& apt-get install -y --no-install-recommends ooniprobe-cli \
 		&& rm /etc/apt/sources.list.d/ooniprobe.list \
 		&& apt-get update; }' \
-	&& /pkg-install.sh LARGE ghbin zellij-org/zellij 'x86_64.*linux.*tar.gz$' zellij \
-	&& /pkg-install.sh LARGE ghbin jkfran/killport 'x86_64-linux' killport
+	&& /pkg-install.sh LARGE ghbin zellij-org/zellij '%arch%.*linux.*tar.gz$' zellij \
+	&& /pkg-install.sh LARGE ghbin jkfran/killport '%arch%-linux' killport
+# x86_64 only	
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		g++-multilib \
+		gcc-multilib \
+		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr
-RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb \
-	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust 'x86_64.*linux.musl.tar.xz$' \
-	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-amd64.*gz$' gost \
-	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux' sthp \
-	&& /pkg-install.sh NET ghbin schollz/croc 'Linux-64bit.deb' \
-	&& /pkg-install.sh NET ghbin vi/websocat 'x86_64.*linux' websocat \
-	&& /pkg-install.sh NET ghbin ViRb3/wgcf  'linux_amd64$' wgcf \
+RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb   `# x86_64 only` \
+	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust '%arch%.*linux.musl.tar.xz$' \
+	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost \
+	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux' sthp         `# x86_64 only` \
+	&& /pkg-install.sh NET ghbin schollz/croc 'Linux-%arch:x86_64=64bit:aarch64=ARM64%.deb' \
+	&& /pkg-install.sh NET ghbin vi/websocat '%arch%.*linux-musl' websocat \
+	&& /pkg-install.sh NET ghbin ViRb3/wgcf  'linux_%arch:x86_64=amd64:aarch64=arm64%$' wgcf \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		ipcalc ipcalc-ng \
 		microsocks \
@@ -660,7 +661,7 @@ RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gso
 # doesnt work like this. Impossible to install system-wide. Instead each user
 # shall check out his own. No system-wide install for gophish. Sorry. Someone
 # give gophish a helping hand or send them a Unix manual...
-RUN /pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish \
+RUN /pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish             `# x86_64 only` \
 		&& bash -c '{ [[ ! -d /usr/gophish ]] && exit 0; chmod 755 /usr/gophish/gophish \
 			&& echo -e "#! /bin/bash\ncd /usr/gophish && exec ./gophish \"\$@\"" >/usr/bin/gophish \
 			&& chmod 755 /usr/bin/gophish; }'

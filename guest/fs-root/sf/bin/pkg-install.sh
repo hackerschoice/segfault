@@ -4,6 +4,33 @@ export DEBIAN_FRONTEND=noninteractive
 export PIPX_HOME=/usr
 export PIPX_BIN_DIR=/usr/bin
 
+
+# Substitute the string with correct architecture. E.g. we are 'x86_64'
+# but filename contains 'amd64'. Also used to SKIP packages for specific
+# architectures.
+# str='lsd_.*_%arch%.deb$'
+# str='lsd_.*_%arch:x86_64=amd64%.deb$'
+# str='lsd_.*_%arch:x86_64=SKIP%.deb$'
+# str='lsd_.*_%arch:x86_64=amd64:DEFAULT=SKIP%.deb$'
+# str='lsd_.*_%arch:x86_64=amd64%.deb$ and linux-%arch:x86_64=amd64%.dat'
+dearch()
+{
+	local str
+    # Convert any '%arch%' to 'x86_64'
+	str=${1//%arch%/$HOSTTYPE}
+	[[ $str =~ %arch.*% ]] && {
+        # Check if this specific architecture is set to be skipped.
+		[[ $str =~ %arch:[^%]*$HOSTTYPE=SKIP ]] && { echo >&2 "Skipping. Not available for $HOSTTYPE."; return 255; }
+        # Use translation table to convert 'x86_64' to 'amd64'
+		str=$(echo "$str" | sed -e "s/%arch:[^%]*$HOSTTYPE=\([^:%]*\)[^%]*%/\1/g")
+        [[ $str =~ %arch.*DEFAULT=SKIP% ]] && { echo >&2 "Skipping. Not available for $HOSTTYPE."; return 255; }
+	}
+    # ..and default is to set to ARCH value
+    str=$(echo "$str" | sed -e "s/%arch:[^%]*%/$HOSTTYPE/g")
+	# echo  "'$1' => '$str'" >&2 # FIXME-2023
+	echo "$str"
+}
+
 # Download & Extract
 # [URL] [asset] <dstdir>
 dlx()
@@ -33,13 +60,14 @@ dlx()
 			&& return 0
 			;;
 		*.deb)
+			### Need to force-architecture as we install x86_64 only packages on aarch64
 			curl -SsfL -o /tmp/pkg.deb "$url" \
-			&& dpkg -i --ignore-depends=sshfs /tmp/pkg.deb \
+			&& dpkg -i --force-architecture --ignore-depends=sshfs /tmp/pkg.deb \
 			&& rm -rf /tmp/pkg.deb \
 			&& return 0
 			;;
 		*.tar.gz|*.tgz)
-			curl -SsfL "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" "$asset" \
+			curl -SsfL "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
 			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
@@ -49,7 +77,7 @@ dlx()
 			&& return 0
 			;;
 		*.tar.bz2)
-			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" "$asset" \
+			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
 			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
@@ -59,7 +87,7 @@ dlx()
 			&& return 0
 			;;
 		*.xz)
-			curl -SsfL "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin "$asset" \
+			curl -SsfL "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin --wildcards "$asset" \
 			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
 			;;
@@ -67,7 +95,6 @@ dlx()
 			curl -SsfL "$url" >"${dstdir}/${asset}" \
 			&& chmod 755 "${dstdir}/${asset}" \
 			&& return 0
-			# echo >&2 "Unknown file extension in '$url'"
 	esac
 }
 
@@ -76,13 +103,23 @@ ghlatest()
 	local loc
 	local regex
 	local args
+	local data
 	loc="$1"
 	regex="$2"
 
 	[[ -n $GITHUB_TOKEN ]] && args=("-H" "Authorization: Bearer $GITHUB_TOKEN")
 	loc="https://api.github.com/repos/${loc}/releases/latest"
-	url=$(curl "${args[@]}" -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
-	[[ -z $url ]] && return 251
+	data=$(curl "${args[@]}" -SsfL "$loc") || {
+		echo >&2 "Failed($?) at '$loc'"
+		[[ -z $GITHUB_TOKEN ]] && echo >&2 "Try setting GITHUB_TOKEN="
+		exit 250
+	}
+	url=$(echo "$data" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
+	# url=$(curl "${args[@]}" -SsfL "$loc" | jq -r '[.assets[] | select(.name|match("'"$regex"'"))][0] | .browser_download_url | select( . != null )')
+	[[ -z $url ]] && {
+		echo >&2 "Asset '$regex' not found at '$loc'"
+		exit 251
+	}
 	echo "$url"
 }
 
@@ -97,23 +134,30 @@ ghbin()
 {
 	local url
 	local asset
+    local src
+    src=$(dearch "$2") || exit 0
 	asset="$3"
 
-	url=$(ghlatest "$1" "$2") || { echo >&2 "Try setting GITHUB_TOKEN=..."; return 255; }
+	url=$(ghlatest "$1" "$src")
 	dlx "$url" "$asset"
 }
 
 ghdir()
 {
 	local url
+    local src
+    src=$(dearch "$2") || exit 0
 
-	url=$(ghlatest "$1" "$2") || { echo >&2 "Try setting GITHUB_TOKEN=..."; return 255; }
+	url=$(ghlatest "$1" "$src")
 	dlx "$url" "" "$3"
 }
 
 bin()
 {
-	dlx "$1" "$2"
+	local src
+    src=$(dearch "$1") || exit 0
+
+	dlx "$src" "$2"
 }
 
 TAG="${1^^}"

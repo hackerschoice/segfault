@@ -586,6 +586,7 @@ services:
     cap_add:
       - NET_ADMIN # need to set default route via sf-router
       - SYS_ADMIN # Move non-priv sshd to guest's network Namespace (setns())
+      - SYS_PTRACE # needed for debugging (/bin/sf_trace)
     pid: host # Move non-priv sshd to guest's network NameSpace.
     depends_on:
       - dnsmasq
@@ -605,7 +606,7 @@ services:
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_RPC_IP=${SF_RPC_IP}
-      - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP}
+      - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
       - SF_SEED=${SF_SEED}
       - SF_HM_SIZE_LG=8
       - SF_DIRECT

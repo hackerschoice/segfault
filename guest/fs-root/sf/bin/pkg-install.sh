@@ -27,7 +27,6 @@ dearch()
 	}
     # ..and default is to set to ARCH value
     str=$(echo "$str" | sed -e "s/%arch:[^%]*%/$HOSTTYPE/g")
-	# echo  "'$1' => '$str'" >&2 # FIXME-2023
 	echo "$str"
 }
 

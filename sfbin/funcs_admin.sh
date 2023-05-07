@@ -111,6 +111,29 @@ lgwall()
 	done
 }
 
+# Enter a docker network namespace
+# [container] <cmd ...>
+dnenter()
+{
+	local pid
+	local c_id
+	# local str
+	local cmd
+	c_id="$1"
+
+	shift 1
+	pid=$(docker inspect -f '{{.State.Pid}}' "${c_id:?}") || return
+	[[ ${#} -le 0 ]] && {
+		env HISTFILE=/dev/null nsenter -t "${pid}" -a bash -il
+		return
+	}
+
+	# str=$(head -n1 "/proc/${pid}/cgroup")
+	# FIXME: '*' wont work if there are more than 1 cgroup.
+	# cgexec --sticky -g "*:${str##*:}" nsenter -t "${pid}" -a "${cmd[@]}"
+	nsenter -t "${pid}" -n "$@"
+}
+
 #                               Blocks                                          Inodes
 # Project ID       Used       Soft       Hard    Warn/Grace           Used       Soft       Hard    Warn/ Grace	
 # #9                   0    0    4194304     00 [--------]          0          0      65536     00 [--------]

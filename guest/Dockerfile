@@ -229,7 +229,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \
-		python-cheroot \
+		python3-cheroot \
 		python3-full \
 		python3-scapy \
 		python3-pwntools \

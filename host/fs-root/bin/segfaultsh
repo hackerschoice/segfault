@@ -83,8 +83,7 @@ logout()
 			[[ ! -f "$fn" ]] && break # No pid file exists for this LID
 			pid=${fn##*.}
 			[[ ! -d "/proc/${pid}" ]] && {
-				# FIXME: This should never happen...but it does
-				# (e.g. when 'Failed to set up guest instance' is triggered)
+				# Happens when 'Failed to set up guest instance' is triggered.
 				LOG_E "Stale: pid-${LID}.${pid} [removed]"
 				rm -f "${fn}" 
 				continue
@@ -493,6 +492,25 @@ print_to_many_servers()
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 }
 
+show_last_server()
+{
+	local n
+	echo >&2 -e "\
+[${CDY}WARNING${CN}]
+--> You (${CDY}$YOUR_IP${CN}) now have $1 servers running. ${CDR}You can not create any more
+--> servers${CN} after this one! Use your ${CDY}SECRET${CN} to log in to your previously
+--> created servers. If you forgot the ${CDY}SECRET${CN} then you need to wait for
+--> the servers to time out and shut down automatically. Best to write down
+--> the ${CDY}SECRET${CN} for THIS SERVER and follow these instructions:
+--> ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}
+--> SECRET: ${CDY}${SF_SEC:-BAD}${CN}
+--> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
+
+	sleep 5
+	echo -en "Press ENTER to continue..."
+	read -r -n8 -t120 || echo ""
+}
+
 echo_pty() { :;}
 
 sshd_to_ns()
@@ -730,14 +748,15 @@ wait_for_load()
 {
 	local load
 	local max="$1"
+	local n
 
-	# FIXME: Stop after waiting for too long.
-	# FIXME: Implement garbage collector...
 	while :; do
 		read -r -a load </proc/loadavg
 		[[ ${load[0]%%.*} -lt "$max" ]] && break
 		echo -e >&2 "[${CY}SF${CN}] Waiting for load to go down..."
 		sleep 5
+		((n++))
+		[[ $n -ge 20 ]] && ERREXIT 255 "giving up."
 	done
 }
 
@@ -756,8 +775,9 @@ print_tor_notice()
 	sleep 5
     echo >&2 -e "\
 [${CR}ERROR${CN}]
---> ${CDY}You ($YOUR_IP) are trying to connect from a Tor exit node${CN}
---> Tor exit node access is only available to ${CG}PREMIUM${CN} users
+--> You (${CDY}$YOUR_IP${CN}) are trying to connect from Tor.
+--> Log in from Tor is available for ${CG}VALUED${CN} users only.
+--> To log in from Tor please ask us for an ACCESS TOKEN.
 --> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 	sleep 5
@@ -767,10 +787,24 @@ print_tor_notice()
 # TODO: Make this work with the IP hashes
 check_tor_status()
 {
-        [[ -n $SF_ALLOW_SRC_TOR ]] && return
-        [[ ! -f "/sf/share/tor-exit-nodes.txt" ]] && return
+	local is_tor
 
-        exec_devnull grep -q -Fx "${YOUR_IP}" "/sf/share/tor-exit-nodes.txt" && { print_tor_notice; LOG_W "TOR DENIED"; ERREXIT 255; }
+	# FIXME: If user is allowed to log in via TOR then we should use
+	# the TOKEN to limit his number of servers.
+	[[ -n $SF_ALLOW_SRC_TOR ]] && return
+	if [[ "${YOUR_IP}" == "${SF_TOR_IP}" ]]; then
+		is_tor=1
+	else
+		[[ -f "/sf/share/tor-exit-nodes.txt" ]] && {
+			exec_devnull grep -q -Fx "${YOUR_IP}" "/sf/share/tor-exit-nodes.txt" && is_tor=1
+		}
+	fi
+
+	[[ -z $is_tor ]] && return
+
+	print_tor_notice
+	LOG_W "TOR DENIED"
+	ERREXIT 255
 }
 
 # Check if max servers per IP are in use.
@@ -820,6 +854,8 @@ check_limit_server_by_ip()
 			LOG_W "TO MANY SERVERS FOR ${YOUR_IP}"
 			ERREXIT 254
 		}
+
+		[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && show_last_server "$n"
 
 		[[ "$n" -ge 1 ]] && {
 			# The 3rd and more servers from same IP get less CPU share
@@ -916,8 +952,6 @@ else
 	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 fi
 
-
-
 [[ -n $SF_IS_WEBSHELL ]] && {
 	# Correct YOUR_IP
 	REMOTE_ADDR="${REMOTE_ADDR//[^0-9.:]}"
@@ -931,7 +965,6 @@ fi
 }
 # Unset user supplied env variables
 unset SECRET HUSTLOGIN HIDEIP PRJ
-
 ### ----END SANITIZE----
 
 # Only output progress if this is a login shell _and_ not HUSHLOGIN

@@ -237,6 +237,8 @@ ipt_set()
 	# The only way around this is to advertise a smaller MSS for TCP and hope for the best
 	# for all other protocols. Ultimately we need bad routers on the Internet to disappear.
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1380
+	# Mode when TOR goes via VPN (rarely used)
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s "${TOR_IP}" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1380
 
 	# -----BEGIN DIRECT SSH-----
 	# Note: The IP addresses are FLIPPED because we use DNAT/SNAT/MASQ in PREROUTING
@@ -267,16 +269,17 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_DIRECT}" -p tcp -s "${GSNC_IP}" -j ACCEPT
 	iptables -A FORWARD -o "${DEV_ACCESS}" -i "${DEV_DIRECT}" -p tcp -d "${GSNC_IP}" -j ACCEPT
 
-	# Onion to NGINX
+	# Onion-GW to NGINX
 	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_DMZ}" -s "${TOR_IP}" -d "${NGINX_IP}" -p tcp --dport 80 -j ACCEPT
 	iptables -A FORWARD -o "${DEV_GW}" -i "${DEV_DMZ}" -d "${TOR_IP}" -s "${NGINX_IP}" -p tcp --sport 80 -j ACCEPT
 
-	# TOR via VPN gateways
+	# Onion-GW to SSHD
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_ACCESS}" -s "${TOR_IP}" -d "${SSHD_IP}" -p tcp --dport 22 -j ACCEPT
+	iptables -A FORWARD -o "${DEV_GW}" -i "${DEV_ACCESS}" -d "${TOR_IP}" -s "${SSHD_IP}" -p tcp --sport 22 -j ACCEPT
+
+	# TOR via VPN (rarely used)
 	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s "${TOR_IP}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -d "${TOR_IP}" -j ACCEPT
-	
-	# Onion to SSHD
-	# => Already set by SSHD -D1080 setup
 }
 
 ipset_add_ip()

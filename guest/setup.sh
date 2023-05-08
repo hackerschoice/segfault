@@ -36,6 +36,7 @@ rm -rf /root /home
 mkdir -p /sec
 cp -a /etc/skel /sec/root
 ln -s /sec/root /root
+cd . # Prevent 'getcwd() failed' after deleting my own directory
 ln -s /sec/home /home
 
 echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt

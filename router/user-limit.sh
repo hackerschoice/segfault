@@ -33,6 +33,7 @@ source /dev/shm/net-devs.txt || exit
     set -e
     # Delete stale iptables-FORWARD rule for this C_IP (if it exist then it would go to wrong chain)
     [[ -e "${IPT_FN}" ]] && iptables -D FORWARD -i "${DEV_LG}" -s "${C_IP}" -p tcp --syn -j "$(<"$IPT_FN")"
+    # New chain must be hit before our global SYN-limit chain => Use '-I FORWARD 1'
     iptables -I FORWARD 1 -i "${DEV_LG}" -s "${C_IP}" -p tcp --syn -j "${CHAIN}"
 
     # Save chain name

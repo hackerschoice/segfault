@@ -113,7 +113,7 @@ lgwall()
 
 # Enter a docker network namespace
 # [container] <cmd ...>
-dnenter()
+netns()
 {
 	local pid
 	local c_id
@@ -123,14 +123,16 @@ dnenter()
 
 	shift 1
 	pid=$(docker inspect -f '{{.State.Pid}}' "${c_id:?}") || return
-	[[ ${#} -le 0 ]] && {
-		env HISTFILE=/dev/null nsenter -t "${pid}" -a bash -il
-		return
-	}
+	# [[ ${#} -le 0 ]] && {
+	# 	env HISTFILE=/dev/null nsenter -t "${pid}" -a bash -il
+	# 	return
+	# }
 
 	# str=$(head -n1 "/proc/${pid}/cgroup")
 	# FIXME: '*' wont work if there are more than 1 cgroup.
 	# cgexec --sticky -g "*:${str##*:}" nsenter -t "${pid}" -a "${cmd[@]}"
+	# nsenter -C doesnt seem to be sticky: Child processes run as /user.slice rather then
+	# the slice of the spawned 'bash' (/sf.slice) -> That's contrary to the man page.
 	nsenter -t "${pid}" -n "$@"
 }
 

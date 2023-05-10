@@ -261,6 +261,8 @@ str=$(mount | grep ^cgroup2 | grep -F "$SF_CG_DIR" )
 # IO Accounting or otherwise /sf.slice can starve those.
 systemctl status system.slice | head -n8 | grep -F "IO: " &>/dev/null || WARN "IO Accounting not enabled. Check /etc/systemd/system.conf"
 grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
+
+[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try 'apt-get install lxcfs'?"
 # If there was a warning then wait...
 WARN_ENTER
 

@@ -1114,6 +1114,7 @@ xmkdir "${selfdir}"
 [[ -n $SF_IS_GOLD_PROMPT ]] && export SF_IS_GOLD_PROMPT
 [[ -n $SF_PRJ ]] && export SF_PRJ
 [[ -n $SF_DEBUG ]] && export SF_DEBUG
+# exec_devnull docker run --runtime=sysbox-runc \
 exec_devnull docker run \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
@@ -1149,6 +1150,7 @@ exec_devnull docker run \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone:/everyone:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/everyone-root/everyone/${SF_HOSTNAME}:/everyone/${SF_HOSTNAME}:slave"  `# Mount myself RW over RO` \
 	-v "${SF_ENCFS_SEC_DIR}/www-root/www/${SF_HOSTNAME,,}:/onion:slave" \
+	"${LXCFS_ARGS[@]}" \
 	--user 1000:1000 \
 	-d \
 	"sf-guest${SF_GUEST_CONTAINER_NAME_SUFFIX}" bash -c "exec -a '[init-${LID}-${SF_HOSTNAME}]' sleep infinity" || ERREXIT 251 "Failed-#1 to set up guest container..."

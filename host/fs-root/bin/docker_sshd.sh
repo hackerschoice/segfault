@@ -169,6 +169,15 @@ while [[ $i -lt $SF_HM_SIZE_LG ]]; do
 	((i++))
 done
 
+# LXCFS creates different directories depending on the version.
+[[ -d /var/lib/lxcfs ]] && {
+	unset str
+	for fn in $(cd /var/lib/lxcfs; find proc -type f; find sys -type f); do
+		str+="'-v' '/var/lib/lxcfs/${fn}:/$fn:ro' "
+	done
+	LXCFS_STR=$str
+}
+
 # SSHD resets the environment variables. The environment variables relevant to the guest
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these
@@ -189,6 +198,7 @@ SF_RAND_OFS=\"$RANDOM\"
 SF_HM_SIZE_LG=\"$SF_HM_SIZE_LG\"
 SF_BACKING_FS=\"$SF_BACKING_FS\"
 SF_NS_NET=\"$(readlink /proc/self/ns/net)\"
+LXCFS_ARGS=($LXCFS_STR)
 SF_FQDN=\"${SF_FQDN}\"" >/dev/shm/env.txt
 
 # Note: Any host added here also needs to be added in segfaultsh with --add-host

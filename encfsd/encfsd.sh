@@ -289,13 +289,12 @@ cmd_setup_encfsd()
 	[[ -z $ilimit ]] && { BAD 0 "ilimit is empty"; return 255; }
 	[[ $ilimit -le 0 ]] && return 0
 
-	# Setup LG's Root-FS inode limit 		
-
+	# Setup LG's Root-FS inode limit (Docker's '--storage-opt' only limits size)	
 	[[ ! -d "${dir}" ]] && { BAD 0 "Not found: ${dir}."; return 255; }
 	s=$(lsattr -dp "${dir}")
 	prjid=${s%% --*}
 	prjid=${prjid##* }  # trim leading white spaces
-	[[ -z $prjid ]] || [[ $prjid -eq 0 ]] && { BAD 0 "Invalid prjid='$prjid'"; return 255; }
+	[[ -z $prjid ]] || [[ $prjid -eq 0 ]] && { BAD 0 "[$lid] Invalid prjid='$prjid' on '$dir'"; return 255; }
 
 	xfs_quota -x -c "limit -p ihard=${ilimit} $prjid" || { BAD 0 "XFS_QUOTA filed"; return 255; }
 }

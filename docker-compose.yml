@@ -124,7 +124,7 @@ services:
     cgroup_parent: sf.slice
     networks:
       dns-doh-net:
-        ipv4_address: ${SF_DOH_IP}
+        ipv4_address: ${SF_DOH_IP:?}
 
   dnsmasq:
     image: 4km3/dnsmasq:2.85-r2
@@ -138,10 +138,10 @@ services:
     command: ["--no-resolv", "--domain-needed", "--server=${SF_DOH_IP}#5053", "--server=/onion/${SF_TOR_IP}#5353"]
     networks:
       vpn-net:
-        ipv4_address: ${SF_NET_VPN_DNS_IP}
+        ipv4_address: ${SF_NET_VPN_DNS_IP:?}
       dns-doh-net:
       access-net:
-        ipv4_address: ${SF_NET_ACCESS_DNS_IP}
+        ipv4_address: ${SF_NET_ACCESS_DNS_IP:?}
 
   nordvpn:
     image: hackerschoice/cryptostorm
@@ -621,6 +621,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
       - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-2022
 
@@ -647,7 +648,7 @@ networks:
     driver: bridge
     ipam:
       config:
-      - subnet: ${SF_NET_VPN}
+      - subnet: ${SF_NET_VPN:?}
 
   incoming-net:
     # Note: 'name' must be the first in alphabetic order. Docker forwards
@@ -657,7 +658,7 @@ networks:
     driver: bridge
     ipam:
       config:
-      - subnet: ${SF_NET_DIRECT}
+      - subnet: ${SF_NET_DIRECT:?}
 
   access-net:
     # sf-host and gsnc
@@ -665,21 +666,21 @@ networks:
     driver: bridge
     ipam:
       config:
-      - subnet: ${SF_NET_ACCESS}
+      - subnet: ${SF_NET_ACCESS:?}
 
   dmz-net:
     name: sf-dmz
     driver: bridge
     ipam:
       config:
-        - subnet: ${SF_NET_DMZ}
+        - subnet: ${SF_NET_DMZ:?}
 
   dns-doh-net:
     name: sf-dns-doh
     driver: bridge
     ipam:
       config:
-        - subnet: ${SF_NET_DOH}
+        - subnet: ${SF_NET_DOH:?}
 
   # User's shell
   guest-net:
@@ -691,7 +692,7 @@ networks:
     # internal: true
     ipam:
       config:
-        - subnet: ${SF_NET_LG}
+        - subnet: ${SF_NET_LG:?}
           # gateway: 10.11.0.1 # Set's the IP of the host's bridge.
 
         # 255 hosts. BUG-ARP-CACHE

@@ -1,3 +1,6 @@
+0.4.7 - 2023-06-00
+    * LXCFS - report correct uptime, cpuinfo, ...
+
 0.4.6 - 2023-05-08
     * SF-UI alpha
     * SetEnv HIDEIP, HUSHLOGIN, PRJ, TOKEN

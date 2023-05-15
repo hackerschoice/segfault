@@ -672,6 +672,7 @@ RUN /pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish 
 			&& echo -e "#! /bin/bash\ncd /usr/gophish && exec ./gophish \"\$@\"" >/usr/bin/gophish \
 			&& chmod 755 /usr/bin/gophish; }'
 RUN /pkg-install.sh HUGE npm install -g wscat
+RUN /pkg-install.sh HUGE bash -c 'mkdir -p /usr/share/wordlists; curl -fsSL https://crackstation.net/files/crackstation-human-only.txt.gz | gunzip >/usr/share/wordlists/crackstation-human-only.txt'
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

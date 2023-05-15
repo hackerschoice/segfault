@@ -16,13 +16,14 @@ encrypted data will remain until next log in (with the correct SECRET).
 
 This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds."
     read -r -n8 -t10 str && {
-        echo -e "${CDR}Self-Destruct cancelled...${CDY}*phew*${CN}"
-        [[ $str == "halt" ]] && {
-            echo -e "HALT instead..."
-            halt
+        [[ $str != "now" ]] && {
+            echo -e "${CDR}Self-Destruct cancelled...${CDY}*phew*${CN}"
+            [[ $str == "halt" ]] && {
+                echo -e "HALT instead..."
+                halt
+            }
             exit 255
         }
-        [[ $str != "now" ]] && exit 255
     }
 }
 
@@ -35,6 +36,10 @@ echo -e "${CDR}***DESTRUCT***${CN}"
 shopt -s dotglob
 rm -rf /onion/*
 rm -rf "/everyone/${SF_HOSTNAME,,}/"*
-rm -rf /sec/*
+# Bloody at-spi-bu re-creates a fuse-hidden file when the parent directory is deleted.
+# Force kill it.
+rm -rf /sec/* 2>/dev/null
+find /sec/root/.cache/dconf -exec fuser -k {} \; &>/dev/null
+rm -rf /sec/root/*
 echo -e "${CDG}DONE.${CN}"
 halt

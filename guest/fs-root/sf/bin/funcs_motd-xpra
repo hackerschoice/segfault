@@ -1,0 +1,13 @@
+### Sources from /etc/shellrc
+### Display a welcome screen when the first xterm is started from
+### inside an xpra session.
+
+unset IS_SHOW_MOTD_XPRA
+
+echo -e "\
+${CDY}---------------------------------------------------------------${CN}
+${CDY}-->${CN} Welcome to ${CDG}Segfault GUI${CN}.
+${CDY}-->${CN} Use the ${CDM}menu${CN} at the TOP to start apps.
+${CDY}-->${CN} Type ${CDC}brave-browser &${CN} to start a web browser.
+${CDY}-->${CN} Type ${CDC}xterm &${CN} to start another terminal.
+${CDY}---------------------------------------------------------------${CN}"

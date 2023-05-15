@@ -27,7 +27,7 @@ setup_sshd()
 	# Default is for user to use 'ssh root@segfault.net' but this can be changed
 	# in .env to any other user name. In case it is 'root' then we need to move
 	# the true root out of the way for the docker-sshd to work.
-	tail -n1 /etc/passwd | grep ^"${SF_USER}" >/dev/null && return
+	tail -n1 /etc/passwd | grep ^secret >/dev/null && return
 
 	if [[ "$SF_USER" == "root" ]]; then
 		# rename root user
@@ -170,9 +170,9 @@ while [[ $i -lt $SF_HM_SIZE_LG ]]; do
 done
 
 # LXCFS creates different directories depending on the version.
-[[ -d /var/lib/lxcfs ]] && {
+[[ -d /var/lib/lxcfs/proc ]] && {
 	unset str
-	for fn in $(cd /var/lib/lxcfs; find proc -type f; find sys -type f); do
+	for fn in $(cd /var/lib/lxcfs; find proc -type f 2>/dev/null; find sys -type f 2>/dev/null); do
 		str+="'-v' '/var/lib/lxcfs/${fn}:/$fn:ro' "
 	done
 	LXCFS_STR=$str

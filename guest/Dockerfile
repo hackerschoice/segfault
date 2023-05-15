@@ -507,6 +507,7 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		pyTelegramBotAPI \
 		tgcrypto \
 		wsgidav
+RUN /pkg-install.sh    LARGE pipx install gdown
 RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.3/geonet_0.4.3_%arch:x86_64=amd64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
@@ -525,6 +526,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		cups-client \
 		byobu \
 		fish \
+		parallel \
 		sshuttle
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gopls \
@@ -536,6 +538,7 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_%arch:x86_64=amd64:aarch64
 	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/hacks/inscope@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Emoe/kxss@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/analyticsrelationships@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/gotator@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/roboxtractor@latest; }' \
@@ -604,6 +607,7 @@ RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh DEV apt-get install -y --no-install-recommends \
 		ninja-build \
 		repo
+# Android build tools:
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		aria2 \
 		buildtorrent \
@@ -649,6 +653,8 @@ RUN /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardci
 RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb   `# x86_64 only` \
 	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust '%arch%.*linux.musl.tar.xz$' \
 	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost \
+	&& /pkg-install.sh NET ghbin tulir/gomuks 'linux-%arch:x86_64=amd64:aarch64=arm64%' gomuks \
+	&& /pkg-install.sh NET ghbin maxmind/mmdbinspect 'linux_amd64.tar.gz$' mmdbinspect       `# x86_64 only` \
 	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux' sthp         `# x86_64 only` \
 	&& /pkg-install.sh NET ghbin schollz/croc 'Linux-%arch:x86_64=64bit:aarch64=ARM64%.deb' \
 	&& /pkg-install.sh NET ghbin vi/websocat '%arch%.*linux-musl' websocat \

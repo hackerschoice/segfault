@@ -1,0 +1,26 @@
+#! /bin/bash
+
+ip=$1
+[[ -z $ip ]] && { echo >&2 "$0 [IP-Address]"; exit 255; }
+
+db="/sf/share/GeoLite2-City.mmdb"
+[[ -f "/sf/share/dbip-city-lite.mmdb" ]] && db="/sf/share/dbip-city-lite.mmdb"
+
+res=$(mmdbinspect --db "$db" "$ip") || exit
+city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
+country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
+
+unset YOUR_GEOIP
+if [[ -n $city ]] && [[ -n $country ]]; then
+	YOUR_GEOIP="${city}/${country}"
+elif [[ -n $city ]] || [[ -n $country ]]; then
+	YOUR_GEOIP="${city}${country}" # Either one but not both
+fi
+
+[[ -z $YOUR_GEOIP ]] && {
+	echo >&2 "NOT FOUND"
+	exit 255
+}
+
+echo "${YOUR_GEOIP}"
+

@@ -31,6 +31,9 @@ function dmesg {
 alias norg="gron --ungron"
 alias ungron="gron --ungron"
 alias carbonyl="carbonyl --no-sandbox"
+alias seppuku="destruct"
+
+[[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	_grccmd()

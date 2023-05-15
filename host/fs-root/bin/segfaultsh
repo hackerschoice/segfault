@@ -21,7 +21,7 @@ SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
 [[ -f /dev/shm/env.txt ]] && eval "$(</dev/shm/env.txt)"
 [[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
 unset SSH_SF_DEBUG
-eval "$(</sf/bin/funcs_redis.sh)"
+eval "$(</sf/bin/funcs_redis.sh)" || exit
 # Debug Trace. see sf_trace-DISABLED
 [[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
 
@@ -393,37 +393,6 @@ ${CR}######################################################################
 ######################################################################${CN}"
 }
 
-print_ssh_access()
-{
-	local key_suffix
-	# [[ -z $IS_LOGIN ]] && return => Still display help if this is a new server even if just cmd execution.
-	[[ -n $SF_HUSHLOGIN ]] && return
-	[[ -z $SF_IS_NEW_SERVER ]] && return
-
-	key_suffix="sf-${SF_FQDN//./-}"
-	echo 1>&2 -e "\
-:Cut & Paste these lines to your workstation's shell to retain access:
-######################################################################
-${CDC}cat >~/.ssh/id_${key_suffix} ${CDR}<<__EOF__
-${CN}${CF}$(<"/config/guest/id_ed25519")
-${CDR}__EOF__
-${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
-${CN}${CF}host ${SF_HOSTNAME,,}
-    User root
-    HostName ${SF_FQDN}
-    IdentityFile ~/.ssh/id_${key_suffix}
-    SetEnv SECRET=${SF_SEC}
-${CDR}__EOF__
-${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_${key_suffix}${CN}
-######################################################################
-Thereafter use these commands:
---> ${CDC}ssh  ${SF_HOSTNAME,,}${CN}
---> ${CDC}sftp ${SF_HOSTNAME,,}${CN}
---> ${CDC}scp  ${SF_HOSTNAME,,}:stuff.tar.gz ~/${CN}
---> ${CDC}sshfs -o reconnect ${SF_HOSTNAME,,}:/sec ~/sec ${CN}
-----------------------------------------------------------------------"
-}
-
 # Output GOODBYE message with infos how to connect back to this shell
 print_goodbye()
 {
@@ -684,6 +653,8 @@ load_limits()
 
 	[[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
+	[[ -n $SF_SYSBOX ]] && SYSBOX_ARGS+=("--runtime=sysbox-runc")
+
 	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
 }
 
@@ -886,10 +857,10 @@ mk_geoip()
 	country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
 
 	unset YOUR_GEOIP
-	if [[ -n $city && -n $country ]]; then
-		YOUR_GEOIP+="${city}/${country}"
-	elif [[ -n $city || -n $country ]]; then
-		YOUR_GEOIP+="${city}${country}" # Either one but not both
+	if [[ -n $city ]] && [[ -n $country ]]; then
+		YOUR_GEOIP="${city}/${country}"
+	elif [[ -n $city ]] || [[ -n $country ]]; then
+		YOUR_GEOIP="${city}${country}" # Either one but not both
 	fi
 }
 
@@ -963,8 +934,13 @@ fi
 	SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
 	SF_PRJ="${SF_PRJ:0:32}"
 }
+
+[[ -n $TOKEN ]] && {
+	SF_TOKEN="${TOKEN//[^a-zA-Z0-9._:]}"
+	SF_TOKEN="${SF_TOKEN:0:32}"
+}
 # Unset user supplied env variables
-unset SECRET HUSTLOGIN HIDEIP PRJ
+unset SECRET HUSTLOGIN HIDEIP PRJ TOKEN
 ### ----END SANITIZE----
 
 # Only output progress if this is a login shell _and_ not HUSHLOGIN
@@ -1116,6 +1092,7 @@ xmkdir "${selfdir}"
 [[ -n $SF_DEBUG ]] && export SF_DEBUG
 # exec_devnull docker run --runtime=sysbox-runc \
 exec_devnull docker run \
+	"${SYSBOX_ARGS[@]}" \
 	--hostname "sf-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
 	--rm \
@@ -1144,6 +1121,7 @@ exec_devnull docker run \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--tmpfs /tmp:exec                                       `# GoLang needs /tmp to be executeable` \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
+	-v "${SF_BASEDIR}/data/share/:/sf/share:ro" \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \
 	-v "${SF_ENCFS_SEC_DIR}/lg-${LID}:/sec:slave" \
@@ -1201,9 +1179,6 @@ touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 
 echo_pty -e "....[${CG}OK${CN}]"
-
-# Show help how to connect elegantly
-print_ssh_access
 
 # Spawn shell
 spawn_shell_exit "$@"

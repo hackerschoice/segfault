@@ -32,7 +32,7 @@ sv_startx()
 	local str_auth
 
 	[[ -n $PASSWORD ]] && str_auth="env"
-	XPRA_PASSWORD="${PASSWORD}" xpra.orig start --pulseaudio=yes --resize-display=1280x1024 --bind-tcp=127.0.0.1:2000,auth="${str_auth:-allow}" --html=on --start=xterm-dark --daemon=no &>/dev/null &
+	XPRA_PASSWORD="${PASSWORD}" xpra.orig start --pulseaudio=yes --resize-display=1280x1024 --bind-tcp=127.0.0.1:2000,auth="${str_auth:-allow}" --html=on --start=xterm-dark-xpra --daemon=no &>/dev/null &
 	# XPRA_PASSWORD="${PASSWORD}" xpra.orig start-desktop --pulseaudio=yes --bind-tcp=127.0.0.1:2000,auth="${str_auth}" --html=on --start-child=xfce4-session --start=xterm-dark --systemd-run=no --exit-with-children --daemon=no &>/dev/null &
 	PID_V=$!
 

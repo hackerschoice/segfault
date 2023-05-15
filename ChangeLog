@@ -1,5 +1,7 @@
 0.4.7 - 2023-06-00
     * LXCFS - report correct uptime, cpuinfo, ...
+    * geoip and /sf/share
+    * XPRA/SF-UI improvements
 
 0.4.6 - 2023-05-08
     * SF-UI alpha

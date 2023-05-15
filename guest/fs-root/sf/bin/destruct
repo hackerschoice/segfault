@@ -1,0 +1,40 @@
+#! /bin/bash
+
+# shellcheck disable=SC1091
+source "/sf/bin/funcs.sh"
+cd /
+
+[[ "$1" != now ]] && {
+    echo -e "\
+This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds.
+
+${CDR}*** ALL DATA WILL BE WIPED ***${CN}
+Press ${CDY}ANY KEY${CN} to stop or type ${CDC}now${CN} to proceed immediatly.
+
+Consider ${CDC}halt${CN} to shut down this server instead. This way all your
+encrypted data will remain until next log in (with the correct SECRET).
+
+This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds."
+    read -r -n8 -t10 str && {
+        echo -e "${CDR}Self-Destruct cancelled...${CDY}*phew*${CN}"
+        [[ $str == "halt" ]] && {
+            echo -e "HALT instead..."
+            halt
+            exit 255
+        }
+        [[ $str != "now" ]] && exit 255
+    }
+}
+
+[[ "$str" == halt ]] && {
+    halt
+    exit 0; }
+
+echo -e "${CDR}***DESTRUCT***${CN}"
+
+shopt -s dotglob
+rm -rf /onion/*
+rm -rf "/everyone/${SF_HOSTNAME,,}/"*
+rm -rf /sec/*
+echo -e "${CDG}DONE.${CN}"
+halt

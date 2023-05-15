@@ -1,0 +1,6 @@
+#! /bin/bash
+
+### xpra does not honor --env=IS_SHOW_MOTD_XPRA=1 and thus we have to trampoline
+### through this function.
+
+IS_SHOW_MOTD_XPRA=1 exec xterm-dark "$@"

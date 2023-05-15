@@ -1,31 +1,42 @@
 #! /bin/bash
 
-[[ -t 1 ]] && {
-# CY="\e[1;33m" # yellow
-# CG="\e[1;32m" # green
-CR="\e[1;31m" # red
-CC="\e[1;36m" # cyan
-# CM="\e[1;35m" # magenta
-# CW="\e[1;37m" # white
-CB="\e[1;34m" # blue
-CF="\e[2m"    # faint
-CN="\e[0m"    # none
-
-# CBG="\e[42;1m" # Background Green
-
-# night-mode
-CDY="\e[0;33m" # yellow
-CDG="\e[0;32m" # green
-# CDR="\e[0;31m" # red
-CDB="\e[0;34m" # blue
-CDC="\e[0;36m" # cyan
-CDM="\e[0;35m" # magenta
-CUL="\e[4m"
-}
 # BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
-
+# shellcheck disable=SC1091
+source "/sf/bin/funcs.sh" 2>/dev/null
 # shellcheck disable=SC1091
 source "/config/guest/vpn_status" 2>/dev/null
+
+print_ssh_access()
+{
+	local key_suffix
+
+	key_suffix="sf-${SF_FQDN//./-}"
+	echo 1>&2 -e "\
+:Cut & Paste these lines to your workstation's shell to retain access:
+######################################################################
+${CDC}cat >~/.ssh/id_${key_suffix} ${CDR}<<__EOF__
+${CN}${CF}$(<"/config/guest/id_ed25519")
+${CDR}__EOF__
+${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
+${CN}${CF}host ${SF_HOSTNAME,,}
+    User root
+    HostName ${SF_FQDN}
+    IdentityFile ~/.ssh/id_${key_suffix}
+    SetEnv SECRET=${SF_SEC}
+${CDR}__EOF__
+${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_${key_suffix}${CN}
+######################################################################
+Thereafter use these commands:
+--> ${CDC}ssh  ${SF_HOSTNAME,,}${CN}
+--> ${CDC}sftp ${SF_HOSTNAME,,}${CN}
+--> ${CDC}scp  ${SF_HOSTNAME,,}:stuff.tar.gz ~/${CN}
+--> ${CDC}sshfs -o reconnect ${SF_HOSTNAME,,}:/sec ~/sec ${CN}
+----------------------------------------------------------------------"
+}
+
+[[ -n $SF_IS_NEW_SERVER ]] && _IS_SHOW_MORE=1
+[[ "${0##*/}" == "info" ]] && _IS_SHOW_MORE=1
+[[ -n $_IS_SHOW_MORE ]] && print_ssh_access
 
 if [[ -z $IS_VPN_CONNECTED ]]; then
 	if source "/config/guest/vpn_status.direct" 2>/dev/null; then
@@ -69,8 +80,6 @@ Reverse Port      : ${IPPORT}${CN}
 ${VPN_DST}"
 
 # All below should only be displayed if user types 'info' or a newly created server.
-[[ -n $SF_IS_NEW_SERVER ]] && _IS_SHOW_MORE=1
-[[ "${0##*/}" == "info" ]] && _IS_SHOW_MORE=1
 [[ -z $_IS_SHOW_MORE ]] && {
 	echo -e "\
 Hint              : ${CDC}Type ${CC}info${CDC} for more details.${CN}"
@@ -109,5 +118,5 @@ SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh$
                        ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
 str="SECRET            : ${CDY}${SF_SEC}"
-[[ -n $SF_IS_LOGINSHELL ]] && str+=" \e[0;33;41m<<<  WRITE THIS DOWN  <<<"
+[[ -n $SF_IS_LOGINSHELL ]] && str+=" ${CRY}<<<  WRITE THIS DOWN  <<<"
 echo -e "${str}${CN}"

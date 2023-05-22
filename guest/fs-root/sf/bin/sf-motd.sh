@@ -34,33 +34,42 @@ Thereafter use these commands:
 ----------------------------------------------------------------------"
 }
 
+mk_vpn()
+{
+	if [[ -z $IS_VPN_CONNECTED ]]; then
+		if source "/config/guest/vpn_status.direct" 2>/dev/null; then
+			str="${SFVPN_EXIT_IP}                   "
+			VPN_DST="VPN Exit Node     : ${CDG}${str:0:15}"
+			[[ -n $SFVPN_GEOIP ]] && VPN_DST+=" ${CF}(${SFVPN_GEOIP})${CN}"
+			VPN_DST+=" ${CR}>>> DIRECT <<<${CF} (no VPN)${CN}"$'\n'
+		else
+			VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
+		fi
+	else
+		i=0
+		while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do
+			str="Exit ${VPN_PROVIDER[$i]}                          "
+			VPN_DST+="${str:0:17} : "
+			str="${VPN_EXIT_IP[$i]}                 "
+			VPN_DST+="${CDG}${str:0:15}"
+			str="${VPN_GEOIP[$i]}"
+			[[ ! -z $str ]] && VPN_DST+=" ${CF}(${str})"
+			VPN_DST+="${CN}"$'\n'
+			((i++))
+		done
+	fi
+}
+
 [[ -n $SF_IS_NEW_SERVER ]] && _IS_SHOW_MORE=1
 [[ "${0##*/}" == "info" ]] && _IS_SHOW_MORE=1
 [[ -n $_IS_SHOW_MORE ]] && print_ssh_access
 
-if [[ -z $IS_VPN_CONNECTED ]]; then
-	if source "/config/guest/vpn_status.direct" 2>/dev/null; then
-		str="${SFVPN_EXIT_IP}                   "
-		VPN_DST="VPN Exit Node     : ${CDG}${str:0:15}"
-		[[ -n $SFVPN_GEOIP ]] && VPN_DST+=" ${CF}(${SFVPN_GEOIP})${CN}"
-		VPN_DST+=" ${CR}>>> DIRECT <<<${CF} (no VPN)${CN}"$'\n'
-	else
-		VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
-	fi
+if [[ -e "/config/self/wgname" ]]; then
+	VPN_DST="Exit Wireguard    : ${CDY}$(</config/self/wgname)${CN}${CF} [to disable: curl rpc/net/down]${CN}"$'\n'
 else
-	i=0
-	while [[ $i -lt ${#VPN_GEOIP[@]} ]]; do
-		str="Exit ${VPN_PROVIDER[$i]}                          "
-		VPN_DST+="${str:0:17} : "
-		str="${VPN_EXIT_IP[$i]}                 "
-		VPN_DST+="${CDG}${str:0:15}"
-		str="${VPN_GEOIP[$i]}"
-		[[ ! -z $str ]] && VPN_DST+=" ${CF}(${str})"
-		VPN_DST+="${CN}"$'\n'
-		((i++))
-	done
-	# VPN_DST="${CDG}${VPN_EXIT_IP} ${CF}(${VPN_LOCATION:-UNKNOWN})${CN}"
+	mk_vpn
 fi
+
 [[ -f "/config/self/ip" ]]    &&    YOUR_IP="$(</config/self/ip)"
 [[ -f "/config/self/geoip" ]] && YOUR_GEOIP="$(</config/self/geoip)"
 

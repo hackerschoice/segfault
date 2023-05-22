@@ -62,6 +62,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/images"
 FILES_MASTER += "segfault-$(VER)/master/Dockerfile"
 FILES_MASTER += "segfault-$(VER)/master/Makefile"
 FILES_MASTER += "segfault-$(VER)/master/init-master.sh"
+FILES_MASTER += "segfault-$(VER)/master/dict.txt"
 FILES_MASTER += "segfault-$(VER)/master/ready-lg.sh"
 FILES_MASTER += "segfault-$(VER)/master/cgi-bin/rpc"
 

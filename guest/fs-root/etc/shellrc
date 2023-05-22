@@ -1,19 +1,7 @@
+### Sourced as the last entry from ~/.zshrc or ~/.bashrc
 
-# Sources as the last entry from ~/.zshrc or ~/.bashrc
-CY="\e[1;33m" # yellow
-CDY="\e[0;33m" # yellow
-CR="\e[1;31m" # red
-CB="\e[1;34m" # blue
-CDB="\e[0;34m" # blue
-CC="\e[1;36m" # cyan
-CG="\e[1;32m" # green
-CDG="\e[0;32m" # green
-CDC="\e[0;36m" # cyan
-CDR="\e[0;31m" # red
-CN="\e[0m"    # none
-CW="\e[1;37m" # white
-CF="\e[2m"    # faint
-CUL="\e[4m"
+# shellcheck disable=SC1091
+source "/sf/bin/funcs.sh" 2>/dev/null
 
 alias l='ls -Alh'
 alias lt='ls -Alhrt'
@@ -32,6 +20,7 @@ alias norg="gron --ungron"
 alias ungron="gron --ungron"
 alias carbonyl="carbonyl --no-sandbox"
 alias seppuku="destruct"
+alias brave="brave-browser"
 
 [[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
@@ -168,7 +157,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 }
 
 [[ -f /usr/bin/zoxide ]] && {
-	eval "$(zoxide init $(basename $SHELL))"
+	eval "$(zoxide init "$(basename "$SHELL")")"
 	alias cd='z'
 }
 
@@ -176,18 +165,29 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 
 [[ -z $LANG ]] && export LANG=en_US.UTF-8
 
-[[ -e /sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt ]] && { echo >&2 "WARNING: /sec is NOT encrypted. PRESS ENTER to continue..."; read; }
+[[ -e /sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt ]] && { echo >&2 "WARNING: /sec is NOT encrypted. PRESS ENTER to continue..."; read -r; }
 
 [[ -n $SF_IS_GOLD_PROMPT ]] && [[ -n $PROMPT ]] && {
-	prompt_symbol=💛
-	PROMPT= PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%F{%(#.yellow.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{yellow}#.%F{blue}$)%b%F{reset} '
+	PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%F{%(#.yellow.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{yellow}#.%F{blue}$)%b%F{reset} '
 }
+
+[[ -n $PROMPT ]] && {
+	prompt_symbol=㉿
+    [ "$EUID" -eq 0 ] && prompt_symbol=💀
+	[[ -n $SF_IS_GOLD_PROMPT ]] && prompt_symbol=💛
+
+	if [[ -e /config/self/prompt ]]; then
+		PROMPT=$'%F{%(#.blue.green)}┌──$(</config/self/prompt)${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
+	else
+		PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
+	fi
+	unset prompt_symbol
+}
+
 # Make the Project name visibile in the PS1 prompt
 [[ -z $VIRTUAL_ENV ]] && VIRTUAL_ENV="${SF_PRJ}"
 
 PATH="${HOME:-/sec/root}/go/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
-#[[ -d /sec/usr/bin ]] && PATH="/sec/usr/bin:$PATH"
-#[[ -d /sec/usr/sbin ]] && PATH="/sec/usr/sbin:$PATH"
 
 _sf_info_non_perm()
 {

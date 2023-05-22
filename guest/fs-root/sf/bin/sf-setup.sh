@@ -136,6 +136,9 @@ setup()
 	# Execute rc.local startup script
 	/bin/bash /sec/usr/etc/rc.local
 
+	# Re-Create Wireguard Endpoint
+	[[ -f /config/self/wgname ]] && curl -s rpc/net/up -dnocreat=1 -dname="$(</config/self/wgname)" >/dev/null
+
 	return 0 # TRUE
 }
 

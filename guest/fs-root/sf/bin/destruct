@@ -33,6 +33,7 @@ This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds."
 
 echo -e "${CDR}***DESTRUCT***${CN}"
 
+curl -s rpc/net/del -dname=all -dnocolor=1 >/dev/null
 shopt -s dotglob
 rm -rf /onion/*
 rm -rf "/everyone/${SF_HOSTNAME,,}/"*

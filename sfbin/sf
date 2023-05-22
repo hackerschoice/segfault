@@ -7,6 +7,8 @@ command -v jq >/dev/null || ERREXIT 255 "Command 'jq' not found."
 
 down()
 {
+	local IFS
+	IFS=$'\n'
 	docker container prune -f
 	c=($(docker ps -f name=^lg --all --quiet))
 	[[ -n $c ]] && docker stop "${c[@]}"
@@ -52,8 +54,7 @@ load_env()
 	if [[ ! -f "${envfile}" ]]; then
 		WARN "Not found: \${SF_BASEDIR}/.env (${envfile})"
 	else
-		IFS=$'\n'
-		arr=( $(grep -v ^# "${envfile}") )
+		mapfile -t arr < <(grep -E -v '(^#|^$)' "${envfile}")
 		for a in "${arr[@]}"; do
 
 			n="${a%%=*}"
@@ -148,6 +149,11 @@ load_env
 }
 
 [[ -z $SF_OVERLAYDIR ]] && [[ -d "${SF_BASEDIR}/docker/overlay2" ]] && export SF_OVERLAYDIR="${SF_BASEDIR}/docker/overlay2"
+
+[[ -z $SF_IP ]] && {
+	export SF_IP=$(dig +short "$SF_FQDN" 2>/dev/null | grep -v '\.$')
+	WARN "SF_IP not set in .env. Using '$SF_IP'."
+}
 
 # xfs_init_quota "${SF_DATADIR}/everyone-root" "everyone" 100 16384 16G
 

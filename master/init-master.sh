@@ -4,7 +4,7 @@
 
 source /sf/bin/funcs.sh || { sleep 5; exit 255; }
 
-SOCKET="/dev/shm/master/fcgiwrap.socket"
+SOCKET="/dev/shm/sf/master/fcgiwrap.socket"
 rm -f "${SOCKET:?}"
 
 
@@ -12,7 +12,6 @@ rm -f "${SOCKET:?}"
 # WARNING: runs as root in host's pid namespace 
 fcgiwrap  -s "unix:${SOCKET}" -c1 -p /cgi-bin/rpc 2>&1 &
 
-# su -s /bin/bash -c "fcgiwrap  -s unix:/dev/shm/master/fcgiwrap.socket & disown" www-data
 sleep 1
 chgrp 33 "${SOCKET}" # Group ID from sf-rpc's www-data gid.
 # chgrp 101 "${SOCKET}" # Group ID from sf-rpc's nginx gid.

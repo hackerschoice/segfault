@@ -10,8 +10,9 @@ source /sf/bin/funcs_redis.sh
 
 [[ ! -d "/config/db" ]] && ERREXIT 255 "Not found: /config/db"
 [[ ! -d "/config/db/wg" ]] && mkdir -p "/config/db/wg"
-[[ -z $SF_FQDN ]] && SF_FQDN="SF_FQDN-NOT-SET.hack.segfault.net"
 
+WG_EP_HOST=${WG_EP_IP}
+[[ -z $WG_EP_HOST ]] && WG_EP_HOST="$SF_FQDN"
 
 echo -en "Content-Type: text/plain\r\n\r\n"
 
@@ -51,6 +52,7 @@ GetFormVars()
 		val=${str#*=}
 
 		[[ ${key} == "nocolor" ]] && unset COLOR
+		[[ ${key} == "nocreat" ]] && IS_NOCREAT=1
 		# [[ ${key} == "verbose" ]] && IS_VERBOSE=1
 		[[ ${key} == "port" ]] && { val=$((${val//[^0-9]})); [[ $val -ge 32768 && $val -le 65535 ]] && R_PORT="$val"; }
 		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
@@ -87,21 +89,16 @@ GenSecret()
 net_print_example()
 {
 	echo -en "\
-To connect with ${M}Wiretap${N} use this command on the Exit Node:
-    ${C}wiretap serve --private  ${WT_PRIVATE:-<PrivateKey>} \\
-                  --public   ${WG_PUBLIC} \\
-                  --endpoint ${SF_FQDN}:${WG_PORT}${N}
-To connect with ${M}WireGuard${N} use this configuration on the Exit Node:${F}
-[Interface]
-PrivateKey = ${WT_PRIVATE:-<PrivateKey>}
-Address = 192.168.0.2/32
-Address = fd::2/128
-
-[Peer]
-PublicKey = ${WG_PUBLIC}
-AllowedIPs = 0.0.0.0/0, ::/0
-EndPoint = ${SF_FQDN}:${WG_PORT}
-PersistentKeepalive = 25${N}
+To connect ${G}${WT_NAME}${CN} use this command on the Exit Node:
+${C}X='1-${WT_PRIVATE}'
+X+='-${WG_PUBLIC}'
+X+='-${WG_EP_HOST}:${WG_PORT}'
+X=\"\$X\" bash -c \"\$(curl -fsSL thc.org/sfwg)\"${CN}
+ ---OR---
+${C}X='1-${WT_PRIVATE}'
+X+='-${WG_PUBLIC}'
+X+='-${WG_EP_HOST}:${WG_PORT}'
+X=\"\$X\" bash -c \"\$(wget --no-verbose -O- thc.org/sfwg)\"${CN}
 "
 }
 
@@ -112,6 +109,8 @@ cmd_net_list()
 	local name
 	local upstr
 	local ex_wg_public
+	local ex_wt_private
+	local ex_wt_name
 	local privstr
 
 	load_port
@@ -138,6 +137,8 @@ Name (${G}active${N})  |           | Private                                    
 		[[ $ifaces == *"wg${name} "* ]] && {
 			upstr="${G}"
 			ex_wg_public="$WG_PUBLIC"
+			ex_wt_private="$WT_PRIVATE"
+			ex_wt_name="$name"
 		}
 		privstr="${WT_PRIVATE:-                                                                            }"
 		echo -e "${upstr}${str:0:14}${N} | Server    | ${F}${WG_PRIVATE:0:10}##################################${N} | ${WG_PUBLIC}\n               | Exit Node | ${privstr:0:44} | ${F}$WT_PUBLIC${N}"
@@ -154,7 +155,12 @@ Name (${G}active${N})  |           | Private                                    
 		exit
 	}
 
-	net_print_example
+	[[ -n $ex_wg_public ]] && {
+		WG_PUBLIC="$ex_wg_public"
+		WT_PRIVATE="$ex_wt_private"
+		WT_NAME="$ex_wt_name"
+		net_print_example
+	}
 	exit
 }
 
@@ -213,6 +219,38 @@ cmd_net_init_move()
 	write_portfile
 }
 
+# Create a new WT_NAME
+# - Find a free one
+mk_wt_name()
+{
+	local i
+	local dict
+	local str
+	local idx
+
+	# FIXME: remove old compatibility if /dict.txt does not exists => ERREXIT instead.
+	[[ ! -f /dict.txt ]] && {
+		str="${WT_PUBLIC//[^[:alnum:]]}"
+		echo "${str:0:4}"
+		return
+	}
+
+	readarray -t dict <"/dict.txt"
+	i=0
+	while [[ $i -lt 5 ]]; do
+		((i++))
+		idx=$((RANDOM % ${#dict[@]}))
+		str=${dict[$idx]}
+		str=${str:0:13}
+
+		[[ -e "/config/db/wg/wg-${str}" ]] && continue
+		echo "$str"
+		return
+	done
+
+	ERREXIT 255 "Could not find free name. Try -d name=<NAME>."
+}
+
 # rpc/net/init
 # Assign/Retrieve WireGuard port for this LID
 net_init()
@@ -260,11 +298,6 @@ Port ${R_PORT} is already in use. You can assign it to this server like so:\
 
 	[[ -e "/config/db/wg/wg-${R_WT_NAME}" ]] && {
 		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl rpc/net/del -d name=${R_WT_NAME}${N}"
-		# load_wt "${R_WT_NAME}"
-		# load_wg "${R_WT_NAME}"
-		# WT_NAME=${R_WT_NAME}
-		# net_init_print_info
-		# net_print_example
 		exit
 	}
 
@@ -283,8 +316,7 @@ Port ${R_PORT} is already in use. You can assign it to this server like so:\
 
 	[[ -n $R_WT_PUBLIC ]] && WT_PUBLIC="$R_WT_PUBLIC" || WT_PUBLIC=$(echo "$WT_PRIVATE" | wg pubkey)
 
-	[[ -n $R_WT_NAME ]] && WT_NAME="${R_WT_NAME}" || { val="${WT_PUBLIC//[^[:alnum:]]}"; WT_NAME="${val:0:4}"; }
-	# write_wtfile "${WT_NAME}"
+	WT_NAME=${R_WT_NAME:-$(mk_wt_name)}
 
 	# Generate server's private unless it's provided by user
 	[[ -n $R_WG_PRIVATE ]] && WG_PRIVATE="$R_WG_PRIVATE" || WG_PRIVATE=$(wg genkey)
@@ -296,7 +328,6 @@ cmd_net_init()
 {
 	net_init
 	net_init_print_info
-	# net_print_example
 	echo -e "Use ${C}curl rpc/net/up -d name=${WT_NAME}${N} to connect an Exit Node."
 
 	exit
@@ -306,11 +337,6 @@ load_port()
 {
 	source "${LID_WGDIR}/port" 2>/dev/null || BAIL "${R}ERROR${N}: No port found. Use ${C}curl rpc/net/init${N} first."
 }
-
-# load_wt()
-# {
-# 	source "${LID_WGDIR}/wt-${1}" || BAIL "Not found: ${1}. Try ${C}curl rpc/net/init -d name=${1}${N}" "ERROR: " "Not found: wg/wt-${1}"
-# }
 
 load_wg()
 {
@@ -347,6 +373,10 @@ net_down()
 	# Restore default routing
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
 	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
+	# Empty file
+	>"${LID_PROMPT_FN}"
+	# Delete WG NAME
+	rm -f "${LID_WGNAME_FN:?}"
 }
 
 cmd_net_del()
@@ -365,8 +395,6 @@ cmd_net_del()
 			name="${str#*-}"
 			[[ $fn != "${LID_WGDIR}/wg-${name}" ]] && continue # BAD
 			# Delete all links
-			# xrm "/config/db/wg/wg-${name}" "/config/db/wg/wt-${name}"
-			# xrm  "${LID_WGDIR}/wg-${name}"  "${LID_WGDIR}/wt-${name}"
 			xrm "/config/db/wg/wg-${name}" "${LID_WGDIR}/wg-${name}"
 		done
 		echo -en "All private keys deleted."
@@ -410,6 +438,7 @@ cmd_net_show()
 		[[ "$str" != *"latest handshake"* ]] && {
 			echo -e "\n${Y}WARNING${N}: EXIT NODE NOT CONNECTED.\nDid you forget to start Wiretap/WireGuard on the Exit Node?"
 		}
+		echo -e "Use ${C}curl rpc/net/down${N} to stop wireguard."
 		exit
 	}
 
@@ -518,6 +547,8 @@ IFS=$_IFS
 	LID="${arr[0]}"
 	LID_WGDIR="/config/db/user/lg-${LID}/wg"
 	[[ ! -d "${LID_WGDIR}" ]] && mkdir "${LID_WGDIR}"
+	LID_PROMPT_FN="/dev/shm/sf/self-for-guest/lg-${LID}/prompt"
+	LID_WGNAME_FN="/dev/shm/sf/self-for-guest/lg-${LID}/wgname"
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
 
@@ -538,13 +569,17 @@ IFS=$_IFS
 
 	WT_NAME="$R_WT_NAME"
 
+	[[ -n $IS_NOCREAT ]] && [[ -n $WT_NAME ]] && [[ ! -f "${LID_WGDIR}/wg-${WT_NAME}" ]] && {
+		echo -e "${R}ERROR${N}: EXIT '${WT_NAME}' does not exist."
+		exit
+	}
+
 	[[ -z $WT_NAME ]] || [[ ! -f "${LID_WGDIR}/wg-${WT_NAME}" ]] && {
 		# R_WT_NAME not supplied _or_ R_WT_NAME does not exist => Create new one.
 		net_init
 		net_init_print_info
 	}
 	load_port
-	# load_wt "${WT_NAME}"
 	load_wg "${WT_NAME}"
 
 	dev="wg${WT_NAME}"
@@ -585,6 +620,8 @@ IFS=$_IFS
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${dev}"
 
+	echo "${WT_NAME}" >"${LID_WGNAME_FN}"
+	echo "(%F{yellow}EXIT:%B${WT_NAME}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
 	echo -e "${G}SUCCESS${N}"
 	net_print_example
 

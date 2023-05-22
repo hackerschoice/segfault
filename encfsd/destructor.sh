@@ -83,10 +83,15 @@ check_container()
 	set -o pipefail
 	comm=$(docker top "lg-${lid}" -eo pid,comm 2>/dev/null | tail +2 | awk '{print $2;}') || {
 		# HERE: lg died or top failed.
+		set +o pipefail
 		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "LG no longer running."
 		return
 	}
-
+	set +o pipefail
+	# Note: We must set 'set +o pipefail' (e.g. fail only if last command errors). Otherwise the rare
+	# condition can happen where grep exits (first match found) but 'echo' is still writing. Then echo
+	# will receive a SIGPIPE and exit with 141 and the entire pipe will fail.
+	
 	# [[ -f "/config/db/user/lg-${lid}/is_logged_in" ]] && return
 	# FIXME: many stale is_logged_in exists without ssh connected ;/
 

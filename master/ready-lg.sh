@@ -14,6 +14,11 @@ source /dev/shm/config-lg.txt || exit 255
 LID="$1"
 C_IP="$2"
 LG_PID="$3"
+LID_PROMPT_FN="/dev/shm/sf/self-for-guest/lg-${LID}/prompt"
+
+# Create 'empty' for ZSH's prompt to show WG EXIT
+[[ ! -f "${LID_PROMPT_FN}" ]] && touch "${LID_PROMPT_FN}"
+# wg_up
 
 set -e
 LG_MAC=$(docker inspect -f '{{ (index .NetworkSettings.Networks "sf-guest").MacAddress }}' "lg-${LID:?}")
@@ -30,5 +35,6 @@ nsenter.u1000 -t "${LG_PID:?}" --setuid 0 --setgid 0 -n arp -s "${SF_RPC_IP}"   
 # 255.0.0.1 and reach guest's 127.0.0.1.
 # echo nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1
 nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1
+set +e
 
 exit 0

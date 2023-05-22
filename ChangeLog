@@ -2,6 +2,7 @@
     * LXCFS - report correct uptime, cpuinfo, ...
     * geoip and /sf/share
     * XPRA/SF-UI improvements
+    * Fix where 4% of servers wrongly commenced auto-shutdown.
 
 0.4.6 - 2023-05-08
     * SF-UI alpha

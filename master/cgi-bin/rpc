@@ -60,6 +60,11 @@ GetFormVars()
 		[[ ${key} == "exit_public" ]] && R_WT_PUBLIC="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "private" ]] && R_WG_PRIVATE="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:13}"; }
+		[[ ${key} == "dev" ]] && {
+			val="${val//[^[:alnum:]]}"
+			WG_DEV="${val:0:13}"
+			[[ ! "${WG_DEV}" =~ ^wg ]] && WG_DEV="wg${WG_DEV}"
+		}
 	done
 
 	IFS=$ifs
@@ -88,8 +93,11 @@ GenSecret()
 
 net_print_example()
 {
+	local name
+	name="${1}"
+
 	echo -en "\
-To connect ${G}${WT_NAME}${CN} use this command on the Exit Node:
+To connect ${G}${name}${CN} use this command on the Exit Node:
 ${C}X='1-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
 X+='-${WG_EP_HOST}:${WG_PORT}'
@@ -112,13 +120,15 @@ cmd_net_list()
 	local ex_wt_private
 	local ex_wt_name
 	local privstr
+	local active_pubkey
 
 	load_port
 	echo -en "\
 Port      : ${Y}$WG_PORT${N}
 Portsecret: ${Y}$PORTSECRET${N}
 "
-	ifaces="$(nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n wg show interfaces) "
+	str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n wg show all public-key)
+	active_pubkey=${str##*$'\t'}
 	# List all configured names
 	echo -e "\
 
@@ -130,18 +140,17 @@ Name (${G}active${N})  |           | Private                                    
 		str=$(basename "$fn")
 		name="${str#*-}"
 		[[ $fn != "${LID_WGDIR}/wg-${name}" ]] && continue # BAD
-		# load_wt "$name"
 		load_wg "$name"
 		str="${name}                                      "
 		unset upstr
-		[[ $ifaces == *"wg${name} "* ]] && {
+		[[ "$active_pubkey" == "$WG_PUBLIC" ]] && {
 			upstr="${G}"
 			ex_wg_public="$WG_PUBLIC"
 			ex_wt_private="$WT_PRIVATE"
 			ex_wt_name="$name"
 		}
 		privstr="${WT_PRIVATE:-                                                                            }"
-		echo -e "${upstr}${str:0:14}${N} | Server    | ${F}${WG_PRIVATE:0:10}##################################${N} | ${WG_PUBLIC}\n               | Exit Node | ${privstr:0:44} | ${F}$WT_PUBLIC${N}"
+		echo -e "${upstr}${str:0:14}${N} | Segfault  | ${F}${WG_PRIVATE:0:10}##################################${N} | ${WG_PUBLIC}\n               | Exit Node | ${privstr:0:44} | ${F}$WT_PUBLIC${N}"
 	done
 
 	echo ""
@@ -158,8 +167,7 @@ Name (${G}active${N})  |           | Private                                    
 	[[ -n $ex_wg_public ]] && {
 		WG_PUBLIC="$ex_wg_public"
 		WT_PRIVATE="$ex_wt_private"
-		WT_NAME="$ex_wt_name"
-		net_print_example
+		net_print_example "$ex_wt_name"
 	}
 	exit
 }
@@ -335,7 +343,7 @@ cmd_net_init()
 
 load_port()
 {
-	source "${LID_WGDIR}/port" 2>/dev/null || BAIL "${R}ERROR${N}: No port found. Use ${C}curl rpc/net/init${N} first."
+	source "${LID_WGDIR}/port" 2>/dev/null || BAIL "${Y}WARNING${N}: No Exit Node found. Use ${C}curl rpc/net/up${N} first."
 }
 
 load_wg()
@@ -422,9 +430,11 @@ cmd_net_show()
 {
 	local str
 	local dev
+	local name
+	local is_not_connected
 
-	dev="all"
-	[[ -n $R_WT_NAME ]] && dev="wg${R_WT_NAME}"
+	dev="${WG_DEV:-all}"
+	# [[ -n $R_WT_NAME ]] && dev="wg${R_WT_NAME}"
 
 	unset IFS
 	if [[ -z $COLOR ]]; then
@@ -433,20 +443,32 @@ cmd_net_show()
 		# Use 'script' to force color output
 		str=$(script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${dev}\"" /dev/null </dev/null)
 	fi
-	[[ -n $str ]] && {
-		echo "$str"
-		[[ "$str" != *"latest handshake"* ]] && {
-			echo -e "\n${Y}WARNING${N}: EXIT NODE NOT CONNECTED.\nDid you forget to start Wiretap/WireGuard on the Exit Node?"
-		}
-		echo -e "Use ${C}curl rpc/net/down${N} to stop wireguard."
+	[[ -z $str ]] && {
+		echo -e "\
+${Y}WARNING${N}: No Exit Node enabled.
+Use ${C}curl rpc/net/list${N} to list all Exit Nodes.
+Use ${C}curl rpc/net/up -d name=<NAME>${N} to enable an Exit Node.
+Use ${C}curl rpc/net/up${N} to enable a new Exit Node."
+
 		exit
 	}
 
-	echo -e "\
-No interface connected.
-Use ${C}curl rpc/net/list${N} to list all Exit Nodes.
-Use ${C}curl rpc/net/up -d name=<NAME>${N} to connect to an Exit Node."
-
+	echo "$str"
+	[[ "$str" != *"latest handshake"* ]] && is_not_connected=1
+	[[ -e "${LID_WGNAME_FN}" ]] && {
+		name=$(<"${LID_WGNAME_FN}")
+		str="${CF}[${CDG}connected${CN}${CF}]${CN}"
+		[[ -n $is_not_connected ]] && str="${CF}[${CDR}EXIT Node not connected${CN}${CF}]${CN}"
+		echo -e "\n${CY}Name${CN}: ${CDY}${name:-UNKNOWN}${CN} ${str}"
+	}
+	[[ -n $is_not_connected ]] && {
+		# echo -e "\n${Y}WARNING${N}: EXIT NODE NOT CONNECTED."
+		[[ -n $name ]] && {
+			load_wg "$name"
+			net_print_example "$name"
+		}
+	}
+	echo -e "Use ${C}curl rpc/net/down${N} to stop wireguard."
 	exit
 }
 
@@ -470,8 +492,7 @@ Show connections : ${C}curl rpc/net/show${N}
 Move port to a different Root Server:
     ${C}curl rpc/net/init -d portsecret=<portsecret>${N}
 Connect Exit Node:
-    ${C}curl rpc/net/up -d name=<NAME>${N}
-    (and any parameters from rpc/net/init)
+    ${C}curl rpc/net/up   [-d name=<NAME>]${N}
 Disconnect Exit Node:
     ${C}curl rpc/net/down [-d name=<NAME>]${N}
 "
@@ -525,14 +546,6 @@ IFS=$_IFS
 
 [[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
 
-# /net/init
-# INPUT : <port|portsecret> <WT PRIVATE> <Name>
-# OUTPUT: WG-Config & WT-Line
-#
-# /net/up <Name>
-# - Do everything fromo INIT.
-# - 
-
 # /net       -> Show port assignment
 # /net/init  -> Assigned port to this LID or create new port.
 # /net/up    -> Create WireGuard interface
@@ -552,7 +565,7 @@ IFS=$_IFS
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
 
-	DEBUGF "LID=$LID PID=$PID"
+	# [[ -z $WG_DEV ]] && WG_DEV="wgExit"
 
 	# Show current port configuration
 	[[ ${ARGS[0]} == 'net' && ${ARGS[1]} == 'show' ]] && cmd_net_show
@@ -582,7 +595,9 @@ IFS=$_IFS
 	load_port
 	load_wg "${WT_NAME}"
 
-	dev="wg${WT_NAME}"
+	# dev="wg${WT_NAME}"
+	# Call Interface wgExit or user supplied. Previously we named wg${WT_NAME}.
+	dev="${WG_DEV:-wgExit}"
 
 	load_config
 
@@ -602,7 +617,7 @@ IFS=$_IFS
 	err=$(nsenter -t "${WG_PID}" -n ip link add "${dev}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add $dev (${err:0:32})." "Failed $dev" ": $err"
 	nsenter -t "${WG_PID}" -n ip link set "${dev}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
 	echo "$WG_PRIVATE" >/dev/shm/private.$$
-	err=$(nsenter -t "${WG_PID}" -n wg set "${dev}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
+	err=$(nsenter -t "${WG_PID}" -n wg set "${dev}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
 	rm -f /dev/shm/private.$$
 	# Move Interface to user's container:
 	err=$(nsenter -t "${WG_PID}" -n ip link set "${dev}" netns "${PID}" 2>&1) || BAIL "${R}ERROR${N}: Failed to move $dev." "Failed $dev netns $PID" ": $err"
@@ -619,11 +634,12 @@ IFS=$_IFS
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${dev}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${dev}"
 
 	echo "${WT_NAME}" >"${LID_WGNAME_FN}"
 	echo "(%F{yellow}EXIT:%B${WT_NAME}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
 	echo -e "${G}SUCCESS${N}"
-	net_print_example
+	net_print_example "${WT_NAME}"
 
 	echo "---"
 	echo -e "Use ${C}curl rpc/net/down -d name=${WT_NAME}${N} to disconnect."

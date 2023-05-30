@@ -14,10 +14,10 @@ print_ssh_access()
 	echo 1>&2 -e "\
 :Cut & Paste these lines to your workstation's shell to retain access:
 ######################################################################
-${CDC}cat >~/.ssh/id_${key_suffix} ${CDR}<<__EOF__
+${CDC}cat >~/.ssh/id_${key_suffix} ${CDR}<<'__EOF__'
 ${CN}${CF}$(<"/config/guest/id_ed25519")
 ${CDR}__EOF__
-${CDC}cat >>~/.ssh/config ${CDR}<<${CDR}__EOF__
+${CDC}cat >>~/.ssh/config ${CDR}<<'__EOF__'
 ${CN}${CF}host ${SF_HOSTNAME,,}
     User root
     HostName ${SF_FQDN}

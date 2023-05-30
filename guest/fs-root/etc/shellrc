@@ -5,7 +5,14 @@ source "/sf/bin/funcs.sh" 2>/dev/null
 
 alias l='ls -Alh'
 alias lt='ls -Alhrt'
+alias lss='ls -AlhrS'
 alias xterm='xterm-dark'
+
+function lsg {
+	[[ ! -t 1 ]] && { ls -Alh | grep -i -E "$*"; return; }
+	ls -Alh --color always | grep -i -E "$*" 
+}
+
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s rpc/dmesg/ -dnocolor=1; return; }
 	command curl -s rpc/dmesg/
@@ -212,3 +219,6 @@ apt-get()
 	_sf_info_non_perm
 }
 
+SHELLNAME="${SHELL##*/}"
+[[ -f "${HOME}/.gf/gs-completion.${SHELLNAME}" ]] && source "${HOME}/gf.gs-completion.${SHELLNAME}"
+unset SHELLNAME

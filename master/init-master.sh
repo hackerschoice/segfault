@@ -4,6 +4,7 @@
 
 source /sf/bin/funcs.sh || { sleep 5; exit 255; }
 
+[[ ! -d /dev/shm/sf/master ]] && mkdir -p /dev/shm/sf/master
 SOCKET="/dev/shm/sf/master/fcgiwrap.socket"
 rm -f "${SOCKET:?}"
 

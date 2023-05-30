@@ -29,8 +29,8 @@ CUL="\e[4m"
 
 [[ -z $ADDRESS ]] && ADDRESS="192.168.0.1/32"
 [[ -z $ADDRES6 ]] && ADDRES6="fd::1/128"
-[[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="192.168.0.2/32"
-[[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd::2/128"
+[[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="192.168.0.0/29"
+[[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd::0/125"
 [[ -z $WITHOUT_IPV6 ]] && WITH_IPV6=1
 [[ -z $WITHOUT_TUNE ]] && WITH_TUNE=1
 [[ -z $TYPE ]] && TYPE="wireguard:wiretap"
@@ -72,7 +72,7 @@ x2data()
     PEER=${CONF[2]}
     EP=${CONF[3]}
 
-    [[ ${#CONF[@]} -ge 5 ]] && [[ -z $WGDEV ]] && [[ ${#CONF[4]} -gt 1 ]] && WGDEV=${CONF[4]}
+    [[ ${#CONF[@]} -ge 5 ]] && [[ -z $WG_DEV ]] && [[ ${#CONF[4]} -gt 1 ]] && WG_DEV=${CONF[4]}
     [[ ${#CONF[@]} -ge 6 ]] && ADDRESS=${CONF[5]}
     [[ ${#CONF[@]} -ge 7 ]] && ADDRES6=${CONF[6]}
 }
@@ -89,6 +89,19 @@ ipt()
     iptables -t "$table" -D "$@" 2>/dev/null # Delete old rule.
     iptables -t "$table" "$first" "$@"
 }
+
+ipt6()
+{
+    local first
+    local table
+    table=$1
+    first=$2
+
+    shift 2
+    ip6tables -t "$table" -D "$@" 2>/dev/null # Delete old rule.
+    ip6tables -t "$table" "$first" "$@"
+}
+
 
 sysinc()
 {
@@ -113,7 +126,7 @@ sysdec()
 # Tune Network for scanning.
 tune()
 {
-    sysinc net.netfilter.nf_conntrack_max 1048576
+    sysinc net.netfilter.nf_conntrack_max 2097152
     sysdec net.netfilter.nf_conntrack_tcp_timeout_syn_sent 10
     sysdec net.netfilter.nf_conntrack_tcp_timeout_syn_recv 5        # default is 30, 5 because of wg tunnel
     sysdec net.netfilter.nf_conntrack_tcp_timeout_last_ack 5        # default is 30
@@ -124,6 +137,7 @@ tune()
     sysdec net.netfilter.nf_conntrack_tcp_timeout_established 10800 # 3h, default is 5 days
     sysdec net.netfilter.nf_conntrack_icmp_timeout 10 # default is 30
     sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
+    # sysdec net.netfilter.nf_conntrack_udp_timeout_stream=120 # default is 120
 }
 
 wg_find_dev()
@@ -134,28 +148,29 @@ wg_find_dev()
 
     # If user did not specify a device then find
     # an available wireguard device.
-    [[ -z $WGDEV ]] && {
+    [[ -z $WG_DEV ]] && {
         # Try to 'hide' as any of these interfaces
         for dev in docker0 loopback docker1 sf0; do
             # Record a device that doesnt exist
             str=$(ip -details link show "${dev}" 2>/dev/null) || { [[ -z $notexist ]] && notexist="${dev}"; }
-            [[ ${str} == *wireguard* ]] && { WGDEV="${dev}"; break; } # Found old wireguard device.
+            [[ ${str} == *wireguard* ]] && { WG_DEV="${dev}"; break; } # Found old wireguard device.
         done
-        [[ -z $WGDEV ]] && WGDEV="${notexist}"
-        [[ -z $WGDEV ]] && ERREXIT 255 "Could not find a free device name. Try ${CDC}export WGDEV=Blah0${CN}"
+        [[ -z $WG_DEV ]] && WG_DEV="${notexist}"
+        [[ -z $WG_DEV ]] && ERREXIT 255 "Could not find a free device name. Try ${CDC}export WG_DEV=Blah0${CN}"
     }
 
     ### Check if it exists.
-    ip link show dev "${WGDEV}" &>/dev/null && ERREXIT 255 "Device ${CDM}${WGDEV}${CN} exists. Try ${CDC}ip link del ${WGDEV}${CN} or ${CDC}export WGDEV=Blah0${CN}"
+    ip link show dev "${WG_DEV}" &>/dev/null && ERREXIT 255 "Device ${CDM}${WG_DEV}${CN} exists. Try ${CDC}ip link del ${WG_DEV}${CN} or ${CDC}export WG_DEV=Blah0${CN}"
 }
 
 wg_up()
 {
     local fn
     local addr
-    command -v wg >/dev/null || ERREXIT 254 "WireGuard not installed. Try ${CDC}apt install wireguard${CN}"
+    command -v wg >/dev/null || ERREXIT 254 "WireGuard not installed.\nTry ${CDC}apt install wireguard${CN} or ${CDC}export TYPE=wiretap${CN} to force wiretap instead."
     command -v sysctl >/dev/null || ERREXIT 255 "sysctl not found. Try ${CDC}apt-get install procps${CN}"
     command -v iptables >/dev/null || ERREXIT 255 "iptables not found. Try ${CDC}apt-get install iptables${CN}"
+    command -v ip6tables >/dev/null || { WARN "ip6tables not found. Disabling IPv6". unset WITH_IPV6; }
     command -v ip >/dev/null || ERREXIT 255 "ip not found. Try ${CDC}apt-get install iproute2${CN}"
 
     wg_find_dev
@@ -165,9 +180,10 @@ wg_up()
         WARN "IPv6 disabled. Try ${CDC}sysctl net.ipv6.conf.all.disable_ipv6=0${CN}"
     }
     [[ $(sysctl -bn net.ipv4.ip_forward) -eq 0 ]] && sysctl -q -w net.ipv4.ip_forward=1
+    [[ $(sysctl -bn net.ipv6.conf.all.forwarding) -eq 0 ]] && sysctl -q -w net.ipv6.conf.all.forwarding=1
 
-    ip link del "${WGDEV}" &>/dev/null
-    ip link add "${WGDEV}" type wireguard || ERREXIT 255
+    ip link del "${WG_DEV}" &>/dev/null
+    ip link add "${WG_DEV}" type wireguard || ERREXIT 255
 
     fn="/dev/shm/private.$$"
     echo "$PRIV" >"${fn}"
@@ -175,30 +191,38 @@ wg_up()
     [[ -n $WITH_IPV6 ]] && addr+=",${PEER_ADDRES6}"
     # addr="0.0.0.0/0"
     # [[ -n $WITH_IPV6 ]] && addr+=", ::/0"
-    wg set "${WGDEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || ERREXIT 255
+    wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || ERREXIT 255
     rm -f "${fn}"
 
-    ip -4 address add "${ADDRESS}" dev "${WGDEV}" || ERREXIT 255
-    [[ -n $WTIH_IPV6 ]] && ip -6 address add "${ADDRES6}" dev "${WGDEV}" || { unset WITH_IPV6; }
+    ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || ERREXIT 255
+    [[ -n $WITH_IPV6 ]] && { ip -6 address add "${ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
-    ip link set mtu 1420 up dev "${WGDEV}"
+    ip link set mtu 1420 up dev "${WG_DEV}"
 
-    ip -4 route add "${PEER_ADDRESS}" dev "${WGDEV}"
-    [[ -n $WITH_IPV6 ]] && ip -6 route add "${PEER_ADDRES6}" dev "${WGDEV}" || { unset WITH_IPV6; }
+    ip -4 route add "${PEER_ADDRESS}" dev "${WG_DEV}"
+    [[ -n $WITH_IPV6 ]] && { ip -6 route add "${PEER_ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
     [[ $(iptables -L FORWARD) != *"policy ACC"* ]] && {
-        ipt filter -I FORWARD -i "${WGDEV}" -j ACCEPT
-        ipt filter -I FORWARD -o "${WGDEV}" -j ACCEPT
+        ipt filter -I FORWARD -i "${WG_DEV}" -j ACCEPT
+        ipt filter -I FORWARD -o "${WG_DEV}" -j ACCEPT
+    }
+
+    [[ -n $WITH_IPV6 ]] && [[ $(ip6tables -L FORWARD) != *"policy ACC"* ]] && {
+        ipt6 filter -I FORWARD -i "${WG_DEV}" -j ACCEPT
+        ipt6 filter -I FORWARD -o "${WG_DEV}" -j ACCEPT
     }
 
     ipt nat -A POSTROUTING -s "${PEER_ADDRESS}" -j MASQUERADE
+    [[ -n $WITH_IPV6 ]] && ipt6 nat -A POSTROUTING -s "${PEER_ADDRES6}" -j MASQUERADE
 
     [[ -n $WITH_TUNE ]] && tune
 
     echo -e "\
-${CDG}SUCCRSS${CN}
-For status: ${CDC}wg show ${WGDEV}${CN}
-To stop   : ${CDC}ip link del ${WGDEV}${CN}"
+${CDG}SUCCESS${CN}
+For status: ${CDC}wg show ${WG_DEV}${CN}
+To stop   : ${CDC}ip link del ${WG_DEV}${CN}
+Check the connection on your server:
+    ${CDC}curl rpc/net/show${CN}"
 }
 
 # Download wiretap
@@ -269,6 +293,7 @@ wt_up()
     }
     # CWD may have changed by wt_dl
 
+    # WIRETAP_SIMPLE=true ./wiretap_linux_amd64 serve --ipv6-relay  fd::1 --allowed 192.168.0.1/28,fd::1/125
     exec -a '[updated]' wiretap serve -q --private "${PRIV}" --public "${PEER}" --endpoint "${EP}" &>/dev/null &
     [[ -n $is_pidof ]] && {
         sleep 0.5

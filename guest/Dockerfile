@@ -52,6 +52,7 @@ RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		screen \
 		sharutils \
 		sshfs \
+		subversion \
 		supervisor \
 		tmux \
 		unrar \
@@ -64,6 +65,7 @@ RUN /pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		bison \
 		build-essential \
 		byacc \
+		cmake \
 		dtach \
 		flex \
 		g++ \
@@ -232,6 +234,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		python3-cheroot \
 		python3-full \
 		python3-scapy \
+		python3-poetry \
 		python3-pwntools \
 		python3-pygments \
 		python3-venv \
@@ -424,15 +427,16 @@ RUN /pkg-install.sh GUI bash -c '{ true; \
 RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aarch64=arm64%.' sing-box \
 	&& /pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-%arch:x86_64=amd64:aarch64=arm64%.zip' loclx \
 	&& /pkg-install.sh HACK bin 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-%arch:x86_64=amd64:aarch64=arm64%.tgz' ngrok \
-	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls                                     `# x86_64 only` \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' uncover \
+	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \                            
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest; }' \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' httpx \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' nuclei \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' subfinder \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu 'linux_amd64.zip$' naabu `### x86_64 only` \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' proxify \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/katana 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' katana \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu 'linux_amd64.zip$' naabu `### x86_64 only` \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' nuclei \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' proxify \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' subfinder \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' tlsx \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover 'linux_%arch:x86_64=amd64:aarch64=arm64%.zip$' uncover \
 	&& /pkg-install.sh HACK ghbin s0md3v/smap 'linux_%arch:x86_64=amd64:aarch64=arm64%.tar.xz$' smap
 RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch64=arm64%.deb$' \
 	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-%arch:x86_64=amd64:aarch64=arm64%.deb$' \
@@ -445,6 +449,8 @@ RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch
 	&& /pkg-install.sh HACK ghbin tomnomnom/anew 'linux-amd64' anew          `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin lc/gau 'linux_amd64.tar.gz$' gau           `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin praetorian-inc/fingerprintx 'linux_%arch:x86_64=amd64:aarch64=arm64%.tar.gz$' fingerprintx \
+	&& //pkg-install.sh MINI ghbin dwisiswant0/ppfuzz '-%arch%-unknown.*tar.gz' ppfuzz \
+	&& /pkg-install.sh MINI ghbin Edu4rdSHL/unimap  'unimap-%arch:x86_64=linux:aarch64=aarch64%' unimap \
 	&& /pkg-install.sh LARGE ghbin denisidoro/navi '%arch%-unknown-linux' navi \
 	&& /pkg-install.sh LARGE ghbin d3mondev/puredns 'inux-%arch:x86_64=amd64:aarch64=arm64%' puredns \
 	&& /pkg-install.sh LARGE bash -c '{ GOBIN=/usr/bin go install github.com/subfinder/goaltdns@latest; }' \
@@ -487,13 +493,19 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		python3-aiohttp \
 		python3-discord
-RUN /pkg-install.sh    HACK pipx install arsenal-cli \
+RUN /pkg-install.sh    HACK pipx install aort \
+	&& /pkg-install.sh HACK pipx install arsenal-cli \
+	&& /pkg-install.sh HACK pipx install bbrf \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/vortexau/dnsvalidator \
 	&& /pkg-install.sh HACK pipx install git-dumper \
+	&& /pkg-install.sh HACK pipx install git+https://github.com/r0oth3x49/ghauri \
 	&& /pkg-install.sh HACK pipx install h8mail \
 	&& /pkg-install.sh HACK pipx install holehe \
+	&& /pkg-install.sh HACK pipx install git+https://github.com/codingo/Interlace \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret `### 2023-03-07 pipx repo fails on aiohttp/longintrepr.h` \
+	&& /pkg-install.sh HACK pipx install raccoon-scanner \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/EntySec/Shreder \
+	&& /pkg-install.sh HACK pipx install userefuzz \
 	&& /pkg-install.sh HACK pipx install webtech \
 	&& /pkg-install.sh DEVEL pipx install dulwich \
 	&& /pkg-install.sh DEVEL pipx install names
@@ -536,32 +548,44 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		rust-src
 RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_%arch:x86_64=amd64:aarch64=arm64%$' fscan \
 	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
-	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest \
+		&& mkdir -p /usr/share/gf \
+		&& svn export https://github.com/tomnomnom/gf/trunk /tmp/gf \
+		&& mv /tmp/gf/examples/*.json /usr/share/gf \
+		&& mv /tmp/gf/gf-completion.* /usr/share/gf \
+		&& rm -rf /tmp/gf \
+		&& svn export https://github.com/1ndianl33t/Gf-Patterns/trunk/ /tmp/gf \
+		&& mv /tmp/gf/*.json /usr/share/gf; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/hacks/inscope@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Emoe/kxss@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/analyticsrelationships@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/gotator@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Josue87/roboxtractor@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/six2dez/ipcdn@latest; }' \
+	&& /pkg-install.sh HACK bash -c '{ git clone --depth 1 https://github.com/ameenmaali/urldedupe.git \
+		&& cd urldedupe \
+		&& cmake . \
+		&& make \
+		&& cp urldedupe /usr/bin; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/damit5/gitdorks_go@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/dsieve@master; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/enumerepo@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/lobuhi/byp4xx@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Hackmanit/Web-Cache-Vulnerability-Scanner@latest && ln -s Web-Cache-Vulnerability-Scanner /usr/bin/wcvs; }' \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/qsreplace' 'linux-amd64' qsreplace                                `# x86_64 only` \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/unfurl' 'linux-amd64' unfurl                                      `# x86_64 only` \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/gron' 'linux-%arch:x86_64=amd64:aarch64=arm64%-' gron \
-	&& /pkg-install.sh HACK ghbin 'tomnomnom/meg' 'linux-amd64-' meg                                           `# x86_64 only` \
-	&& /pkg-install.sh HACK ghbin 'projectdiscovery/notify' 'linux_%arch:x86_64=amd64:aarch64=arm64%' notify \
-	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_%arch:x86_64=amd64:aarch64=arm64%' interactsh-client \
-	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_%arch:x86_64=amd64:aarch64=arm64%' mapcidr \
-	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64' subjs                                               `# x86_64 only` \
-	&& /pkg-install.sh HACK ghbin 'qsocket/qs-netcat' 'linux_%arch:x86_64=amd64:aarch64=arm64%' qs-netcat \
-	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_%arch:x86_64=amd64:aarch64=arm64%' rush \
-	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64' Gxss                                          `# x86_64 only` \
-	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_%arch:x86_64=amd64:aarch64=arm64%' crlfuzz \
-	&& /pkg-install.sh HACK ghbin 'hahwul/dalfox' 'inux_%arch:x86_64=amd64:aarch64=arm64%' dalfox \
-	&& /pkg-install.sh HACK ghbin 'pwnesia/dnstake' 'linux_%arch:x86_64=amd64:aarch64=arm64%' dnstake \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/qsreplace' 'linux-amd64'                                      qsreplace `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/unfurl' 'linux-amd64'                                         unfurl    `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/gron' 'linux-%arch:x86_64=amd64:aarch64=arm64%-'              gron \
+	&& /pkg-install.sh HACK ghbin 'tomnomnom/meg' 'linux-amd64-'                                           meg       `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/notify' 'linux_%arch:x86_64=amd64:aarch64=arm64%'      notify \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/interactsh' 'linux_%arch:x86_64=amd64:aarch64=arm64%'  interactsh-client \
+	&& /pkg-install.sh HACK ghbin 'projectdiscovery/mapcidr' 'linux_%arch:x86_64=amd64:aarch64=arm64%'     mapcidr \
+	&& /pkg-install.sh HACK ghbin 'lc/subjs' 'linux_amd64'                                                 subjs     `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'qsocket/qs-netcat' 'linux_%arch:x86_64=amd64:aarch64=arm64%'            qs-netcat \
+	&& /pkg-install.sh HACK ghbin 'shenwei356/rush' 'linux_%arch:x86_64=amd64:aarch64=arm64%'              rush \
+	&& /pkg-install.sh HACK ghbin 'KathanP19/Gxss' 'inux_x86_64'                                           Gxss      `# x86_64 only` \
+	&& /pkg-install.sh HACK ghbin 'dwisiswant0/crlfuzz' 'inux_%arch:x86_64=amd64:aarch64=arm64%'           crlfuzz \
+	&& /pkg-install.sh HACK ghbin 'hahwul/dalfox' 'inux_%arch:x86_64=amd64:aarch64=arm64%'                 dalfox \
+	&& /pkg-install.sh HACK ghbin 'pwnesia/dnstake' 'linux_%arch:x86_64=amd64:aarch64=arm64%'              dnstake \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
@@ -634,6 +658,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		re2c \
 		schedtool \
 		'softether-*' \
+		sysbench \
 		texinfo \
 		yt-dlp \
 	&& /pkg-install.sh LARGE bash -c '{ apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys B5A08F01796E7F521861B449372D1FF271F2DD50 \
@@ -649,7 +674,8 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		g++-multilib \
 		gcc-multilib \
 		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
-RUN /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr
+RUN /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr \
+	&& /pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch:x86_64=amd64:aarch64=arm64%' dalfox
 RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb   `# x86_64 only` \
 	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust '%arch%.*linux.musl.tar.xz$' \
 	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost \

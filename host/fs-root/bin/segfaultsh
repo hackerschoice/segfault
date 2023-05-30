@@ -40,6 +40,7 @@ CN="\e[0m"    # none
 CW="\e[1;37m" # white
 CF="\e[2m"    # faint
 CUL="\e[4m"
+CRY="\e[0;33;41m"  # YELLOW on RED (warning)
 }
 
 # [PREFIX] [MSG]
@@ -339,6 +340,7 @@ init_vars()
 	db_dir="${SF_CONFIG_DIR}/db"
 	SF_USER_DB_DIR="${db_dir}/user/lg-${LID}"
 	SF_BLACKLIST_DIR="${db_dir}/banned"
+	SF_TOKEN_DIR="${db_dir}/token"
 	HNLID_DIR="${db_dir}/hn"
 
 	SF_RUN_DIR="/sf/run/"
@@ -393,6 +395,24 @@ ${CR}######################################################################
 ######################################################################${CN}"
 }
 
+# Return TRUE if 'y' is pressed.
+prompt_wait_yN()
+{
+	local p
+	local sec
+	sec=$1
+	p="$2"
+
+	echo -en "$p (y/N) "
+	IFS=$'\n'
+	read -r -n1 -t"${sec}" yn || { echo -e "${CF}N${CN}"; return 255; } # Timeout. Print "N\n"
+	[[ -z $yn ]] && return 255                       # Enter pressed. \n already displayed (echo'ed)
+	echo "" # Print \n
+	[[ "${yn^^}" != "Y" ]] && return 255
+
+	return 0
+}
+
 # Output GOODBYE message with infos how to connect back to this shell
 print_goodbye()
 {
@@ -437,12 +457,7 @@ RTFM             : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 	[[ -z $SF_IS_NEW_SERVER ]] && return
 
-	echo -en "Would you like to see your ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}? (y/N) "
-	IFS=$'\n'
-	read -r -n1 -t10 yn || { echo "N"; return; } # Timeout. Print "N\n"
-	[[ -z $yn ]] && return                       # Enter pressed. \n already displayed (echo'ed)
-	echo "" # Print \n
-	[[ "${yn^^}" != "Y" ]] && return
+	prompt_wait_yN 10 "Would you like to see your ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}?" || return
 
 	echo -e "\
 SECRET           : ${CDY}${SF_SEC}${CN}
@@ -463,21 +478,22 @@ print_to_many_servers()
 
 show_last_server()
 {
-	local n
+	local n=$1
 	echo >&2 -e "\
 [${CDY}WARNING${CN}]
---> You (${CDY}$YOUR_IP${CN}) now have $1 servers running. ${CDR}You can not create any more
---> servers${CN} after this one! Use your ${CDY}SECRET${CN} to log in to your previously
+--> You (${CDY}$YOUR_IP${CN}) now have $n servers running.
+--> ${CRY}You can not create any more servers after this one!${CN}
+--> Use your ${CDY}SECRET${CN} to log in to your previously
 --> created servers. If you forgot the ${CDY}SECRET${CN} then you need to wait for
 --> the servers to time out and shut down automatically. Best to write down
 --> the ${CDY}SECRET${CN} for THIS SERVER and follow these instructions:
---> ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}
+--> ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}"
+
+	prompt_wait_yN 30 "Would you like to see your ${CDY}SECRET${CN} now?" && {
+		echo >&2 -e "\
 --> SECRET: ${CDY}${SF_SEC:-BAD}${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
-
-	sleep 5
-	echo -en "Press ENTER to continue..."
-	read -r -n8 -t120 || echo ""
+	}
 }
 
 echo_pty() { :;}
@@ -607,8 +623,11 @@ load_limits()
 	# Test blkio_weight:
 	# dd bs=1M count=10024 if=/dev/zero of=/dump.dat oflag=direct status=progress
 
-	# HACK: Use eval-trick to 'source' in a restricted bash shell
+	# Source system wide limits
 	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf.conf")"
+
+	# Then source TOKEN specific limits
+	[[ -f "${SF_TOKEN_DIR}/token-${TOKEN}.conf" ]] && eval "$(<"${SF_TOKEN_DIR}/token-${TOKEN}.conf")"
 
 	# Then source IP specific limits
 	[[ -f "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf")"
@@ -826,7 +845,7 @@ check_limit_server_by_ip()
 			ERREXIT 254
 		}
 
-		[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && show_last_server "$n"
+		[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && show_last_server "$((n+1))"
 
 		[[ "$n" -ge 1 ]] && {
 			# The 3rd and more servers from same IP get less CPU share
@@ -834,7 +853,7 @@ check_limit_server_by_ip()
 			SF_USER_OOM_SCORE=1000
 			SF_USER_NICE_SCORE=19
 			SF_USER_BLKIO_WEIGHT=10
-			DEBUGF "${n}. server from ${YOUR_IP}. CPU_SHARE=${SF_USER_CPU_SHARE}, OOM=${SF_USER_OOM_SCORE}."
+			# DEBUGF "${n}. server from ${YOUR_IP}. CPU_SHARE=${SF_USER_CPU_SHARE}, OOM=${SF_USER_OOM_SCORE}."
 		}
 	}
 
@@ -936,7 +955,9 @@ fi
 }
 
 [[ -n $TOKEN ]] && {
-	SF_TOKEN="${TOKEN//[^a-zA-Z0-9._:]}"
+	SF_TOKEN="${TOKEN//[^a-zA-Z0-9@]}"
+	# TOKEN=User@foobarBLah.helloAbc => foobarBLahhelloAbc
+	SF_TOKEN="${TOKEN##*@}"
 	SF_TOKEN="${SF_TOKEN:0:32}"
 }
 # Unset user supplied env variables

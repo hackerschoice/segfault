@@ -64,8 +64,15 @@
 FILE *dout;
 #ifdef DEBUG
 # define DEBUGF(a...) do{fprintf(dout, "\033[0;33mDEBUG\033[0m %s:%d ", __func__, __LINE__); fprintf(dout, a); fflush(dout);}while(0)
+# define HEXDUMP(a, _len)        do { \
+        size_t _n = 0; \
+        fprintf(dout, "%s:%d HEX[%zd] ", __FILE__, __LINE__, _len); \
+        while (_n < (_len)) fprintf(dout, "%2.2x", ((unsigned char *)a)[_n++]); \
+        fprintf(dout, "\n"); \
+} while (0)
 #else
 # define DEBUGF(a...) do{}while(0)
+# define HEXDUMP(a, len) do{}while(0)
 #endif
 
 static pid_t pid;
@@ -75,6 +82,7 @@ static int efd;
 static struct sockaddr_un addr;
 static char *container_id;
 static char *exec_id;
+int exit_code;
 static char sock_path[1024];
 static void sig_forward(int sig);
 
@@ -85,23 +93,21 @@ docker_exec(int argc, char *argv[])
 
 	if (pid != 0)
 	{
-		// HERE: Parent.
-		// Need STDIN open to fix stty after docker exits...
+		// HERE: Parent. sigproxy
+		// STDIN/OUT/ERR are directly connected to docker-cli (not sigproxy)
 		close(0);
 		close(1);
 		close(2);
 		// Neither child nor parent needs to become session leader (setsid).
-		// This way SIGHUP/SIGPIP will be send to both and I dont need to
+		// This way SIGHUP/SIGPIPE will be send to both and I dont need to
 		// kill the original 'docker exec' (our child).
 		return;
 	}
 
 	// HERE: Child.
-	// This real 'docker exec' (my child) is on PROXY_SOCK.
-	// The 'real' receives STDIN/STDOUT (from SSHD) and pipes them into
-	// PROXY_SOCK where we pick it up and forward STDIN/STDOUT to real DOCKER_SOCK.
-	// All command from here will be intercepted by parent (proxy) for
-	// forwarded (by parent/proxy) to real DOCKER_SOCK.
+	// This real 'docker-cli' (my child) is on PROXY_SOCK.
+	// The 'real docker-cli' receives STDIN/STDOUT (from SSHD) and pipes them into
+	// PROXY_SOCK where we pick it up and forward it to real DOCKER_SOCK.
 	char buf[1024];
 	snprintf(buf, sizeof buf, "DOCKER_HOST=unix://%.900s", sock_path /* PROXY_SOCK */);
 	putenv(buf);
@@ -110,6 +116,9 @@ docker_exec(int argc, char *argv[])
 	exit(255);
 }
 
+#define FL_PEER_CLI         (0x01)
+#define FL_PEER_DOCKERD     (0x02)
+#define FL_PEER_SHUT_WR     (0x04)
 struct _peer
 {
 	int fd;
@@ -139,22 +148,34 @@ buddy_up(int in /* lsox accept */, int out)
 	struct _peer *p = malloc(sizeof *p);
 	struct _peer *buddy;
 
-	ev_peer_add(p, in, 1); // Real 'docker exec'
+	DEBUGF("NEW CLI=%d, DOCKERD=%d\n", in, out);
+	ev_peer_add(p, in, FL_PEER_CLI); // Real 'docker exec'
 
 	p->buddy = malloc(sizeof *p);
 	buddy = p->buddy;
 	buddy->buddy = p;
 
 	n_peers++;
-	ev_peer_add(buddy, out, 0);
+	ev_peer_add(buddy, out, FL_PEER_DOCKERD);
 }
 
 static void
 peer_del(struct _peer *p)
 {
+	struct _peer *buddy = (struct _peer *)p->buddy;
+
 	epoll_ctl(efd, EPOLL_CTL_DEL, p->fd, NULL);
-	close(p->fd);
-	free(p);
+	shutdown(buddy->fd, SHUT_WR);
+	buddy->flags |= FL_PEER_SHUT_WR;
+	if ((p->flags & FL_PEER_SHUT_WR) && (buddy->flags & FL_PEER_SHUT_WR))
+	{
+		n_peers--;
+		close(p->fd);
+		free(p);
+		close(buddy->fd);
+		free(buddy);
+		return;
+	}
 }
 
 // New incoming connection.
@@ -188,19 +209,37 @@ parse(char *buf, ssize_t sz)
 	char *next;
 
 	ptr = strstr(buf, "{\"Id\":\"");
+	if (ptr != NULL)
+	{
+		ptr += 7;
+
+		if (exec_id != NULL)
+			return;
+
+		next = strchr(ptr, '"');
+		if (next == NULL)
+			return;
+		*next = '\0';
+
+		if (container_id == NULL)
+			container_id = strdup(ptr);
+		else if (exec_id == NULL)
+			exec_id = strdup(ptr);
+
+		return;
+	}
+
+	ptr = strstr(buf, "{\"ID\":\"");
 	if (ptr == NULL)
 		return;
+	ptr += 7;	
 
-	ptr += 7;
-	next = strchr(ptr, '"');
-	if (next == NULL)
+	ptr = strstr(ptr, "\"ExitCode\":");
+	if (ptr == NULL)
 		return;
-	*next = '\0';
+	ptr += 11;
 
-	if (container_id == NULL)
-		container_id = strdup(ptr);
-	else if (exec_id == NULL)
-		exec_id = strdup(ptr);
+	exit_code = atoi(ptr);
 }
 
 static int
@@ -209,7 +248,7 @@ dispatch(struct epoll_event *evs, int count)
 	struct epoll_event *e;
 	int n;
 	ssize_t sz;
-	char buf[4096];
+	char buf[4*4096];
 
 	// Relay data between both sockets.
 	for (n = 0; n < count; n++)
@@ -230,26 +269,19 @@ dispatch(struct epoll_event *evs, int count)
 			{
 				// snprintf(buf, sizeof buf, "/dev/null-flag-is-%d-fd-%d", p->flags, p->fd);
 				// struct stat sb; stat(buf, &sb);
-				n_peers--;
+				peer_del(p);
 				if (n_peers > 0)
-				{
-					peer_del(p->buddy);
-					peer_del(p);
-
 					continue;
-				}
-				if (p->flags == 0)
+
+				if (p->flags & FL_PEER_DOCKERD)
 					return -1; // dockerd closed?
 				return 200; // real 'docker exec' closed.
 			}
 			buf[sz] = '\0';
-			// DEBUGF("read(%d)=%zd '%s'\n", p->fd, sz, buf);
 			if (write(buddy->fd, buf, sz) != sz)
 				return -1;
-			if ((exec_id == NULL) && (p->flags == 0))
-			{
+			if ((exit_code < 0) && (p->flags & FL_PEER_DOCKERD))
 				parse(buf, sz);
-			}
 		}
 	}
 
@@ -286,10 +318,6 @@ sig_forward(int sig)
 #endif
 	// int ret;
 	system(cmd);
-	// ret = system(cmd);
-	// char buf[1024];
-	// snprintf(buf, sizeof buf, "/dev/null-cmd-%d-%s", ret, cmd);
-	// struct stat sb; stat(buf, &sb);
 }
 
 static struct termios tios;
@@ -315,6 +343,7 @@ main(int argc, char *argv[])
 		dout = stderr;
 #endif
 
+	exit_code = -1;
 	tios_error = tcgetattr(STDIN_FILENO, &tios);
 
 	signal(SIGHUP, cb_signal);
@@ -368,10 +397,6 @@ main(int argc, char *argv[])
 			break;
 	}
 
-	// char buf[1024];
-	// snprintf(buf, sizeof buf, "/dev/null-ret-is-%d", ret);
-	// struct stat sb; stat(buf, &sb);
-
 	if (ret > 0)
 	{
 		// HERE: Real 'docker exec' closed connection.
@@ -386,10 +411,7 @@ main(int argc, char *argv[])
 		// Very rarely does docker-cli call exit(255) without any particular reason. Thus we
 		// can not assume that shell exited but must forward signal.
 		sig_forward(SIGHUP);
-		// FIXME: find out exit status and exit with same value.
-		// How does 'docker exec' get the exit status of the
-		// container's process?
-		exit(0 /* FIXME */);
+		exit(exit_code);
 	}
 
 	// HERE: error in epoll_wait()

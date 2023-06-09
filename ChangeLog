@@ -5,7 +5,12 @@
     * Fix where 4% of servers wrongly commenced auto-shutdown.
     * IPv6 support for EXIT nodes (curl rpc/net/up)
     * TOKEN= to set custom limits for token-bearers
-    * VSCode remote working (MS) & container's exit code forwarded to client
+    * VSCode remote working (MS)
+    * Container's exit code forwarded to SSH client
+    * /config/self/limits
+    * Select Proxy at random ala 'curl -x socks5h://$(PROXY) ipinfo.io'
+      or 'curl -x socks5h://$(TOR) ipinfo.io'
+    * Highight anything with '| hl sh' or '| hl py'
 
 0.4.6 - 2023-05-08
     * SF-UI alpha

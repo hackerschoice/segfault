@@ -55,10 +55,10 @@ _sf_usage()
 
 	echo -e "${CDC}container_df <regex>${CN}                   # eg \`container_df ^lg\`"
 	echo -e "${CDC}lgwall [lg-LID] <message>${CN}              # eg \`lgwall lg-NGVlMTNmMj "'"Get\\nLost\\n"`'
-	echo -e "${CDC}lgstop [lg-LID] <message>${CN}              # eg \`lgstop lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
-	echo -e "${CDC}lgban  [lg-LID] <message>${CN}              # Stop & Ban IP address, eg \`lgban lg-NmEwNWJkMW "'"***ABUSE***\\nContact Sysop"`'
+	echo -e "${CDC}lgstop [lg-LID] <message>${CN}              # eg \`lgstop lg-NmEwNWJkMW "'"***ABUSE***\\nContact SysCops"`'
+	echo -e "${CDC}lgban  [lg-LID] <message>${CN}              # Stop & Ban IP address, eg \`lgban lg-NmEwNWJkMW "'"***ABUSE***\\nContact SysCops"`'
 	echo -e "${CDC}lgrm   [lg-LID]${CN}                        # Remove all data for LID"
-	echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}       # eg \`lgps 'dd if=/dev/zero' stop "'"***ABUSE***\\nContact Sysop"`'
+	echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}       # eg \`lgps 'dd if=/dev/zero' stop "'"***ABUSE***\\nContact SysCops"`'
 	echo -e "${CDC}lg_cleaner [max_pid_count=3] <stop>${CN}    # eg \`lg_cleaner 3 stop\` or \`lg_cleaner 0\`"
 	echo -e "${CDC}docker_clean${CN}                           # Delete all containers & images"
 	echo -e "${CDC}lgsh [lg-LID]${CN}                          # Enter bash [FOR TESTING]"
@@ -70,6 +70,7 @@ _sf_usage()
 	echo -e "${CDC}lgdf <lg-LID>${CN}                          # Storage usage (Try '|sort -n -k3' for inode)"
 	echo -e "${CDC}lgio${CN}                                   # Sorted list of Network OUT usage"
 	echo -e "${CDC}lgbio${CN}                                  # Sorted list of BlockIO usage"
+	echo -e "${CDC}lgiftop${CN}                                # Live network traffic"
 	echo -e "${CDC}sftop${CN}"
 	echo -e "${CDC}lghelp${CN}                                 # THIS HELP"
 
@@ -107,7 +108,7 @@ lgwall()
 		[[ ! -c "$fn" ]] && continue
 		hex=$(stat -c %t "$fn")
 		maj="$((16#$hex))"
-		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && echo -e "\n@@@@@ SYSTEM MESSAGE\n${2}\n@@@@@" >>"${fn}"
+		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && timeout 1 echo -e "\n@@@@@ SYSTEM MESSAGE\n${2}\n@@@@@" >>"${fn}"
 	done
 }
 
@@ -191,7 +192,10 @@ lgdf()
 # <lg-LID> <MESSAGE>
 lgstop()
 {
-	[[ -n $2 ]] && { lgwall "${1}" "$2"; }
+	[[ -n $2 ]] && {
+		lgwall "${1}" "$2"
+		echo -e "$2" >"${_sf_dbdir}/user/${1}/syscop-msg.txt"
+	}
 	docker stop "${1}"
 }
 
@@ -306,6 +310,7 @@ _sfcfg_printlg()
 		local hn
 		local age
 		local age_str
+		local str
 		local days
 		lglid=$1
 
@@ -333,8 +338,11 @@ _sfcfg_printlg()
 		hn="${hn:0:16}"
 		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
 		fn="${_sf_dbdir}/user/${lglid}/created.txt"
-		[[ -f "${fn}" ]] && t_created=$(date '+%F %T' -u -r "${fn}")
-		echo -e "${CDY}====> ${CDC}${t_created:-????-??-?? ??-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CDG}${geoip}${CN}"
+		[[ -f "${fn}" ]] && t_created=$(date '+%F' -u -r "${fn}")
+		[[ -f "${_self_for_guest_dir}/${lglid}/c_ip" ]] && cip=$(<"${_self_for_guest_dir}/${lglid}/c_ip")
+		cip+="                         "
+		cip=${cip:0:16}
+		echo -e "${CDY}====> ${CDC}${t_created:-????-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CF}${cip}${CDG}${geoip}${CN}"
 }
 
 lgls()
@@ -352,8 +360,6 @@ lgls()
 
 # Show all LID where REGEX matches a process+arguments and optionally stop
 # the container.
-# Example: plgtop urandom
-# Example: plgtop urandom stop
 # [<REGEX>] <stop> <stop-message-to-user>
 lgps()
 {
@@ -362,6 +368,7 @@ lgps()
 	local stoparr
 	local msg
 	local is_stop
+	local str
 	local IFS
 	match=$1
 	msg="$3"
@@ -408,9 +415,17 @@ lgx()
 	_sf_deinit
 }
 
-#plgtop "/bin/bash /everyone" stop                # Example
-#plgtop "dd if=/dev/zero of=/dev/null" stop
-#plgtop "bzip2 -9" stop
+lgiftop()
+{
+	_sf_init
+
+	echo -e "==> ${CDY}Press t & s after startup.${CN}"
+	echo "Press enter to continue."
+	read -r
+	TERM=xterm-256color nsenter -t $(docker inspect -f '{{.State.Pid}}' sf-router) -n iftop -Bn -i eth3
+
+	_sf_deinit
+}
 
 # Stop all container that have no SSH connection and only 3 processes (init, sleep, zsh)
 # NOTE: This should not happen any longer since a bug in docker-sigproxy got fixed.

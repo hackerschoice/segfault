@@ -21,6 +21,7 @@ ASSERT_EMPTY "NGINX_IP" "$NGINX_IP"
 ASSERT_EMPTY "NET_DIRECT_ROUTER_IP" "$NET_DIRECT_ROUTER_IP"
 ASSERT_EMPTY "NET_DIRECT_BRIDGE_IP" "$NET_DIRECT_BRIDGE_IP"
 ASSERT_EMPTY "NET_DMZ_ROUTER_IP" "$NET_DMZ_ROUTER_IP"
+ASSERT_EMPTY "MULLVAD_ROUTEP" "$MULLVAD_ROUTE"
 
 VPN_IPS=("$SF_NORDVPN_IP" "$SF_CRYPTOSTORM_IP" "$SF_MULLVAD_IP")
 
@@ -122,6 +123,8 @@ use_vpn()
 	local gw
 	local gw_ip
 	local gw_dns_ip
+	local n
+	local i
 
 	# Configure FW rules for reverse port forwards.
 	# Any earlier than this and the MAC of the routers are not known. Thus do it here.
@@ -142,16 +145,23 @@ use_vpn()
 
 	LOG "VPN" "Switching to VPN (gw=${gw_ip[*]})" 
 	ip route del default
-	ip route del default table 53 2>/dev/null
+	for n in 0 1 2 3; do
+		ip route del default table "${n}53" 2>/dev/null
+	done
 	[[ ${#gw_dns_ip[@]} -gt 0 ]] && [[ ${#gw_dns_ip[@]} -ne ${#gw[@]} ]] && {
 		# At least 1 VPN redirects DNS. Make sure we dont route via that one....
-		# echo -e >&2 "DNS via ${gw_dns_ip[0]}..."
-		LOG "DNS" "DNS via ${gw_dns_ip[0]}...."
+		LOG "DNS" "DNS via ${gw_dns_ip[*]}...."
 		# iproute2 does not support nexthop-multipath and fwmark tables.
 		# ip route add default nexthop via 172.20.0.253 nexthop via 172.20.0.252 table 53
 		# Error: "nexthop" or end of line is expected instead of "table"
 		# Instead use the first for port 53 traffic.
-		ip route add default via "${gw_dns_ip[0]}" table 53
+		# ip route add default via "${gw_dns_ip[0]}" table 53
+		i=0
+		for n in 0 1 2 3; do
+			ip route add default via "${gw_dns_ip[$i]}" table "${n}53"
+			((i++))
+			[[ $i -ge ${#gw_dns_ip[@]} ]] && i=0
+		done
 	}
 	ip route add default "${gw[@]}"
 }
@@ -259,6 +269,7 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_ONION}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${TOR_IP}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_VPN_DNS_IP}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${MULLVAD_ROUTE}" -j ACCEPT
 	for ip in "${BAD_ROUTES[@]}"; do
 		iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${ip}" -j DROP
 	done
@@ -412,6 +423,7 @@ ipt_direct
 set -e
 
 ip route del default
+ip route add "${MULLVAD_ROUTE}" via "${SF_MULLVAD_IP}"
 
 # -----BEGIN SSH traffic is routed via Direct Internet-----
 # All traffic must go via the router (for Traffic Control etc).
@@ -508,11 +520,18 @@ ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -d "${NET_LG_ROU
 # -----END MOSH-----
 
 # -----BEGIN 53 ROUTE VIA GOOD VPN
-# Some VPN providers redirect port 53. We dont want this. Mark them and try to find a route
-# (via other VPN's).
-ip rule add fwmark 53 table 53
-ipt_mark_ret "53" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp --dport 53
-ipt_mark_ret "53" -t mangle -A PREROUTING -i "${DEV_LG}" -p tcp --dport 53
+# Some VPN providers redirect port 53. We dont want this. Mark DNS requests and find
+# a friendly VPN provider to send them through.
+# fwmark does not support multipath routing. Instead take the last 2 bits of the DNS transaction ID
+# and use this to decide for packet routing.
+# table 053, 153, 253, 353
+for n in 0 1 2 3; do
+	ip rule add fwmark "${n}53" table "${n}53"
+	# Use the DNS transaction ID for routing decissions
+	ipt_mark_ret "${n}53" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp --dport 53 -m u32 --u32 "0>>22&0x3c@8>>16&0x03=${n}"
+	# Use the source port for routing decission
+	ipt_mark_ret "${n}53" -t mangle -A PREROUTING -i "${DEV_LG}" -p tcp --dport 53 -m u32 --u32 "0>>22&0x3c@0>>16&0x03=${n}"
+done
 # -----END 53 ROUTE VIA GOOD VPN
 
 # -----BEGIN GSNC traffic is routed via Internet----

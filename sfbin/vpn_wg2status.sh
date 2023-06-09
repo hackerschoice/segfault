@@ -59,7 +59,7 @@ down()
 	[[ -f "${LOGFNAME}" ]] && rm -f "${LOGFNAME}"
 	create_vpn_status
 
-	ip route del 10.11.0.0/16 via "${SF_ROUTER_IP}" 2>/dev/null
+	ip route del "${NETWORK}" via "${NET_VPN_ROUTER_IP}" 2>/dev/null
 
 	/sf/bin/rportfw.sh fw_delall
 
@@ -108,7 +108,7 @@ up()
 		rm -f "${LOGFNAME}"
 	else
 		local myip
-		myip=$(ip addr show | grep inet | grep -F 172.20.0.)
+		myip=$(ip addr show | grep inet | grep -F "${NET_VPN_ROUTER_IP%\.*}.")
 		myip="${myip#*inet }"
 		myip="${myip%%/*}"
 		echo -en "\
@@ -124,9 +124,9 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 	create_vpn_status
 
 	# Old cryptostorm containers set a network route to default IP.
-	# Remove; We need to route to SF_ROUTER_IP instead.
-	ip route del 10.11.0.0/24 2>/dev/null
-	ip route add 10.11.0.0/16 via "${SF_ROUTER_IP}" 2>/dev/null
+	# Remove; We need to route to NET_VPN_ROUTER_IP instead.
+	ip route del "${NETWORK}" 2>/dev/null
+	ip route add "${NETWORK}" via "${NET_VPN_ROUTER_IP}" 2>/dev/null
 
 	# Delete all old port forwards.
 	[[ "${PROVIDER,,}" == "cryptostorm" ]] && curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -ddelallfwd=1
@@ -139,7 +139,6 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 
 export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 
-SF_ROUTER_IP="172.20.0.2"
 LOGFNAME="$1"
 OP="$2"
 DEV="${3:-wg0}"
@@ -156,5 +155,5 @@ check_vpn "${PROVIDER}" "${DEV}" || { echo -e "VPN Check failed"; exit 255; }
 [[ "$OP" == "up" ]] && { up; exit; }
 
 echo >&2 "OP=${OP}"
-echo >&2 "Usage: [output filename] [up/pdown] [interface] <mullvad/cryptostorm>"
+echo >&2 "Usage: [output filename] [up/pdown] [interface] <mullvad/cryptostorm/nordvpn>"
 exit 255

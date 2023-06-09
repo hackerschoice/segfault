@@ -103,7 +103,6 @@ check_container()
 		# HERE: Not logged in. logged out more than 1 week ago.
 
 		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for $((NOW - ts_logout))sec (shell running)."
-		echo "$comm" >"/dev/shm/lg-${lid}.ps" # DEBUG
 		return
 	}
 	# HERE: No shell running, ts_logout=0 if never logged out
@@ -115,7 +114,6 @@ check_container()
 	echo "$comm" | grep -m1 -v -E '(^docker-init$|^sleep$|^encfs$|^gpg-agent$)' >/dev/null || {
 		# HERE: Nothing running but stale processes
 		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "No processes running."
-		echo "$comm" >"/dev/shm/lg-${lid}.ps" # DEBUG
 		return
 	}
 	# HERE: Something running (but no shell, and no known processes)
@@ -123,7 +121,6 @@ check_container()
 	[[ $((NOW - ts_logout)) -ge ${SF_TIMEOUT_NO_SHELL} ]] && {
 		# User logged out 1.5 days ago. No shell. No known processes.
 		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for ${SF_TIMEOUT_NO_SHELL}sec (no shell running)."
-		echo "$comm" >"/dev/shm/lg-${lid}.ps" # DEBUG
 		return
 	}
 

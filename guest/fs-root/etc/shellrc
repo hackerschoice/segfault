@@ -8,11 +8,6 @@ alias lt='ls -Alhrt'
 alias lss='ls -AlhrS'
 alias xterm='xterm-dark'
 
-function lsg {
-	[[ ! -t 1 ]] && { ls -Alh | grep -i -E "$*"; return; }
-	ls -Alh --color always | grep -i -E "$*" 
-}
-
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s rpc/dmesg/ -dnocolor=1; return; }
 	command curl -s rpc/dmesg/
@@ -28,6 +23,54 @@ alias ungron="gron --ungron"
 alias carbonyl="carbonyl --no-sandbox"
 alias seppuku="destruct"
 alias brave="brave-browser"
+
+# Warning for script kiddies
+[[ -t 0 ]] && [[ ! -e "${HOME}/.nokiddie" ]] && {
+	_nokiddie_warning()
+	{
+		local cmd
+		cmd="$1"
+		shift 1
+		local is_show
+		is_show=1
+
+		[[ -s "/config/self/wgname" ]] && unset is_show
+		[[ -e "${HOME}/.nokiddie" ]] && unset is_show
+		[[ -n $is_show ]] && {
+			echo -e >&2 "\
+${CDC}Massdns${CN}, ${CDC}Masscan${CN} et.al. do not work well via VPN providers. The uplink VPN providers
+and Google's 8.8.8.8 / 8.8.4.4 will ${CRY}block the requests${CN} when done to rapidly.
+Read how the pros do it: ${CB}${CUL}https://www.thc.org/segfault/faq/nokiddie${CN}"
+
+			if [[ -t 0 ]]; then
+				echo -e >&2 "${CDY}Continuing in 10 seconds. Press ENTER to continue now or CTRL-c to stop.${CN}"
+				read -r -t10
+			fi
+		}
+		command "$cmd" "$@"  # Might not exist and fail nicely here
+	}
+
+	command -v massdns    >/dev/null && massdns(){    _nokiddie_warning "massdns"    "$@"; }
+	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan"    "$@"; }
+	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" "$@"; }
+}
+
+### for 'curl -x socks5h://$(PROXY) ipinfo.io'
+TOR(){ echo "${SF_TOR_IP}:9050"; }
+PROXY()
+{
+	local IFS
+	local arr
+	local n
+
+	[[ ! -f /sf/share/proxies.txt ]] && { TOR; return; }
+	IFS=$'\n'
+	arr=($(<"/sf/share/proxies.txt"))
+	n=${#arr[@]}
+	RANDOM=$(date '+%N')
+	[[ ! $n -gt 0 ]] && { TOR; return; }
+	echo "${arr[$((RANDOM % n))]}"
+}
 
 [[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
@@ -146,7 +189,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	        		# 	command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=changelog.lang --style-file=esc.style ;;
 			        *Makefile|*makefile)
 				        command "$cmd" -- "$source" | bat -pp -l Makefile ;;
-			        *.bashrc|*.zshrc|*.profile|*.bash_profile|*rc.local|*.shellrc)
+			        *.bashrc|*.zshrc|*.profile|*.bash_profile|*rc.local|*.shellrc|*_history)
 				        command "$cmd" -- "$source" | bat -pp -l bash ;;
 			        *)
 						ex="${source##*.}"
@@ -157,7 +200,8 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 			    esac
 			done
 		}
-		alias cat="/usr/bin/bat -pp"
+		# alias cat="/usr/bin/bat -pp"
+		cat() { _hicmd cat "$@"; }
 		tail() { _hicmd tail "$@"; }
 		head() { _hicmd head "$@"; }
 	}
@@ -166,6 +210,12 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 [[ -f /usr/bin/zoxide ]] && {
 	eval "$(zoxide init "$(basename "$SHELL")")"
 	alias cd='z'
+}
+
+# After 'alias ls=lsd...'
+function lsg {
+	[[ ! -t 1 ]] && { ls -Alh | grep -i -E "$*"; return; }
+	ls -Alh --color=always | grep -i -E "$*" 
 }
 
 [[ -f /usr/bin/fdfind ]] && alias fd=fdfind
@@ -195,6 +245,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 [[ -z $VIRTUAL_ENV ]] && VIRTUAL_ENV="${SF_PRJ}"
 
 PATH="${HOME:-/sec/root}/go/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
+[[ -d /usr/share/doc/python3-impacket/examples ]] && PATH="${PATH}:/usr/share/doc/python3-impacket/examples"
 
 _sf_info_non_perm()
 {
@@ -220,5 +271,5 @@ apt-get()
 }
 
 SHELLNAME="${SHELL##*/}"
-[[ -f "${HOME}/.gf/gs-completion.${SHELLNAME}" ]] && source "${HOME}/gf.gs-completion.${SHELLNAME}"
+[[ -f "${HOME}/.gf/gf-completion.${SHELLNAME}" ]] && source "${HOME}/.gf/gf-completion.${SHELLNAME}"
 unset SHELLNAME

@@ -4,6 +4,7 @@
 
 WG_PORT_MIN=32768
 WG_PORT_MAX=65535
+WT_VER=1
 COLOR="always"
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_redis.sh
@@ -70,7 +71,6 @@ GetFormVars()
 	IFS=$ifs
 }
 
-
 # Load PID of WireGuard container
 load_config()
 {
@@ -97,18 +97,32 @@ net_print_example()
 	name="${1}"
 
 	echo -en "\
-To connect ${G}${name}${CN} use this command on the Exit Node:
-${C}X='1-${WT_PRIVATE}'
+To connect ${G}${name}${N} use this command on the Exit Node:
+${C}X='${WT_VER}-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
-X+='-${WG_EP_HOST}:${WG_PORT}'
-X=\"\$X\" bash -c \"\$(curl -fsSL thc.org/sfwg)\"${CN}
+X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
+X=\"\$X\" bash -c \"\$(curl -fsSL thc.org/sfwg)\"${N}
  ---OR---
-${C}X='1-${WT_PRIVATE}'
+${C}X='${WT_VER}-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
-X+='-${WG_EP_HOST}:${WG_PORT}'
-X=\"\$X\" bash -c \"\$(wget --no-verbose -O- thc.org/sfwg)\"${CN}
+X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
+X=\"\$X\" bash -c \"\$(wget --no-verbose -O- thc.org/sfwg)\"${N}
 "
 }
+
+
+net_print_commands()
+{
+	local name
+	name=$1
+	echo -en "\
+---
+Use ${C}curl rpc/net/down -d name=${name}${N} to disconnect.
+Use ${C}curl rpc/net/del  -d name=${name}${N} to delete the keys.
+Use ${Y}curl rpc/net/show${N} to check when the Exit Node ${G}${name}${N} has connected.
+"
+}
+
 
 cmd_net_list()
 {
@@ -256,7 +270,7 @@ mk_wt_name()
 		return
 	done
 
-	ERREXIT 255 "Could not find free name. Try -d name=<NAME>."
+	BAIL "Could not find free name. Try -d name=<NAME>." "RPC: could not find free name."
 }
 
 # rpc/net/init
@@ -373,11 +387,16 @@ net_down()
 
 	# Shut down WG interface
 	if [[ -z $name || $name == "all" ]]; then
+		### Need name for help below
+		[[ -e "${LID_WGNAME_FN}" ]] && name=$(<"${LID_WGNAME_FN}")
 		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null || return
 	else
 		# Return early if device did not exist.
 		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete "wg${name}" 2>/dev/null || return
 	fi
+	echo -e "${G}SUCCESS${N}"
+
+	echo -e "Use ${C}curl rpc/net/up -d name=${name:-<NAME>}${N} to connect again."
 	# Restore default routing
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
 	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
@@ -429,19 +448,20 @@ cmd_net()
 cmd_net_show()
 {
 	local str
-	local dev
+	# local dev
 	local name
 	local is_not_connected
+	local now
 
-	dev="${WG_DEV:-all}"
+	# dev="${WG_DEV:-all}"
 	# [[ -n $R_WT_NAME ]] && dev="wg${R_WT_NAME}"
 
 	unset IFS
 	if [[ -z $COLOR ]]; then
-		str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg show "${dev}")
+		str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg show "${WG_DEV}")
 	else
 		# Use 'script' to force color output
-		str=$(script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${dev}\"" /dev/null </dev/null)
+		str=$(script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${WG_DEV}\"" /dev/null </dev/null)
 	fi
 	[[ -z $str ]] && {
 		echo -e "\
@@ -454,21 +474,33 @@ Use ${C}curl rpc/net/up${N} to enable a new Exit Node."
 	}
 
 	echo "$str"
-	[[ "$str" != *"latest handshake"* ]] && is_not_connected=1
+	if [[ "$str" == *"latest handshake"* ]]; then
+		str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n wg show "${WG_DEV}" latest-handshakes)
+		str=${str##*$'\t'}
+		now=$(date +%s)
+		[[ $((now - str)) -gt 180 ]] && is_not_connected=1
+	else
+		is_not_connected=1
+	fi
 	[[ -e "${LID_WGNAME_FN}" ]] && {
 		name=$(<"${LID_WGNAME_FN}")
-		str="${CF}[${CDG}connected${CN}${CF}]${CN}"
-		[[ -n $is_not_connected ]] && str="${CF}[${CDR}EXIT Node not connected${CN}${CF}]${CN}"
-		echo -e "\n${CY}Name${CN}: ${CDY}${name:-UNKNOWN}${CN} ${str}"
+		str="${F}[${G}connected${N}${F}]${N}"
+		[[ -n $is_not_connected ]] && str="${F}[${N}${R}EXIT Node is not connected${N}${F}]${N}"
+		echo -e "\n${YY}Name${N}: ${Y}${name:-UNKNOWN}${N} ${str}"
+		### gvisor's DNAT used by WT is BROKEN
+		### https://github.com/sandialabs/wiretap/issues/18#issuecomment-1583106554
+		### Work-around it to iterate over as many src ports as possible.
+		[[ -z $is_not_connected ]] && echo -e "\
+${W}  peer${N}:  ${WG_IP_PRE}1, ${WG_IP6_PRE}1
+${W}  spoof${N}: ${WG_IP_PRE}3, ${WG_IP6_PRE}3 ${F}[masscan -e '${WG_DEV}' --adapter-ip ${WG_IP_PRE}3 --banners ...]${N}"
 	}
 	[[ -n $is_not_connected ]] && {
-		# echo -e "\n${Y}WARNING${N}: EXIT NODE NOT CONNECTED."
 		[[ -n $name ]] && {
 			load_wg "$name"
 			net_print_example "$name"
 		}
 	}
-	echo -e "Use ${C}curl rpc/net/down${N} to stop wireguard."
+	echo -e "\nUse ${C}curl rpc/net/down${N} to stop WireGuard."
 	exit
 }
 
@@ -523,6 +555,8 @@ GetFormVars
 	R=$CR
 	G=$CDG
 	M=$CDM
+	YY=$CY
+	W=$CW
 	N=$CN
 	F=$CF
 }
@@ -565,7 +599,18 @@ IFS=$_IFS
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
 
-	# [[ -z $WG_DEV ]] && WG_DEV="wgExit"
+	[[ -z $WG_IPS ]] && WG_IPS="172.16.0.x/16,fd:16::x/104"
+
+	WG_IP_PRE="${WG_IPS%%x*}"      # 172.16.0.
+	WG_IP="${WG_IP_PRE}2/32"       # 172.16.0.2/32
+
+	WG_IP6_PRE="${WG_IPS##*,}"
+	WG_IP6_PRE="${WG_IP6_PRE%%x*}" # fd:16::
+	WG_IP6="${WG_IP6_PRE}2/128"    # fd:16::2/128
+
+	# dev="wg${WT_NAME}"
+	# Call Interface wgExit or user supplied. Previously we named wg${WT_NAME}.
+	[[ -z $WG_DEV ]] && WG_DEV="wgExit"
 
 	# Show current port configuration
 	[[ ${ARGS[0]} == 'net' && ${ARGS[1]} == 'show' ]] && cmd_net_show
@@ -587,22 +632,32 @@ IFS=$_IFS
 		exit
 	}
 
-	[[ -z $WT_NAME ]] || [[ ! -f "${LID_WGDIR}/wg-${WT_NAME}" ]] && {
+	if [[ -z $WT_NAME ]] && [[ -f "${LID_WGNAME_FN}" ]]; then
+		is_already_up=1
+		WT_NAME=$(<"${LID_WGNAME_FN}")
+	elif [[ -z $WT_NAME ]] || [[ ! -f "${LID_WGDIR}/wg-${WT_NAME}" ]]; then
 		# R_WT_NAME not supplied _or_ R_WT_NAME does not exist => Create new one.
 		net_init
 		net_init_print_info
-	}
+	fi
+
 	load_port
 	load_wg "${WT_NAME}"
 
-	# dev="wg${WT_NAME}"
-	# Call Interface wgExit or user supplied. Previously we named wg${WT_NAME}.
-	dev="${WG_DEV:-wgExit}"
+	[[ -n $is_already_up ]] && {
+		# HERE: No name supplied. Another WG is already UP. 
+		# nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip l sh "${WG_DEV}" &>/dev/null && {
+		name=$(<"${LID_WGNAME_FN}")
+		echo -e "${R}ERROR${N}: Exit Node ${G}${name}${N} is already UP."
+		net_print_example  "${name}"
+		net_print_commands "${name}"
+		exit 255
+	}
 
 	load_config
 
 	# Delete interface in WG namespace (should never happen):
-	nsenter -t "${WG_PID}" -n ip link del "${dev}" 2>/dev/null
+	nsenter -t "${WG_PID}" -n ip link del "${WG_DEV}" 2>/dev/null
 
 	# Delete all interface. Only allow ONE WG interface at a time.
 	# WireGuard only supports 1 private key per port number. Sharing the same
@@ -614,37 +669,39 @@ IFS=$_IFS
 	# _far_ more efficient.)
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
 
-	err=$(nsenter -t "${WG_PID}" -n ip link add "${dev}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add $dev (${err:0:32})." "Failed $dev" ": $err"
-	nsenter -t "${WG_PID}" -n ip link set "${dev}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
+	err=$(nsenter -t "${WG_PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add ${WG_DEV} (${err:0:32})." "Failed ${WG_DEV}" ": $err"
+	nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
 	echo "$WG_PRIVATE" >/dev/shm/private.$$
-	err=$(nsenter -t "${WG_PID}" -n wg set "${dev}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
+	err=$(nsenter -t "${WG_PID}" -n wg set "${WG_DEV}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
 	rm -f /dev/shm/private.$$
 	# Move Interface to user's container:
-	err=$(nsenter -t "${WG_PID}" -n ip link set "${dev}" netns "${PID}" 2>&1) || BAIL "${R}ERROR${N}: Failed to move $dev." "Failed $dev netns $PID" ": $err"
+	err=$(nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" netns "${PID}" 2>&1) || BAIL "${R}ERROR${N}: Failed to move ${WG_DEV}." "Failed ${WG_DEV} netns $PID" ": $err"
 
 	# Configure interface after moving
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -4 address add 192.168.0.2/32 dev "${dev}"
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add fd::2/128 dev "${dev}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu 1420 up dev "${dev}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -4 address add "${WG_IP}" dev "${WG_DEV}"
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu 1420 up dev "${WG_DEV}"
 
 	# Add static routes for RPC
 	# nsenter -t "${PID}" -n ip route add "${SF_PC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${dev}"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${dev}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${WG_DEV}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${WG_DEV}"
+
+	# Packets to 172.16.0.3 should not be forwarded back to 172.16.0.3
+	# Can not use 'sysctl net.ipv4.conf.wgExit.forwarding=1' because /proc is mounted ro
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables  -I FORWARD -i "${WG_DEV}" -j DROP
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
 
 	echo "${WT_NAME}" >"${LID_WGNAME_FN}"
 	echo "(%F{yellow}EXIT:%B${WT_NAME}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
 	echo -e "${G}SUCCESS${N}"
-	net_print_example "${WT_NAME}"
-
-	echo "---"
-	echo -e "Use ${C}curl rpc/net/down -d name=${WT_NAME}${N} to disconnect."
-	echo -e "Use ${C}curl rpc/net/del  -d name=${WT_NAME}${N} to delete the keys."
-	echo -e "Use ${Y}curl rpc/net/show${N} to check when the Exit Node '${WT_NAME}' has connected."
+	net_print_example  "${WT_NAME}"
+	net_print_commands "${WT_NAME}"
 
 	exit
 }

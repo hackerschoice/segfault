@@ -21,6 +21,12 @@ echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.zshrc
 
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.bashrc
 sed 's/\(\s*\)set mouse=/"\1set mouse=/g' -i /usr/share/vim/vim90/defaults.vim
+[[ -e /etc/postgresql/15/main/postgresql.conf ]] && {
+	sed 's/shared_buffers = [0-9]*\(.*\)/shared_buffers = 4\1/g' -i /etc/postgresql/15/main/postgresql.conf
+	sed 's/#maintenance_work_mem = [0-9]*\(.*\)/maintenance_work_mem = 4\1/g' -i /etc/postgresql/15/main/postgresql.conf
+	sed 's/#max_parallel_workers = [0-9]*\(.*\)/max_parallel_workers = 2\1/g' -i /etc/postgresql/15/main/postgresql.conf
+	sed 's/#max_worker_processes = [0-9]*\(.*\)/max_worker_processes = 2\1/g' -i /etc/postgresql/15/main/postgresql.conf
+}
 rm -f /etc/skel/.bashrc.original
 rm -f /usr/bin/kali-motd /etc/motd
 chsh -s /bin/zsh
@@ -56,7 +62,7 @@ fixr()
 ln -sf /sec/usr/etc/rc.local /etc/rc.local
 chown root:root /etc /etc/profile.d /etc/profile.d/segfault.sh
 chmod 755 /usr /usr/bin /usr/sbin /usr/share /etc /etc/profile.d
-chmod 755 /usr/bin/mosh-server-hook /usr/bin/xpra-hook /usr/bin/brave-browser-stable-hook /usr/share/code/code-hook /usr/share/code/bin/code-hook /usr/bin/xterm-dark /usr/sbin/halt
+chmod 755 /usr/bin/mosh-server-hook /usr/bin/xpra-hook /usr/bin/brave-browser-stable-hook /usr/share/code/code-hook /usr/share/code/bin/code-hook /usr/bin/xterm-dark /usr/sbin/halt /usr/bin/username-anarchy
 chmod 644 /etc/profile.d/segfault.sh
 chmod 644 /etc/shellrc /etc/zsh_command_not_found /etc/zsh_profile
 fixr /usr/share/www

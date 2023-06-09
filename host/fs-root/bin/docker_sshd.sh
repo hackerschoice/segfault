@@ -26,7 +26,9 @@ setup_sshd()
 {
 	# Default is for user to use 'ssh root@segfault.net' but this can be changed
 	# in .env to any other user name. In case it is 'root' then we need to move
-	# the true root out of the way for the docker-sshd to work.
+	# the true root out of the way for the docker-sshd to work.\
+
+	# Check if passwd has already been modified
 	tail -n1 /etc/passwd | grep ^secret >/dev/null && return
 
 	if [[ "$SF_USER" == "root" ]]; then

@@ -25,6 +25,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/brave-browser-stable-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/chromium-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/code/code-hook"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/code/bin/code-hook"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/username-anarchy"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/xterm-dark"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/bin/xterm-dark-xpra"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/profile.d/segfault.sh"
@@ -141,7 +142,10 @@ FILES_CLEANER += "segfault-$(VER)/tools/cg/main.go"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/Makefile"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/sysinfo_linux.go"
 
-FILES += $(FILES_CLEANER) $(FILES_MASTER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION)
+FILES_CONTRIB += "segfault-$(VER)/contrib/sfwg"
+FILES_CONTRIB += "segfault-$(VER)/contrib/cronjob"
+
+FILES += $(FILES_CLEANER) $(FILES_MASTER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION) $(FILES_CONTRIB)
 TARX = $(shell command -v gtar 2>/dev/null)
 ifndef TARX
 	TARX := tar

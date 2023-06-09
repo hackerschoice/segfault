@@ -1,0 +1,4 @@
+#! /bin/bash
+
+[[ -d /opt/username-anarchy ]] && cd /opt/username-anarchy
+exec /opt/username-anarchy/username-anarchy "$@"

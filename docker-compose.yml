@@ -159,6 +159,7 @@ services:
       - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
       - PROVIDER=NordVPN
       - NETWORK=${SF_NET_LG}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP}
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-nordvpn.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
@@ -206,6 +207,7 @@ services:
       - CONFIG=${SF_CRYPTOSTORM_CONFIG:-}
       - PROVIDER=CryptoStorm
       - NETWORK=${SF_NET_LG}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP}
       - DNS=1.1.1.1 # Cryptostorm's DNS is often broken
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
@@ -254,6 +256,7 @@ services:
       - CONFIG=${SF_MULLVAD_CONFIG:-}
       - PROVIDER=Mullvad
       - NETWORK=${SF_NET_LG}
+      - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP}
       - IS_REDIRECTS_DNS=1
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-mullvad.log down %i
@@ -384,6 +387,7 @@ services:
       - NET_LG_ROUTER_IP_DUMMY=${SF_NET_LG_ROUTER_IP_DUMMY:?}
       - NET_VPN=${SF_NET_VPN:?}
       - NET_ONION=${SF_NET_ONION:?}
+      - MULLVAD_ROUTE=${SF_MULLVAD_ROUTE:-10.124.0.0/22}
       - TOR_IP=${SF_TOR_IP:?}
       - NOVPN_IP=${SF_NOVPN_IP:?}
       - GSNC_IP=${SF_GSNC_IP:?}
@@ -433,6 +437,8 @@ services:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_RPC_IP=${SF_RPC_IP:?}
       - SF_TOR_IP=${SF_TOR_IP:?}
+      - WG_IPS=${SF_WG_IPS:-172.16.0.x/16,fd:16::x/104}
+      - SF_MULLVAD_ROUTE=${SF_MULLVAD_ROUTE:?}
       - SF_DNS=${SF_NET_VPN_DNS_IP}
       - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
     volumes:

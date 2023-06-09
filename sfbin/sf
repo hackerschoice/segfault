@@ -3,7 +3,7 @@
 BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 source "${BINDIR}/funcs.sh" || exit 254
 
-command -v jq >/dev/null || ERREXIT 255 "Command 'jq' not found. Try apt-get install jq"
+command -v jq >/dev/null || ERREXIT 255 "Command 'jq' not found. Try ${CDC}apt-get install jq${CN}"
 
 down()
 {
@@ -148,10 +148,28 @@ load_env
 	echo -e "Try \`curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'\`"
 }
 
+[[ ! -f "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] && {
+	WARN 'Not found: data/share/relay-exit-nodes-mullvad.txt'
+	echo -e "See contrib/cronjob how to create it."
+}
+
+[[ ! -f "${SF_DATADIR}/share/proxies.txt" ]] && {
+	WARN 'Not found: data/share/proxies.txt'
+	echo -e "See contrib/cronjob how to create it."
+}
+
+[[ ! -f "${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt" ]] && {
+	WARN "Not found: ${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt"
+	echo -e "\
+==> Log in from global relays is not controlled. We use a private list from Blind Mouse.
+==> Generate your own list (see THC's Tips & Tricks).
+==> Use ${CDC}touch ${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt${CN} to stop this warning."
+}
+
 [[ -z $SF_OVERLAYDIR ]] && [[ -d "${SF_BASEDIR}/docker/overlay2" ]] && export SF_OVERLAYDIR="${SF_BASEDIR}/docker/overlay2"
 
 [[ -z $SF_IP ]] && {
-	command -v dig >/dev/null || ERREXIT 255 "Command 'dig' not found. Try apt-get install dnsutils"
+	command -v dig >/dev/null || ERREXIT 255 "Command 'dig' not found. Try ${CDC}apt-get install dnsutils${CN}"
 	export SF_IP=$(dig +short "$SF_FQDN" 2>/dev/null | grep -v '\.$')
 	[[ -z $SF_IP ]] && ERREXIT 255 "Could not get SF_IP..."
 	WARN "SF_IP not set in .env. Using '$SF_IP'."
@@ -270,7 +288,7 @@ str=$(mount | grep ^cgroup2 | grep -F "$SF_CG_DIR" )
 systemctl status system.slice | head -n8 | grep -F "IO: " &>/dev/null || WARN "IO Accounting not enabled. Check /etc/systemd/system.conf"
 grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
 
-[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try 'apt-get install lxcfs'?"
+[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try ${CDC}apt-get install lxcfs${CN}?"
 # If there was a warning then wait...
 WARN_ENTER
 

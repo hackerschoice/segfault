@@ -627,7 +627,7 @@ load_limits()
 	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf.conf")"
 
 	# Then source TOKEN specific limits
-	[[ -f "${SF_TOKEN_DIR}/token-${TOKEN}.conf" ]] && eval "$(<"${SF_TOKEN_DIR}/token-${TOKEN}.conf")"
+	[[ -f "${SF_TOKEN_DIR}/token-${SF_TOKEN}.conf" ]] && eval "$(<"${SF_TOKEN_DIR}/token-${SF_TOKEN}.conf")"
 
 	# Then source IP specific limits
 	[[ -f "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf")"
@@ -647,6 +647,31 @@ load_limits()
 	}
 
 	SF_MAX_LOAD="$(( ${NPROC:-1} * SF_MAX_STRAIN ))"
+
+	# Publish user limits to self/limits
+	local is_token
+	is_token="no"
+	[[ -n $SF_TOKEN ]] && is_token="yes"
+
+	local is_ro
+	[[ -z $SF_USER_ROOT_FS_SIZE ]] && is_ro="read-only"
+	tofile "\
+TOKEN_USED=${is_token}
+CPUS=${CPUS}
+ROOT_SIZE=${is_ro:-$SF_USER_ROOT_FS_SIZE}
+ROOT_FILES=${is_ro:-SF_USER_ROOT_FS_INODE}
+HOME_SIZE=${SF_USER_FS_SIZE:-unlimited}
+HOME_FILES=${SF_USER_FS_INODE:-unlimited}
+SHM_SIZE=${SF_SHM_SIZE}
+PIDS=${SF_USER_PIDS_LIMIT}
+MEMORY=${SF_USER_MEMORY_LIMIT}
+NOFILE=${SF_ULIMIT_NOFILE}
+TX=${SF_MAXOUT}
+RX=${SF_MAXIN:-unlimited}
+SYN_BURST=${SF_USER_SYN_BURST}
+SYN_RATE=${SF_USER_SYN_LIMIT}/sec
+SERVERS=${SF_LIMIT_SERVER_BY_IP}
+GREETINGS=${SF_SYSCOP_MSG}" "/config/self-for-guest/lg-${LID}/limits"
 
 	DOCKER_ARGS+=("--memory=${SF_USER_MEMORY_LIMIT}")
 	# Setting memory-swap and memory to same value will disable swapping
@@ -686,12 +711,12 @@ check_banned()
 	[[ -z $blfn ]] && return
 
 	LOG_W "BANNED (${YOUR_IP}) (${CDY}$(<"$blfn")${CN})"
-	sleep 5
+	sleep 10
 	echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	if [[ -s "$blfn" ]]; then
 		cat "$blfn"
 	fi
-	sleep 30
+	sleep 120
 	exit 255
 }
 
@@ -760,14 +785,14 @@ wait_for_resources()
 	wait_for_load "${SF_MAX_LOAD}"
 }
 
-print_tor_notice()
+print_relay_notice()
 {
 	sleep 5
     echo >&2 -e "\
 [${CR}ERROR${CN}]
---> You (${CDY}$YOUR_IP${CN}) are trying to connect from Tor.
---> Log in from Tor is available for ${CG}VALUED${CN} users only.
---> To log in from Tor please ask us for an ACCESS TOKEN.
+--> You (${CDY}$YOUR_IP${CN}) are trying to connect from a Relay.
+--> Log in from Relays is available for ${CG}VALUED${CN} users only.
+--> To log in from Relays please ask us for an ACCESS TOKEN.
 --> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 	sleep 5
@@ -775,26 +800,68 @@ print_tor_notice()
 
 # Check if login from Tor is ENABLED.
 # TODO: Make this work with the IP hashes
-check_tor_status()
+check_relay_status()
 {
-	local is_tor
+	local is_relay
+	local fn
 
 	# FIXME: If user is allowed to log in via TOR then we should use
 	# the TOKEN to limit his number of servers.
 	[[ -n $SF_ALLOW_SRC_TOR ]] && return
 	if [[ "${YOUR_IP}" == "${SF_TOR_IP}" ]]; then
-		is_tor=1
+		is_relay=1
 	else
-		[[ -f "/sf/share/tor-exit-nodes.txt" ]] && {
-			exec_devnull grep -q -Fx "${YOUR_IP}" "/sf/share/tor-exit-nodes.txt" && is_tor=1
-		}
+		[[ -f "/sf/share/tor-exit-nodes.txt" ]] && fn+=("/sf/share/tor-exit-nodes.txt")
+		[[ -f "/sf/share/relay-exit-nodes-mullvad.txt" ]] && fn+=("/sf/share/relay-exit-nodes-mullvad.txt")
+		[[ -f "/config/host/etc/relay-exit-nodes-global.txt" ]] && fn+=("/config/host/etc/relay-exit-nodes-global.txt")
+		
+		exec_devnull grep -q -Fx "^${YOUR_IP}" "${fn[@]}" && is_relay=1
 	fi
 
-	[[ -z $is_tor ]] && return
+	[[ -z $is_relay ]] && return
 
-	print_tor_notice
-	LOG_W "TOR DENIED"
+	print_relay_notice
+	LOG_W "RELAY DENIED"
 	ERREXIT 255
+}
+
+print_timer()
+{
+	local c
+	c=$1
+
+	[[ -z $c ]] && c=10
+
+	while [[ $c -gt 0 ]]; do
+		echo -ne >&2 "Continuing in $c sec...   "$'\r'
+		sleep 1
+		((c--))
+	done
+}
+
+usermsg()
+{
+	[[ ! -f "${SF_USER_DB_DIR}/syscop-msg.txt" ]] && return
+	[[ -n $SF_HUSHLOGIN ]] && return
+
+	### Show during IS_LOGIN _and_ COMMAND execution but use STDERR
+	echo -e >&2 "\
+${CDY}@@@@@@@@@@@@@@@@@@ SysCops Message @@@@@@@@@@@@@@@@@@@@@@@${CN}
+${CR}$(<"${SF_USER_DB_DIR}/syscop-msg.txt")
+${CW}[[[ Contact us on TG and let's talk about our feelings ]]]
+${CDY}@@@@@@@@@@@@@@@@@@ SysCops Message @@@@@@@@@@@@@@@@@@@@@@@${CN}"
+	echo -en >&2 "\e[?25l"  # Hide cursor
+	if [[ -t 0 ]]; then
+		print_timer 30
+		echo -en >&2 "Press any key to continue."
+		read -r -n1
+	else
+		echo -en >&2 "\e[25lContinuing in 30 seconds..."
+		sleep 30
+	fi
+	echo -en >&2 "\e[?25h"$'\r'
+
+	rm -f "${SF_USER_DB_DIR}/syscop-msg.txt"
 }
 
 # Check if max servers per IP are in use.
@@ -965,9 +1032,7 @@ unset SECRET HUSTLOGIN HIDEIP PRJ TOKEN
 ### ----END SANITIZE----
 
 # Only output progress if this is a login shell _and_ not HUSHLOGIN
-[[ -n $IS_LOGIN ]] && [[ -z $SF_HUSHLOGIN ]] && {
-	echo_pty() { echo "$@"; }
-}
+[[ -n $IS_LOGIN ]] && [[ -z $SF_HUSHLOGIN ]] && echo_pty() { echo "$@"; }
 
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)
 LID="${LID//[^[:alpha:]]}"
@@ -992,8 +1057,8 @@ LG_SEM="sema:lg-$(( (SF_NUM + SF_RAND_OFS) % SF_HM_SIZE_LG ))"
 # Keep guest waiting until there are sufficient resources
 wait_for_resources
 
-# Check if the user is using a tor exit node
-check_tor_status
+# Check if connects originates from a Relay
+check_relay_status
 
 ### Check if the limit has been reached for this source IP
 check_limit_server_by_ip
@@ -1006,6 +1071,8 @@ mk_geoip "${YOUR_IP}"
 # Execute under "root" (uid=1001) context:
 [[ ! -d "${HNLID_DIR}" ]] && { mkdir -p "${HNLID_DIR}" || ERREXIT; }
 
+# Output user messages and wait for enter....
+usermsg
 
 if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	S="Your Server       : ${CDY}${SF_HOSTNAME:0:34}${CN}....................................................."

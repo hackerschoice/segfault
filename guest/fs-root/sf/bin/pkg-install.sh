@@ -4,6 +4,7 @@ export DEBIAN_FRONTEND=noninteractive
 export PIPX_HOME=/usr
 export PIPX_BIN_DIR=/usr/bin
 
+[[ -n $BESTEFFORT ]] && force_exit_code=0
 
 # Substitute the string with correct architecture. E.g. we are 'x86_64'
 # but filename contains 'amd64'. Also used to SKIP packages for specific
@@ -42,7 +43,7 @@ dlx()
 	dstdir="$3"
 	[[ -z $dstdir ]] && dstdir="/usr/bin"
 
-	[[ -z "$url" ]] && { echo >&2 "URL: '$loc'"; return 255; }
+	[[ -z "$url" ]] && { echo >&2 "[${asset}] URL: '$loc'"; return 255; }
 	case $url in
 		*.zip)
 			[[ -f /tmp/pkg.zip ]] && rm -f /tmp/pkg.zip
@@ -179,25 +180,27 @@ shift 1
 [[ "$1" == ghbin ]] && {
 	shift 1
 	ghbin "$@"
-	exit
+	exit "${force_exit_code:-$?}"
 }
 
 [[ "$1" == ghdir ]] && {
 	shift 1
 	ghdir "$@"
-	exit
+	exit "${force_exit_code:-$?}"
 }
 
 [[ "$1" == ghlatest ]] && {
 	shift 1
 	ghlatest "$@"
-	exit
+	exit "${force_exit_code:-$?}"
 }
 
 [[ "$1" == bin ]] && {
 	shift 1
 	bin "$@"
-	exit
+	exit "${force_exit_code:-$?}"
 }
 
-exec "$@"
+#exec "$@"
+"$@"
+exit "${force_exit_code:-$?}"

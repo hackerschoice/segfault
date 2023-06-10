@@ -65,7 +65,7 @@ mk_vpn()
 [[ -n $_IS_SHOW_MORE ]] && print_ssh_access
 
 if [[ -e "/config/self/wgname" ]]; then
-	VPN_DST="Exit WireGuard    : ${CDY}$(</config/self/wgname)${CN}${CF} [to disable: curl rpc/net/down]${CN}"$'\n'
+	VPN_DST="Exit WireGuard    : ${CDY}$(</config/self/wgname)${CN}${CF} [to disable: curl sf/net/down]${CN}"$'\n'
 else
 	mk_vpn
 fi

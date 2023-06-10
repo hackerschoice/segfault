@@ -215,7 +215,8 @@ ff02::3 ip6-allhosts
 ${SF_TOR_IP}	tor
 ${SF_NET_LG_ROUTER_IP}	router
 ${SF_DNS}	dns
-${SF_RPC_IP}	rpc" >"${SF_CFG_HOST_DIR}/etc/hosts"
+${SF_RPC_IP}	rpc
+${SF_RPC_IP}	sf" >"${SF_CFG_HOST_DIR}/etc/hosts"
 
 # segfaultsh needs to create directories in here..
 chown "$SF_USER" "/config/self-for-guest"

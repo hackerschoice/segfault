@@ -1196,6 +1196,7 @@ exec_devnull docker run \
 	--add-host router:"${SF_NET_LG_ROUTER_IP}"              `# No effect when /etc/hosts is mounted read-only` \
 	--add-host dns:"${SF_DNS}"                              `# No effect when /etc/hosts is mounted read-only` \
 	--add-host rpc:"${SF_RPC_IP}"                           `# No effect when /etc/hosts is mounted read-only` \
+	--add-host sf:"${SF_RPC_IP}"                            `# No effect when /etc/hosts is mounted read-only` \
 	--dns "${SF_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
 	--env SF_TOR_IP="${SF_TOR_IP}" \

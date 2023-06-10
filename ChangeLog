@@ -3,7 +3,7 @@
     * geoip and /sf/share
     * XPRA/SF-UI improvements
     * Fix where 4% of servers wrongly commenced auto-shutdown.
-    * IPv6 support for EXIT nodes (curl rpc/net/up)
+    * IPv6 support for EXIT nodes (curl sf/net/up)
     * TOKEN= to set custom limits for token-bearers
     * VSCode remote working (MS)
     * Container's exit code forwarded to SSH client

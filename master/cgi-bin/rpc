@@ -117,9 +117,9 @@ net_print_commands()
 	name=$1
 	echo -en "\
 ---
-Use ${C}curl rpc/net/down -d name=${name}${N} to disconnect.
-Use ${C}curl rpc/net/del  -d name=${name}${N} to delete the keys.
-Use ${Y}curl rpc/net/show${N} to check when the Exit Node ${G}${name}${N} has connected.
+Use ${C}curl sf/net/down -d name=${name}${N} to disconnect.
+Use ${C}curl sf/net/del  -d name=${name}${N} to delete the keys.
+Use ${Y}curl sf/net/show${N} to check when the Exit Node ${G}${name}${N} has connected.
 "
 }
 
@@ -169,12 +169,12 @@ Name (${G}active${N})  |           | Private                                    
 
 	echo ""
 	[[ -z $WT_PUBLIC ]] && {
-		echo -e "${Y}WARNING${N}: No Exit Nodes configured. Use ${C}curl rpc/net/up${N} first."
+		echo -e "${Y}WARNING${N}: No Exit Nodes configured. Use ${C}curl sf/net/up${N} first."
 		exit
 	}
 
 	[[ -z $ex_wg_public ]] && {
-		echo -e "${Y}WARNING${N}: No interface is up. Use ${C}curl rpc/net/up -d name=<NAME>${N} first."
+		echo -e "${Y}WARNING${N}: No interface is up. Use ${C}curl sf/net/up -d name=<NAME>${N} first."
 		exit
 	}
 
@@ -273,7 +273,7 @@ mk_wt_name()
 	BAIL "Could not find free name. Try -d name=<NAME>." "RPC: could not find free name."
 }
 
-# rpc/net/init
+# sf/net/init
 # Assign/Retrieve WireGuard port for this LID
 net_init()
 {
@@ -283,9 +283,9 @@ net_init()
 
 	arr=($(echo "${LID_WGDIR}/wg-"*))
 	[[ ${#arr[@]} -gt 16 ]] && BAIL "${R}ERROR${N}: To many Peers. You must delete some first.
-Use ${C}curl rpc/net/list${N} to see them all.
-Use ${C}curl rpc/net/del -d name=<NAME>${N} to delete <NAME>.
-Use ${C}curl rpc/net/del -d name=all${N} to delete them all." "${R}PEERS-MAX${N} " "Limit: ${#arr[@]}"
+Use ${C}curl sf/net/list${N} to see them all.
+Use ${C}curl sf/net/del -d name=<NAME>${N} to delete <NAME>.
+Use ${C}curl sf/net/del -d name=all${N} to delete them all." "${R}PEERS-MAX${N} " "Limit: ${#arr[@]}"
 
 	[[ -n ${R_PORTSECRET} ]] && cmd_net_init_move "${R_PORTSECRET}"
 
@@ -299,7 +299,7 @@ Use ${C}curl rpc/net/del -d name=all${N} to delete them all." "${R}PEERS-MAX${N}
 		if [[ -n ${R_PORT} ]]; then
 			[[ -e "/config/db/wg/port-${R_PORT}" ]] && BAIL "\
 Port ${R_PORT} is already in use. You can assign it to this server like so:\
-    ${C}curl rpc/net/init -d portsecret=<SECRET>${N}"
+    ${C}curl sf/net/init -d portsecret=<SECRET>${N}"
     		WG_PORT=${R_PORT}
     	else
 			# Assign random port 32768...65535
@@ -319,7 +319,7 @@ Port ${R_PORT} is already in use. You can assign it to this server like so:\
 	}
 
 	[[ -e "/config/db/wg/wg-${R_WT_NAME}" ]] && {
-		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl rpc/net/del -d name=${R_WT_NAME}${N}"
+		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl sf/net/del -d name=${R_WT_NAME}${N}"
 		exit
 	}
 
@@ -350,14 +350,14 @@ cmd_net_init()
 {
 	net_init
 	net_init_print_info
-	echo -e "Use ${C}curl rpc/net/up -d name=${WT_NAME}${N} to connect an Exit Node."
+	echo -e "Use ${C}curl sf/net/up -d name=${WT_NAME}${N} to connect an Exit Node."
 
 	exit
 }
 
 load_port()
 {
-	source "${LID_WGDIR}/port" 2>/dev/null || BAIL "${Y}WARNING${N}: No Exit Node found. Use ${C}curl rpc/net/up${N} first."
+	source "${LID_WGDIR}/port" 2>/dev/null || BAIL "${Y}WARNING${N}: No Exit Node found. Use ${C}curl sf/net/up${N} first."
 }
 
 load_wg()
@@ -396,7 +396,7 @@ net_down()
 	fi
 	echo -e "${G}SUCCESS${N}"
 
-	echo -e "Use ${C}curl rpc/net/up -d name=${name:-<NAME>}${N} to connect again."
+	echo -e "Use ${C}curl sf/net/up -d name=${name:-<NAME>}${N} to connect again."
 	# Restore default routing
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
 	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
@@ -466,9 +466,9 @@ cmd_net_show()
 	[[ -z $str ]] && {
 		echo -e "\
 ${Y}WARNING${N}: No Exit Node enabled.
-Use ${C}curl rpc/net/list${N} to list all Exit Nodes.
-Use ${C}curl rpc/net/up -d name=<NAME>${N} to enable an Exit Node.
-Use ${C}curl rpc/net/up${N} to enable a new Exit Node."
+Use ${C}curl sf/net/list${N} to list all Exit Nodes.
+Use ${C}curl sf/net/up -d name=<NAME>${N} to enable an Exit Node.
+Use ${C}curl sf/net/up${N} to enable a new Exit Node."
 
 		exit
 	}
@@ -500,7 +500,7 @@ ${W}  spoof${N}: ${WG_IP_PRE}3, ${WG_IP6_PRE}3 ${F}[masscan -e '${WG_DEV}' --ada
 			net_print_example "$name"
 		}
 	}
-	echo -e "\nUse ${C}curl rpc/net/down${N} to stop WireGuard."
+	echo -e "\nUse ${C}curl sf/net/down${N} to stop WireGuard."
 	exit
 }
 
@@ -515,18 +515,18 @@ cmd_net_down()
 cmd_net_help()
 {
 	echo -en "\
-Create Exit Node : ${C}curl rpc/net/init [-d name=<NAME>] [-d private=<PrivateKey>]
+Create Exit Node : ${C}curl sf/net/init [-d name=<NAME>] [-d private=<PrivateKey>]
                                      [-d exit_public=<PublicKey>]
                                      [-d exit_private=<PrivateKey>]${N}
-Delete Exit Node : ${C}curl rpc/net/del  -d name=<NAME|all>${N}
-List Exit Nodes  : ${C}curl rpc/net/list${N}
-Show connections : ${C}curl rpc/net/show${N}
+Delete Exit Node : ${C}curl sf/net/del  -d name=<NAME|all>${N}
+List Exit Nodes  : ${C}curl sf/net/list${N}
+Show connections : ${C}curl sf/net/show${N}
 Move port to a different Root Server:
-    ${C}curl rpc/net/init -d portsecret=<portsecret>${N}
+    ${C}curl sf/net/init -d portsecret=<portsecret>${N}
 Connect Exit Node:
-    ${C}curl rpc/net/up   [-d name=<NAME>]${N}
+    ${C}curl sf/net/up   [-d name=<NAME>]${N}
 Disconnect Exit Node:
-    ${C}curl rpc/net/down [-d name=<NAME>]${N}
+    ${C}curl sf/net/down [-d name=<NAME>]${N}
 "
 
 	exit

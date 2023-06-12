@@ -1,4 +1,4 @@
-VER := 0.4.8rc1
+VER := 0.4.8
 
 all:
 	make -C router

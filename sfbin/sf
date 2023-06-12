@@ -150,7 +150,7 @@ load_env
 
 [[ ! -f "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] && WARN "Not found: data/share/relay-exit-nodes-mullvad.txt - ${CDM}See contrib/cronjob how to create it.${CN}"
 
-[[ ! -f "${SF_DATADIR}/share/proxies.txt" ]] && WARN "Not found: data/share/proxies.txt - ${CDM}See contrib/cronjob how to create it.${CN}"
+[[ ! -f "${SF_DATADIR}/share/proxies.txt" ]] && WARN "Not found: data/share/proxies.txt (Mullvad proxies) - ${CDM}See contrib/cronjob how to create it.${CN}"
 
 [[ ! -f "${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt" ]] && {
 	WARN "Not found: ${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt"

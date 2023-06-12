@@ -410,14 +410,24 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		xvfb
 # Everything below here will overwrite packages already installed by apt-get.
 #############################################################################
-RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.11.3 and libprocps8` \
-		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
-		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
-		&& apt-get update \
-		&& pkg=("xpra" "xpra-html5") \
-		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
-		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
-		&& rm -f /var/lib/apt/lists/xpra*; }'
+### 2023-02: xpra has been janked. the non-beta is broken on kali (and also conflicts with libprocps8)
+### The beta comes with an expired GPG keys. doh.
+# RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.11.3 and libprocps8` \
+# 		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
+# 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
+# 		&& apt-get update \
+# 		&& pkg=("xpra" "xpra-html5") \
+# 		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
+# 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
+# 		&& rm -f /var/lib/apt/lists/xpra*; }'
+# RUN	/pkg-install.sh GUI bash -c '{ : \
+# 		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra.asc \
+# 		&& wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra.sources \
+# 		&& apt-get update \
+# 		&& pkg=("xpra" "xpra-html5") \
+# 		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
+# 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
+# 		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### x86_64 only
 RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
@@ -480,7 +490,7 @@ RUN /pkg-install.sh HUGE bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr
 		&& echo DONE; }'
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		bloodhound.py \
-		python3-certipy \
+		`# python3-certipy CONFLICT with kali certipy4.0.1` \
 		python3-colorama \
 		crackmapexec \
 		python3-avahi \

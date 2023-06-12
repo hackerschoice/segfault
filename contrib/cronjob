@@ -30,8 +30,11 @@ mk_mullvad_relays()
     IFS=$'\n'
     arr=($str)
     for h in "${arr[@]}"; do
-        ip=$(docker exec sf-mullvad bash -c "curl --retry 1 --max-time 5 -fsSL -x socks5://\"$h\"  ipinfo.io" | jq -r '.ip | select(. != null)')
-        [[ -z $ip ]] && continue
+        echo -n "Testing $h - "
+        ip=$(docker exec sf-mullvad bash -c "curl --retry 1 --max-time 5 -fsSL -x 'socks5://$h'  ipinfo.io" | jq -r '.ip | select(. != null)')
+        ip=${ip//[^a-f0-9:.]}
+        [[ -z $ip ]] && { echo "SKIP"; continue; }
+        echo "$ip"
         ips+="$ip"$'\n'
         proxies+="$h"$'\n'
     done

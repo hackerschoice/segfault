@@ -30,6 +30,7 @@ stop_lg()
 	rm -f "/sf/run/encfsd/user/lg-${lid}"
 	rm -f "/sf/run/pids/lg-${lid}.pid"
 	rm -f "/sf/run/ips/lg-${lid}.ip"
+	rm -rf "/config/self-for-guest/lg-${lid}"
 
 	# Tear down container
 	[[ -n $is_container ]] && docker stop "lg-$lid" &>/dev/nuill
@@ -38,7 +39,15 @@ stop_lg()
 	# inside the container even that we never moved it into the container's
 	# Process Namespace. EncFS will also die when the lg- is shut down.
 	# This is only neede for cgroup1:
-	[[ -n $is_encfs ]] && pkill -SIGTERM -f "^\[encfs-${lid}\]" 2>/dev/null
+	[[ -n $is_encfs ]] && {
+		pkill -SIGTERM -f "^\[encfs-${lid}\]" 2>/dev/null
+		# Give kernel time to unmount mountpoint
+		sleep 1
+	}
+	# Do not use 'rm -rf' here as this might still be a mounted drive
+	# when encfsd is not killed fast enough (failing to delete is acceptable).
+	rm -f "/encfs/sec/lg-${lid}/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt"
+	rmdir "/encfs/sec/lg-${lid}"
 }
 
 # [lg-$LID]

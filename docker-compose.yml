@@ -76,8 +76,9 @@ services:
     volumes:
       - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
+      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
-      - "${SF_SHMDIR:-/dev/shm/sf}/run/encfsd/user/:/sf/run/encfsd/user"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
@@ -465,6 +466,7 @@ services:
     entrypoint: ["nginx", "-g", "daemon off;"]
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}:/dev/shm/sf"
+      - "${SF_BASEDIR:-.}/config/db:/config/db"
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx-rpc.conf:/etc/nginx/nginx.conf:ro"
 
   wg:
@@ -627,7 +629,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
-      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest:shared"
+      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"

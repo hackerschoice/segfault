@@ -1263,7 +1263,9 @@ exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP_HASH}" "${YOUR_IP}"
 exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."
 
 # Setup container (within container's namespace)
-exec_devnull docker exec --user 0:0 --env SF_IS_NEW_SERVER="${SF_IS_NEW_SERVER}" "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "Failed-#2 to set up guest container..."
+unset WGNAME_UP
+[[ -s "${SF_USER_DB_DIR}/wg/name_up" ]] && WGNAME_UP="$(<"${SF_USER_DB_DIR}/wg/name_up")"
+exec_devnull docker exec --user 0:0 --env SF_IS_NEW_SERVER="${SF_IS_NEW_SERVER}" --env WGNAME_UP="${WGNAME_UP}" "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "Failed-#2 to set up guest container..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 

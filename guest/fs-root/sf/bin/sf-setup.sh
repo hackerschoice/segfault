@@ -96,7 +96,7 @@ link_etc()
 	done
 }
 
-# Setup the instance
+# Setup the container
 # - Create home directories in /sec/root and /sec/home
 # - 
 setup()
@@ -130,6 +130,9 @@ setup()
 		sed "s/^SITEURL.*/SITEURL = '\/${SF_HOSTNAME,,}'/" -i /sec/www/pelicanconf.py
 	}
 
+	# Re-Create Wireguard Endpoint
+	[[ -n $WGNAME_UP ]] && curl -s sf/net/up -dnocreat=1 -dname="${WGNAME_UP}"
+
 	# Setup rc.local (if not exist)
 	[[ ! -f /sec/usr/etc/rc.local ]] && setup_rclocal
 	# Link any /etc/* file to /sec/usr/etc if it exists...
@@ -137,13 +140,10 @@ setup()
 	# Execute rc.local startup script
 	/bin/bash /sec/usr/etc/rc.local
 
-	# Re-Create Wireguard Endpoint
-	[[ -f /config/self/wgname ]] && curl -s rpc/net/up -dnocreat=1 -dname="$(</config/self/wgname)" >/dev/null
-
 	return 0 # TRUE
 }
 
-DEBUGF "Setting up user's instance..."
+DEBUGF "Setting up user's container..."
 setup
 [[ -n $SF_IS_NEW_SERVER ]] && {
 	# Newly created server.

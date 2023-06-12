@@ -403,7 +403,7 @@ net_down()
 	# Empty file
 	>"${LID_PROMPT_FN}"
 	# Delete WG NAME
-	rm -f "${LID_WGNAME_FN:?}"
+	rm -f "${LID_WGNAME_FN:?}" "${USER_DB_WGNAME_UP_FN:?}"
 }
 
 cmd_net_del()
@@ -463,7 +463,7 @@ cmd_net_show()
 		# Use 'script' to force color output
 		str=$(script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${WG_DEV}\"" /dev/null </dev/null)
 	fi
-	[[ -z $str ]] && {
+	{ [[ -z $str ]] || [[ $str == *"No such device"* ]]; } && {
 		echo -e "\
 ${Y}WARNING${N}: No Exit Node enabled.
 Use ${C}curl sf/net/list${N} to list all Exit Nodes.
@@ -595,7 +595,12 @@ IFS=$_IFS
 	LID_WGDIR="/config/db/user/lg-${LID}/wg"
 	[[ ! -d "${LID_WGDIR}" ]] && mkdir "${LID_WGDIR}"
 	LID_PROMPT_FN="/dev/shm/sf/self-for-guest/lg-${LID}/prompt"
+	# The WGNAME needs to be stored in user's self-config so that it is avaialble to the
+	# user (which must be on /dev/shm) but also perm. in db/user/lg-* to restart WG
+	# after a SSC restart.
 	LID_WGNAME_FN="/dev/shm/sf/self-for-guest/lg-${LID}/wgname"
+	USER_DB_WGNAME_UP_FN="/config/db/user/lg-${LID}/wg/name_up"
+
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
 
@@ -698,6 +703,7 @@ IFS=$_IFS
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
 
 	echo "${WT_NAME}" >"${LID_WGNAME_FN}"
+	echo "${WT_NAME}" >"${USER_DB_WGNAME_UP_FN}"
 	echo "(%F{yellow}EXIT:%B${WT_NAME}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
 	echo -e "${G}SUCCESS${N}"
 	net_print_example  "${WT_NAME}"

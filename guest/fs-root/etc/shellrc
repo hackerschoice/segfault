@@ -9,8 +9,8 @@ alias lss='ls -AlhrS'
 alias xterm='xterm-dark'
 
 function dmesg {
-	[[ ! -t 1 ]] && { command curl -s rpc/dmesg/ -dnocolor=1; return; }
-	command curl -s rpc/dmesg/
+	[[ ! -t 1 ]] && { command curl -s sf/dmesg/ -dnocolor=1; return; }
+	command curl -s sf/dmesg/
 }
 
 [[ -e /usr/bin/nvim ]] && {

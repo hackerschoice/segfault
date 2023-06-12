@@ -16,11 +16,8 @@ unset _IS_SHOW_MOTD
 unset SF_IS_NEW_SERVER
 unset SF_IS_LOGINSHELL
 
-[[ -n $BASH ]] && {
-	# user on zsh and did `bash -il`
-	export SHELL="/bin/bash"
-}
-
+# user on zsh and did `bash`
+[[ -n $BASH ]] && export SHELL="/bin/bash"
 [[ -n $ZSH_NAME ]] && {
 	# user on bash and did `zsh -il`
 	export SHELL="/bin/zsh"

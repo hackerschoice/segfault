@@ -148,15 +148,9 @@ load_env
 	echo -e "Try \`curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'\`"
 }
 
-[[ ! -f "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] && {
-	WARN 'Not found: data/share/relay-exit-nodes-mullvad.txt'
-	echo -e "See contrib/cronjob how to create it."
-}
+[[ ! -f "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] && WARN "Not found: data/share/relay-exit-nodes-mullvad.txt - ${CDM}See contrib/cronjob how to create it.${CN}"
 
-[[ ! -f "${SF_DATADIR}/share/proxies.txt" ]] && {
-	WARN 'Not found: data/share/proxies.txt'
-	echo -e "See contrib/cronjob how to create it."
-}
+[[ ! -f "${SF_DATADIR}/share/proxies.txt" ]] && WARN "Not found: data/share/proxies.txt - ${CDM}See contrib/cronjob how to create it.${CN}"
 
 [[ ! -f "${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt" ]] && {
 	WARN "Not found: ${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt"

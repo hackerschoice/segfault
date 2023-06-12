@@ -1,5 +1,6 @@
 ### Sourced as the last entry from ~/.zshrc or ~/.bashrc
 
+[[ -n $BASH ]] && export SHELL="/bin/bash" # user on zsh and did `bash`
 # shellcheck disable=SC1091
 source "/sf/bin/funcs.sh" 2>/dev/null
 

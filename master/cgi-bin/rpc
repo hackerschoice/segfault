@@ -604,6 +604,8 @@ IFS=$_IFS
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
 
+	# Sanitize 0.4.8rc1 bug where '172...' was '"172...' in .env
+	WG_IPS="${WG_IPS//[^a-fx0-9\/,:.]}"
 	[[ -z $WG_IPS ]] && WG_IPS="172.16.0.x/16,fd:16::x/104"
 
 	WG_IP_PRE="${WG_IPS%%x*}"      # 172.16.0.

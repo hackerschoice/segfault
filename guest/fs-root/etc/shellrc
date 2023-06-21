@@ -73,6 +73,12 @@ PROXY()
 	echo "${arr[$((RANDOM % n))]}"
 }
 
+docker(){
+	echo -e >&2 "${CDB}[${CDY}SF${CDB}] ${CR}Docker aint working.${CN} Try ${CDC}udocker${CN} instead."
+	return 255
+}
+docker-compose(){ docker;}
+
 [[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
 tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {

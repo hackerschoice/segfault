@@ -411,7 +411,6 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 # Everything below here will overwrite packages already installed by apt-get.
 #############################################################################
 ### 2023-02: xpra has been janked. the non-beta is broken on kali (and also conflicts with libprocps8)
-### The beta comes with an expired GPG keys. doh.
 # RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.11.3 and libprocps8` \
 # 		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
 # 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
@@ -420,14 +419,15 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 # 		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
 # 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 # 		&& rm -f /var/lib/apt/lists/xpra*; }'
-# RUN	/pkg-install.sh GUI bash -c '{ : \
-# 		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra.asc \
-# 		&& wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra.sources \
-# 		&& apt-get update \
-# 		&& pkg=("xpra" "xpra-html5") \
-# 		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
-# 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
-# 		&& rm -f /var/lib/apt/lists/xpra*; }'
+### 2023-06: https://github.com/Xpra-org/xpra/issues/3863
+RUN	/pkg-install.sh GUI bash -c '{ : \
+		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra-2023.asc \
+		&& wget -O "/etc/apt/sources.list.d/xpra-beta.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra-beta.sources \
+		&& apt-get update \
+		&& pkg=("xpra" "xpra-html5") \
+		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
+		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
+		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### x86_64 only
 RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
@@ -536,7 +536,8 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		pyTelegramBotAPI \
 		tgcrypto \
 		wsgidav
-RUN /pkg-install.sh    LARGE pipx install gdown
+RUN /pkg-install.sh    LARGE pipx install gdown \
+	&& /pkg-install.sh LARGE pipx install udocker
 RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.3/geonet_0.4.3_%arch:x86_64=amd64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
@@ -696,7 +697,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		g++-multilib \
 		gcc-multilib \
 		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
-
 RUN /pkg-install.sh    HACK ghbin wader/fq '_linux_%arch:x86_64=amd64:aarch64=arm64%' fq \
 	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr \
 	&& /pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch:x86_64=amd64:aarch64=arm64%' dalfox
@@ -722,8 +722,12 @@ RUN /pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish 
 		&& bash -c '{ [[ ! -d /usr/gophish ]] && exit 0; chmod 755 /usr/gophish/gophish \
 			&& echo -e "#! /bin/bash\ncd /usr/gophish && exec ./gophish \"\$@\"" >/usr/bin/gophish \
 			&& chmod 755 /usr/bin/gophish; }'
+RUN /pkg-install.sh HUGE pipx install bbot
 RUN /pkg-install.sh HUGE npm install -g wscat
 RUN /pkg-install.sh HUGE bash -c 'mkdir -p /usr/share/wordlists; curl -fsSL https://crackstation.net/files/crackstation-human-only.txt.gz | gunzip >/usr/share/wordlists/crackstation-human-only.txt'
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		bpytop \
+		btop
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

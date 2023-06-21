@@ -24,7 +24,6 @@ source /sf/bin/funcs_redis.sh
 # From all files update the VPN status file
 create_vpn_status()
 {
-	local loc
 	local exit_ip
 	local geoip
 	local provider

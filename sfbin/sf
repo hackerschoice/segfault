@@ -1,4 +1,7 @@
-#! /bin/bash
+#! /usr/bin/env bash
+
+# Change to CWD (in case CWD has been updated).
+cd "$(pwd)" || exit
 
 BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 source "${BINDIR}/funcs.sh" || exit 254
@@ -220,7 +223,7 @@ sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
 # Each Hugepagesize is 2MB (grep HUGE /proc/meminfo)
 #  512 => 1g as HUGE 
 # 8192 => 16g as HUGE
-[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN 'Huge Tables not set. Consider '\''echo "vm.nr_hugepages=8192" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192'\'
+[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN "Huge Tables not set. Consider ${CDC}echo \"vm.nr_hugepages=8192\" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192${CN}"
 
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx-rpc.conf"
 warn_file "${SF_BASEDIR}/config/etc/nginx/nginx.conf"

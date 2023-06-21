@@ -13,17 +13,26 @@ _sf_shmdir="/dev/shm/sf-u1000"
 _self_for_guest_dir="${_sf_shmdir}/self-for-guest"
 _sf_basedir="/sf"
 _sf_dbdir="${_sf_basedir}/config/db"
+unset _sf_isinit
 
 _sf_deinit()
 {
 	unset CY CG CR CC CB CF CN CDR CDG CDY CDB CDM CDC CUL
-	unset _sf_now _sf_isinit
+	# Can not unset hash-maps here as those cant be declared inside a function.
+	unset _sf_now _sf_isinit _sf_p2lid _sf_quota
 }
 
 _sf_init()
 {
 	_sf_now=$(date '+%s' -u)
 	[[ -n $_sf_isinit ]] && return
+
+	unset _sfquota _sf_p2lid
+	declare -Ag _sfquota
+	declare -Ag _sf_p2lid
+
+	_sf_isinit=1
+
 	[[ ! -t 1 ]] && return
 
 	CY="\e[1;33m" # yellow
@@ -44,8 +53,6 @@ _sf_init()
 	CDM="\e[0;35m" # magenta
 	CDC="\e[0;36m" # cyan
 	CUL="\e[4m"
-
-	_sf_isinit=1
 }
 
 _sf_usage()
@@ -58,6 +65,7 @@ _sf_usage()
 	echo -e "${CDC}lgstop [lg-LID] <message>${CN}              # eg \`lgstop lg-NmEwNWJkMW "'"***ABUSE***\\nContact SysCops"`'
 	echo -e "${CDC}lgban  [lg-LID] <message>${CN}              # Stop & Ban IP address, eg \`lgban lg-NmEwNWJkMW "'"***ABUSE***\\nContact SysCops"`'
 	echo -e "${CDC}lgrm   [lg-LID]${CN}                        # Remove all data for LID"
+	echo -e "${CDC}lgpurge <idle-days> <naughty-days>${CN}     # Purge LGs older than days or empty/full ones"
 	echo -e "${CDC}lgps [ps regex] <stop> <message>${CN}       # eg \`lgps 'dd if=/dev/zero' stop "'"***ABUSE***\\nContact SysCops"`'
 	echo -e "${CDC}lg_cleaner [max_pid_count=3] <stop>${CN}    # eg \`lg_cleaner 3 stop\` or \`lg_cleaner 0\`"
 	echo -e "${CDC}docker_clean${CN}                           # Delete all containers & images"
@@ -73,11 +81,120 @@ _sf_usage()
 	echo -e "${CDC}lgiftop${CN}                                # Live network traffic"
 	echo -e "${CDC}sftop${CN}"
 	echo -e "${CDC}lghelp${CN}                                 # THIS HELP"
+	# echo -e "${CDC}export ${CDY}SF_DRYRUN=1${CN}                     # Simulate only"
 
 	_sf_deinit
 }
 
 lghelp() { _sf_usage; }
+
+_sf_xrmdir()
+{
+	[[ ! -d "${1:?}" ]] && return
+	rm -rf "${1}"
+}
+
+_sf_xrm()
+{
+	[[ ! -f "${1:?}" ]] && return
+	rm -f "${1}"
+}
+
+_sfcg_forall()
+{
+	local IFS
+	local arr
+	local l
+	local a
+	local ts
+	local fn
+	local -
+
+	set -o noglob
+	IFS=$'\n' arr=($(docker ps --format "{{.Names}}"  --filter 'name=^lg-'))
+
+	for l in "${arr[@]}"; do
+		ts=2147483647
+		fn="${_sf_dbdir}/user/${l}/created.txt"
+		[[ -f "$fn" ]] && ts=$(date +%s -u -r "$fn")
+		a+=("$ts $l")
+	done
+	echo "${a[*]}" | sort -n | cut -f2 -d" "
+}
+
+# [LG-LID]
+_sfcg_psarr()
+{
+	local found
+	local lglid
+	local match
+	local str
+	local IFS
+	lglid="$1"
+	match="$2"
+	found=0
+	[[ -z $match ]] && found=1 # empty string => Show all
+
+	IFS= str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd)
+	[[ -n $str ]] && [[ -n $match ]] && [[ "$str" =~ $match ]] && found=1
+
+	echo "$str"
+	return $found
+}
+
+### Return number of seconds the LG logged in last. 0 if currently logged in.
+_sf_lastlog()
+{
+	local age
+	local lglid
+	lglid=$1
+	[[ -f "${_sf_dbdir}/user/${lglid}/is_logged_in" ]] && { echo 0; return; }
+	[[ ! -f "${_sf_dbdir}/user/${lglid}/ts_logout" ]] && { echo >&2 "[$lglid] WARN ts_logout not found"; echo 0; return; }
+	age=$(date '+%s' -u -r "${_sf_dbdir}/user/${lglid}/ts_logout")
+	echo $((_sf_now - age))
+}
+
+_sfcfg_printlg()
+{
+		local lglid
+		local geoip
+		local ip
+		local fn
+		local hn
+		local age
+		local age_str
+		local str
+		local days
+		lglid=$1
+
+		age=$(_sf_lastlog "$lglid")
+		if [[ $age -eq 0 ]]; then
+			age_str="${CG}-online--"
+		elif [[ $age -lt 3600 ]]; then
+			# "59m59s"
+			str="${age}     "
+			age_str="${CY}   ${str:0:5}s"
+		elif [[ $age -lt 86400 ]]; then
+			age_str="${CDY}   $(date -d @"$age" -u '+%Hh%Mm')"
+		else
+			days=$((age / 86400))
+			age_str="${CDR}${days}d $(date -d@"$age" -u '+%Hh%Mm')"
+		fi
+
+		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
+		ip="${ip}                      "
+		ip="${ip:0:16}"
+		[[ -f "${_sf_dbdir}/user/${lglid}/hostname" ]] && hn=$(<"${_sf_dbdir}/user/${lglid}/hostname")
+		hn="${hn}                      "
+		hn="${hn:0:16}"
+		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
+		fn="${_sf_dbdir}/user/${lglid}/created.txt"
+		[[ -f "${fn}" ]] && t_created=$(date '+%F' -u -r "${fn}")
+		[[ -f "${_self_for_guest_dir}/${lglid}/c_ip" ]] && cip=$(<"${_self_for_guest_dir}/${lglid}/c_ip")
+		cip+="                         "
+		cip=${cip:0:16}
+		echo -e "${CDY}====> ${CDC}${t_created:-????-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CF}${cip}${CDG}${geoip}${CN}"
+}
 
 # Show overlay2 usage by container REGEX match.
 # container_df ^lg
@@ -137,87 +254,220 @@ netns()
 	nsenter -t "${pid}" -n "$@"
 }
 
+# Load xfs Project-id <-> LID mapping
+# FIXME: could be loaded from user/prjid?
+_sf_mkp2lid()
+{
+	local dst
+	local l
+	local IFS
+	local all
+	local str
+	local -
+
+	echo >&2 "Loading Prj2Lid DB..."
+	[[ ${#_sf_p2lid[@]} -gt 0 ]] && return # Already loaded
+
+	dst=$1
+	[[ -z $dst ]] && dst="lg-*"
+
+	IFS=""
+	str=$(cd "${_sf_basedir}/data/user"; lsattr -dp "./"${dst})
+	set -o noglob
+	IFS=$'\n'
+	all=($str)
+	# Create hash-map to translate PRJID to LID name
+	for l in "${all[@]}"; do
+		_sf_p2lid["${l%% *}"]="${l##*/}"
+	done
+}
+
+# Create hash-maps for BYTES and INODES by LG
+_sf_load_xfs_usage()
+{
+	local arr prjid perctt lid
+	local all
+	local IFS
+	local l
+	local lid
+	local -
+
+	[[ ${#_sfquota[@]} -gt 0 ]] && return
+	_sf_mkp2lid "$1"
+	echo >&2 "Loading XFS Quota DB..."
+	set -o noglob
+
+	IFS=$'\n'
+	all=($(xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data"))
+	echo >&2 "Entries XFS: ${#all[@]}"
+	unset IFS
+	for l in "${all[@]}"; do
+		[[ -z $l ]] && continue
+		arr=($l)
+		prjid=${arr[0]##*#}
+		# [[ -z ${_sf_p2lid[$prjid]} ]] && { echo >&2 "$l: prjid=${prjid} on has not LID?"; continue; }
+		[[ -z ${_sf_p2lid["$prjid"]} ]] && continue;
+		lid="${_sf_p2lid["$prjid"]}"
+
+		# Check if quota is missing (and force to 100.00%)
+		[[ ${arr[1]} -eq 0 ]] && continue
+		[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing quota"; arr[3]=${arr[1]}; continue; }
+		[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing iquota"; arr[8]=${arr[6]}; }
+
+		_sfquota["${lid}-blocks"]="${arr[1]}"
+		_sfquota["${lid}-blocks-perctt"]="$((arr[1] * 10000 / arr[3]))"
+		_sfquota["${lid}-inode"]="${arr[6]}"
+		_sfquota["${lid}-inode-perctt"]="$((arr[6] * 1000 / arr[8]))"
+	done
+}
+
+# [Idle-DAYS] [Naughty-Days]
+# - Delete all LID's that have not been logged in for Idle-Days
+# - Delete all LID's that have not been used for Naughty-Days and look empty (blocks <= 180)
+# - Delete all LID's that have not been used for Naughty-Days and occupy 100% quota.
+lgpurge()
+{
+	local age_purge
+	local age_naughty
+	local pdays ndays
+	local IFS
+	local arr
+	local dbr
+	local age
+	local i
+	local blocks_purge
+	local lg_purge
+	local is_purge
+	local str
+	
+	_sf_init
+
+	pdays=$1
+	{ [[ -z $pdays ]] || [[ $pdays -lt 10 ]]; } && pdays=180
+	age_purge=$((pdays * 24 * 60 * 60))
+	ndays=$2
+	{ [[ -z $ndays ]] || [[ $ndays -lt 10 ]]; } && ndays=60
+	age_naughty=$((ndays * 24 * 60 * 60))
+
+	## Check that data/user/lg-* and config/db/user/lg-* is syncronized
+	IFS=" "
+	arr=($(cd "${_sf_basedir}/data/user/"; echo lg-*))
+	{ [[ ${#arr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/data/user/lg-*" ]]; } && { echo >&2 "WARN1: No lg's found"; return; }
+	dbr=($(cd "${_sf_basedir}/config/db/user/"; echo lg-*))
+	{ [[ ${#dbr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/config/db/user/lg-*" ]]; } && { echo >&2 "WARN2: No lg's found"; return; }
+	[[ ${#arr[@]} -ne ${#dbr[@]} ]] && {
+		echo >&2 "WARN: data/user/lg-* (${#arr[@]}) and config/db/user/lg-* (${#dbr[@]}) differ."
+		[[ -z $SF_FORCE ]] && echo -e >&2 "Set ${CDC}SF_FORCE=1${CN} to delete"
+		# Note: This should never really happen unless encfs fails?
+		[[ -n $SF_FORCE ]] && {
+			str=${arr[*]}
+			for l in "${dbr[@]}"; do
+				[[ "${str}" == *"$l"* ]] && continue
+				echo "[$l] Not found in data/user/$l"
+				_sf_lgrm "$l"
+			done
+			str="${dbr[*]}"
+			for l in "${arr[@]}"; do
+				[[ "${str}" == *"$l"* ]] && continue
+				echo "[$l] Not found in config/db/user/$lg"
+				_sf_lgrm "$l"
+			done
+		}
+	}
+	unset dbr
+
+	_sf_load_xfs_usage
+
+	# echo "Entries: ${#_sfquota[@]} and ${#_sf_p2lid[@]}"
+	echo >&2 "Checking for LIDs idle more than ${pdays} days or naughty LIDs idle more than ${ndays} days..."
+	i=0
+	blocks_purge=0
+	lg_purge=0
+	while [[ $i -lt ${#arr[@]} ]]; do
+		l=${arr[$i]}
+		((i++))
+		echo -en "\r${i}/${#arr[@]} "
+		age=$(_sf_lastlog "$l")
+		# Note: The following error appears in older SF versions when two different SECRETs
+		# could generate the same SF_NUM / SF_HOSTNAME. The implication is that both 
+		[[ -z "${_sfquota["${l}-blocks"]}" ]] && { echo >&2 "[$l] XFS PrjID does not exist"; continue; }
+		[[ $age -lt ${age_naughty:?} ]] && continue
+
+		unset is_purge
+		if [[ $age -gt ${age_purge:?} ]]; then
+			is_purge="${CDG}to old"
+		elif [[ ${_sfquota["${l}-blocks"]} -lt 180 ]]; then
+			is_purge="${CDY}empty"
+		elif [[ ${_sfquota["${l}-blocks-perctt"]} -gt 9900 ]]; then
+			is_purge="${CDR}100% usage"
+		elif [[ ${_sfquota["${l}-inode-perctt"]} -gt 9900 ]]; then
+			is_purge="${CDR}100% iusage"
+		else
+			continue
+		fi
+		n=${_sfquota["${l}-blocks"]}
+		((blocks_purge+=n))
+		echo -e "\r$((age / 86400)) days [${CDM}$l${CN}] blocks=${_sfquota["${l}-blocks"]} (${is_purge}${CN})"
+		((lg_purge++))
+		[[ -n $SF_DRYRUN ]] && continue
+		_sf_lgrm "${l}"
+	done
+	echo ""
+	echo "Purged ${lg_purge} LIDS and a total of ${blocks_purge} blocks..."
+
+	_sf_deinit
+}
+
 #                               Blocks                                          Inodes
 # Project ID       Used       Soft       Hard    Warn/Grace           Used       Soft       Hard    Warn/ Grace	
 # #9                   0    0    4194304     00 [--------]          0          0      65536     00 [--------]
 lgdf()
 {
-	local l
 	local arr
 	local psz
 	local pin
 	local perctt
-	local p2lid
 	local str
-	local lid
+	local l
 	local dst
+	local IFS
+	local blocks
 
 	_sf_init
+
 	dst="$1"
-	[[ -z $dst ]] && dst="lg-*"
-	declare -A p2lid
+	if [[ -z $dst ]]; then
+		IFS=" "
+		arr=($(cd "${_sf_basedir}/data/user/"; echo lg-*))
+		{ [[ ${#arr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/data/user/l-*" ]]; } && { echo >&2 "WARN: No lg's found"; return; }
+	else
+		arr=("$dst")
+	fi
+	_sf_load_xfs_usage "$dst"
 
-	# Create map to translate PRJID to LID name
-	eval p2lid=( $(lsattr -dp "${_sf_basedir}/data/user"/${dst} | while read l; do
-		echo -n "['${l%% *}']='${l##*/}' "
-	done;) )
-
-	xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data" | while read l; do
-		[[ -z $l ]] && continue
-		arr=($l)
-		# #10041175
-		prjid=${arr[0]##*#}
-		[[ -z ${p2lid[$prjid]} ]] && continue
-		lid="${p2lid[$prjid]}"
-
-		# Check if quota is missing (and force to 100.00%)
-		[[ ${arr[1]} -eq 0 ]] && continue
-		[[ ${arr[3]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing quota"; arr[3]=${arr[1]}; }
-		perctt=$((arr[1] * 10000 / arr[3]))
+	i=0
+	while [[ $i -lt ${#arr[@]} ]]; do
+		l=${arr[$i]}
+		((i++))
+		str="${_sfquota["${l}-blocks"]}             "
+		blocks="${str:0:10} "
+		perctt=${_sfquota["${l}-blocks-perctt"]}
 		psz=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
-
-		[[ ${arr[8]} -le 0 ]] && { echo >&2 "WARN [${lid}]#$prjid: Missing iquota"; arr[8]=${arr[6]}; }
-		perctt=$((arr[6] * 10000 / arr[8]))
+		perctt=${_sfquota["${l}-inode-perctt"]}
 		pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
-
-		str="${arr[1]}          "
-		l="${str:0:10} "
-		str="${psz}       "
-		echo "${l} ${str:0:5}% ${pin}%  ${lid}"
+		str="${psz}    "
+		echo "${blocks} ${str:0:5}% ${pin}% ${l}"
 	done
 
 	_sf_deinit
 }
 
-# <lg-LID> <MESSAGE>
-lgstop()
-{
-	[[ -n $2 ]] && {
-		lgwall "${1}" "$2"
-		echo -e "$2" >"${_sf_dbdir}/user/${1}/syscop-msg.txt"
-	}
-	docker stop "${1}"
-}
-
-_sf_xrmdir()
-{
-	[[ ! -d "${1:?}" ]] && return
-	rm -rf "${1}"
-}
-
-_sf_xrm()
-{
-	[[ ! -f "${1:?}" ]] && return
-	rm -f "${1}"
-}
-
-lgrm()
+_sf_lgrm()
 {
 	local l
 	local fn
 	local hn
 
-	_sf_init
 	l="$1"
 	[[ -z $l ]] && return
 
@@ -233,6 +483,12 @@ lgrm()
 	_sf_xrm "${_sf_dbdir}/cg/${l}.txt"
 	_sf_xrmdir "${_sf_dbdir}/user/${l}"
 
+}
+
+lgrm()
+{
+	_sf_init
+	_sf_lgrm "$1"
 	_sf_deinit
 }
 
@@ -243,6 +499,7 @@ lgban()
 	local msg
 	local lid
 
+	_sf_init
 	lid="${1}"
 	shift 1
 
@@ -258,91 +515,21 @@ lgban()
 	}
 
 	lgstop "${lid}" "$@"
-	lgrm "${lid}"
+	_sf_lgrm "${lid}"
+
+	_sf_deinit
 }
 # FIXME: check if net-a.b.c should be created instead to ban entire network.
 
-_sfcg_forall()
+
+# <lg-LID> <MESSAGE>
+lgstop()
 {
-	local IFS
-	local arr
-	local l
-	local a
-	local ts
-	local fn
-	IFS=$'\n' arr=($(docker ps --format "{{.Names}}"  --filter 'name=^lg-'))
-
-	for l in "${arr[@]}"; do
-		ts=2147483647
-		fn="${_sf_dbdir}/user/${l}/created.txt"
-		[[ -f "$fn" ]] && ts=$(date +%s -u -r "$fn")
-		a+=("$ts $l")
-	done
-	echo "${a[*]}" | sort -n | cut -f2 -d" "
-}
-
-# [LG-LID]
-_sfcg_psarr()
-{
-	local found
-	local lglid
-	local match
-	local str
-	local IFS
-	lglid="$1"
-	match="$2"
-	found=0
-	[[ -z $match ]] && found=1 # empty string => Show all
-
-	IFS= str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd)
-	[[ -n $str ]] && [[ -n $match ]] && [[ "$str" =~ $match ]] && found=1
-
-	echo "$str"
-	return $found
-}
-
-_sfcfg_printlg()
-{
-		local lglid
-		local geoip
-		local ip
-		local fn
-		local hn
-		local age
-		local age_str
-		local str
-		local days
-		lglid=$1
-
-		[[ ! -f "${_sf_dbdir}/user/${lglid}/is_logged_in" ]] && {
-			age=$(date '+%s' -u -r "${_sf_dbdir}/user/${lglid}/ts_logout")
-			age=$((_sf_now - age))
-			if [[ $age -lt 3600 ]]; then
-				# "59m59s"
-				str="${age}     "
-				age_str="${CY}   ${str:0:5}s"
-			elif [[ $age -lt 86400 ]]; then
-				age_str="${CDY}   $(date -d @"$age" -u '+%Hh%Mm')"
-			else
-				days=$((age / 86400))
-				age_str="${CDR}${days}d $(date -d@"$age" -u '+%Hh%Mm')"
-			fi
-		}
-		#                     
-		[[ -z $age ]] && age_str="${CG}-online--"
-		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
-		ip="${ip}                      "
-		ip="${ip:0:16}"
-		[[ -f "${_sf_dbdir}/user/${lglid}/hostname" ]] && hn=$(<"${_sf_dbdir}/user/${lglid}/hostname")
-		hn="${hn}                      "
-		hn="${hn:0:16}"
-		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
-		fn="${_sf_dbdir}/user/${lglid}/created.txt"
-		[[ -f "${fn}" ]] && t_created=$(date '+%F' -u -r "${fn}")
-		[[ -f "${_self_for_guest_dir}/${lglid}/c_ip" ]] && cip=$(<"${_self_for_guest_dir}/${lglid}/c_ip")
-		cip+="                         "
-		cip=${cip:0:16}
-		echo -e "${CDY}====> ${CDC}${t_created:-????-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CF}${cip}${CDG}${geoip}${CN}"
+	[[ -n $2 ]] && {
+		lgwall "${1}" "$2"
+		echo -e "$2" >"${_sf_dbdir}/user/${1}/syscop-msg.txt"
+	}
+	docker stop "${1}"
 }
 
 lgls()
@@ -436,9 +623,11 @@ lg_cleaner()
 	local is_stop
 	local max
 	local IFS
+	local -
 	max="$1"
 	is_stop="$2"
 	[[ -z $max ]] && max=3
+	set -o noglob
 	IFS=$'\n'
 	real=($(pgrep docker-exec-sig -a | awk '{print $5;}'))
 	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))

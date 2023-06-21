@@ -352,14 +352,16 @@ init_vars()
 	IS_LOGGED_IN_FILE="${SF_USER_DB_DIR}/is_logged_in"
 
 	# Set the number of CPU's a guest can use up to a max of 4.
-	# Min is 2 or NPROC / 4 to a max of 4.
-	CPUS=$((NPROC / 4))
-	if [[ $CPUS -le 1 ]]; then
-		CPUS=1
-		[[ $NPROC -ge 2 ]] && CPUS=2
-	elif [[ $CPUS -gt 4 ]]; then
-		CPUS=4
-	fi
+	# Min is 1 or NPROC / 4 to a max of 4.
+	[[ -z $SF_CPUS ]] && {
+		SF_CPUS=$((NPROC / 4))
+		if [[ $SF_CPUS -le 1 ]]; then
+			SF_CPUS=1
+			[[ $NPROC -ge 2 ]] && SF_CPUS=2
+		elif [[ $SF_CPUS -gt 4 ]]; then
+			SF_CPUS=4
+		fi
+	}
 
 	# Check if we are still in sshd's Network Namespace
 	IS_SSHD_NS_NET=1
@@ -400,6 +402,7 @@ prompt_wait_yN()
 {
 	local p
 	local sec
+	local IFS
 	sec=$1
 	p="$2"
 
@@ -532,6 +535,9 @@ spawn_shell_exit()
 	# Request a reverse Port Forward
 	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
 
+	# Warn user if this is the last server by IP (after semaphore has been released)
+	[[ -n $IS_SHOW_LAST_SERVER ]] && show_last_server "$IS_SHOW_LAST_SERVER"
+
 	# export SF_LOG="/config/host/log/sigproxy-${LID}-${SF_HOSTNAME}.log"
 	docker-exec-sigproxy exec --detach-keys='ctrl-^,z' --workdir=/sec/root --env SF_IS_LOGINSHELL=1 --user 0:0 "${DOCKER_EXEC_ARGS[@]}" "lg-${LID}" nice -n"${SF_USER_NICE_SCORE:?}" zsh "${PARAM[@]}"
 	ret="$?" # save return value and exit this script later with same return value.
@@ -626,14 +632,33 @@ load_limits()
 	# Source system wide limits
 	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf.conf")"
 
-	# Then source TOKEN specific limits
-	[[ -f "${SF_TOKEN_DIR}/token-${SF_TOKEN}.conf" ]] && eval "$(<"${SF_TOKEN_DIR}/token-${SF_TOKEN}.conf")"
-
-	# Then source IP specific limits
-	[[ -f "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf")"
+	# Then source token specific limits (and write TOKEN information)
+	if [[ -z $SF_TOKEN ]]; then
+		[[ -f "${SF_USER_DB_DIR}/token" ]] && {
+			SF_TOKEN="$(<"${SF_USER_DB_DIR}/token")"
+			# Delete user token if token no longer exists
+			[[ ! -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]] && {
+				rm -f "${SF_USER_DB_DIR}/token"
+				unset SF_TOKEN
+			}
+		}
+	else
+		# HERE: SF_TOKEN is user supplied.
+		if [[ ! -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]]; then
+			# HERE: Token is INVALID
+			unset SF_TOKEN
+		else
+			# Update TOKEN
+			tofile "${SF_TOKEN}" "${SF_USER_DB_DIR}/token"
+		fi
+	fi
+	[[ -n $SF_TOKEN ]] && [[ -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]] && eval "$(<"${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf")"
 
 	# Then source user specific limits
 	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(<"${SF_USER_DB_DIR}/limits.conf")"
+
+	# Then source IP specific limits
+	[[ -f "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf")"
 
 	# Set swap limit if not set in sf.conf
 	[[ -z $SF_USER_MEMORY_AND_SWAP_LIMIT ]] && SF_USER_MEMORY_AND_SWAP_LIMIT="$SF_USER_MEMORY_LIMIT"
@@ -647,31 +672,6 @@ load_limits()
 	}
 
 	SF_MAX_LOAD="$(( ${NPROC:-1} * SF_MAX_STRAIN ))"
-
-	# Publish user limits to self/limits
-	local is_token
-	is_token="no"
-	[[ -n $SF_TOKEN ]] && is_token="yes"
-
-	local is_ro
-	[[ -z $SF_USER_ROOT_FS_SIZE ]] && is_ro="read-only"
-	tofile "\
-TOKEN_USED=${is_token}
-CPUS=${CPUS}
-ROOT_SIZE=${is_ro:-$SF_USER_ROOT_FS_SIZE}
-ROOT_FILES=${is_ro:-SF_USER_ROOT_FS_INODE}
-HOME_SIZE=${SF_USER_FS_SIZE:-unlimited}
-HOME_FILES=${SF_USER_FS_INODE:-unlimited}
-SHM_SIZE=${SF_SHM_SIZE}
-PIDS=${SF_USER_PIDS_LIMIT}
-MEMORY=${SF_USER_MEMORY_LIMIT}
-NOFILE=${SF_ULIMIT_NOFILE}
-TX=${SF_MAXOUT}
-RX=${SF_MAXIN:-unlimited}
-SYN_BURST=${SF_USER_SYN_BURST}
-SYN_RATE=${SF_USER_SYN_LIMIT}/sec
-SERVERS=${SF_LIMIT_SERVER_BY_IP}
-GREETINGS=${SF_SYSCOP_MSG}" "/config/self-for-guest/lg-${LID}/limits"
 
 	DOCKER_ARGS+=("--memory=${SF_USER_MEMORY_LIMIT}")
 	# Setting memory-swap and memory to same value will disable swapping
@@ -700,6 +700,35 @@ GREETINGS=${SF_SYSCOP_MSG}" "/config/self-for-guest/lg-${LID}/limits"
 	[[ -n $SF_SYSBOX ]] && SYSBOX_ARGS+=("--runtime=sysbox-runc")
 
 	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
+}
+
+# Publish user limits to self/limits
+write_guest_limits()
+{
+	local is_token
+	local is_ro
+
+	is_token="no"
+	[[ -n $SF_TOKEN ]] && is_token="yes"
+
+	[[ -z $SF_USER_ROOT_FS_SIZE ]] && is_ro="read-only"
+	tofile "\
+TOKEN_USED=${is_token}
+CPUS=${SF_CPUS}
+ROOT_SIZE=${is_ro:-$SF_USER_ROOT_FS_SIZE}
+ROOT_FILES=${is_ro:-$SF_USER_ROOT_FS_INODE}
+SEC_SIZE=${SF_USER_FS_SIZE:-unlimited}
+SEC_FILES=${SF_USER_FS_INODE:-unlimited}
+SHM_SIZE=${SF_SHM_SIZE}
+PIDS=${SF_USER_PIDS_LIMIT}
+MEMORY=${SF_USER_MEMORY_LIMIT}
+NOFILE=${SF_ULIMIT_NOFILE}
+TX=${SF_MAXOUT}
+RX=${SF_MAXIN:-unlimited}
+SYN_BURST=${SF_USER_SYN_BURST}
+SYN_RATE=${SF_USER_SYN_LIMIT}/sec
+SERVERS=${SF_LIMIT_SERVER_BY_IP}
+GREETINGS=${SF_SYSCOP_MSG}" "/config/self-for-guest/lg-${LID}/limits"
 }
 
 check_banned()
@@ -912,7 +941,7 @@ check_limit_server_by_ip()
 			ERREXIT 254
 		}
 
-		[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && show_last_server "$((n+1))"
+		[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && IS_SHOW_LAST_SERVER="$((n+1))"
 
 		[[ "$n" -ge 1 ]] && {
 			# The 3rd and more servers from same IP get less CPU share
@@ -1034,9 +1063,12 @@ unset SECRET HUSTLOGIN HIDEIP PRJ TOKEN
 # Only output progress if this is a login shell _and_ not HUSHLOGIN
 [[ -n $IS_LOGIN ]] && [[ -z $SF_HUSHLOGIN ]] && echo_pty() { echo "$@"; }
 
+# Note: sha512sum outputs hex. The first character is always [0..9a..f].
+# The base64 encoding means the LID will always start with N..Z.
 LID=$(echo -n "LID ${SF_SEC}" | sha512sum | base64 -w0)
 LID="${LID//[^[:alpha:]]}"
 LID="${LID:0:10}"
+export LID
 
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
 
@@ -1091,16 +1123,8 @@ else
 	S="Creating Server ${CDY}${SF_HOSTNAME:0:38}${CN}..................................................."
 	echo_pty -en "${S:0:65}"
 
-	# A hostname is generated from the LID. Avoid collision when a hostname
-	# has already been created for a different LID.
-	[[ -e "${HNLID_FILE}" ]] && {
-		lid_old=$(cat "${HNLID_FILE}")
-		[[ "$lid_old" -ne "$LID" ]] && {
-			# DEBUGF "$SF_HOSTNAME already used by ${lid_old} (this is ${LID})."
-			ERREXIT 13 "Hostname Collision. Try again.."
-		}
-		unset lid_old
-	}
+	# Check for collision where different SECRETs generates the same (and already existing) SF_NUM / SF_HOSTNAME:
+	[[ -f "${HNLID_FILE}" ]] && [[ "$(<"${HNLID_FILE}")" != "${LID}" ]] && ERREXIT 69 "Collision. Wrong SECRET for $SF_HOSTNAME."
 	SF_IS_NEW_SERVER=1
 	DOCKER_EXEC_ARGS+=("--env" "SF_IS_NEW_SERVER=1")
 
@@ -1172,6 +1196,8 @@ sem_wait
 ### Start the care taker...
 selfdir="/config/self-for-guest/lg-${LID}"
 xmkdir "${selfdir}"
+[[ -n $SF_TOKEN ]] && tofile "${SF_TOKEN}" "/config/self-for-guest/lg-${LID}/token"
+write_guest_limits
 
 # Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
 # cgroup-v2 only sf-guest.slice need to be specified.
@@ -1181,11 +1207,11 @@ xmkdir "${selfdir}"
 # exec_devnull docker run --runtime=sysbox-runc \
 exec_devnull docker run \
 	"${SYSBOX_ARGS[@]}" \
-	--hostname "sf-${SF_HOSTNAME}" \
+	--hostname "${SF_FQDN%%\.*}-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
 	--rm \
 	--init \
-	--cpus="${CPUS}" \
+	--cpus="${SF_CPUS}" \
 	--cgroup-parent "${SF_CG_PARENT:?}" \
 	--workdir=/ \
 	--ulimit nofile="${SF_ULIMIT_NOFILE}" \

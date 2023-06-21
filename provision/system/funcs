@@ -37,7 +37,7 @@ ERREXIT()
 	code="$1"
 	# shellcheck disable=SC2181 #(style): Check exit code directly with e.g
 	[[ $? -ne 0 ]] && code="$?"
-	[[ -z $code ]] && code=99
+	: "${code:=99}"
 
 	shift 1
 	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
@@ -49,7 +49,7 @@ WARN()
 {
 	local code
 	code="$1"
-	[[ -z $code ]] && code=255
+	: "${code:=255}"
 
 	shift 1
 	echo -e >&2 "${CY}WARNING(${code}):${CN} $*"
@@ -88,12 +88,11 @@ MD5F ()
 ENV_LOAD()
 {
 	local file
-	local old_ifs
+	local IFS
 	local arr
 	local mode
 	file="$1"
 	mode="${2,,}"
-	old_ifs="$IFS"
 
 	[[ ! -f "$file" ]] && return 255
 
@@ -119,6 +118,5 @@ ENV_LOAD()
 		eval "$name"=\'${val}\'
 	done
 
-	IFS="$old_ifs"
 }
 

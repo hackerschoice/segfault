@@ -83,12 +83,26 @@ loc="${loc:0:15}"
 }
 [[ -z $IPPORT ]] && IPPORT="${CDR}N/A${CN}"
 
+### Always show when a Token is being used but obfuscate unless server creation
+### or info is typed.
+token_str="No ${CF}See https://thc.org/segfault/token${CN}"
+[[ -f /config/self/token ]] && {
+	SF_TOKEN="$(</config/self/token)                              "
+	if [[ -z $_IS_SHOW_MORE ]]; then
+		token_str="${CDR}${SF_TOKEN:0:1}${CDR}${CF}.............. ${CDG}${CF}(valid)${CN}"
+	else
+		token_str="${CDR}${SF_TOKEN:0:15} ${CDG}${CF}(valid)${CN}"
+	fi
+}
+
+echo -e "\
+Token             : ${token_str}"
+
 echo -en "\
 Your workstation  : ${CDY}${loc}${CN}
 Reverse Port      : ${IPPORT}${CN}
 ${VPN_DST}"
 
-# All below should only be displayed if user types 'info' or a newly created server.
 [[ -z $_IS_SHOW_MORE ]] && {
 	echo -e "\
 Hint              : ${CDC}Type ${CC}info${CDC} for more details.${CN}"
@@ -96,6 +110,7 @@ Hint              : ${CDC}Type ${CC}info${CDC} for more details.${CN}"
 }
 unset _IS_SHOW_MORE
 
+# All below is only be displayed if user types 'info' or a newly created server.
 echo -e "\
 TOR Proxy         : ${CDG}${SF_TOR_IP:-UNKNOWN}:9050${CN}"
 

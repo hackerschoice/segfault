@@ -14,6 +14,8 @@ DevByIP()
 GetMainIP()
 {
 	local arr
+	local -
+	set -o noglob
 	arr=($(ip route get 8.8.8.8))
 	echo "${arr[6]}"
 }

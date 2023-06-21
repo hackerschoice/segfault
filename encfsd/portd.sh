@@ -155,7 +155,7 @@ remport_provider()
 	# Otherwise curl is called every time an instance exits: An observer
 	# monitoring the VPN Provider _and_ the SF could correlate reverse port
 	# with user's IP.
-	# DELIPPORTS+=($@)
+	# DELIPPORTS+=("$@")
 	docker exec "sf-${provider,,}" /sf/bin/rportfw.sh delipports "$@"
 
 	# Might have encountered an error in cmd_fillstock() and remove the provider.

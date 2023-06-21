@@ -97,16 +97,16 @@ x2data()
         ADDRES6="${ip//x/1}/128"      # fd:16::1/128
     }
 
-    # [[ -z $ADDRESS ]] && ADDRESS="172.16.0.1/32"
-    # [[ -z $ADDRES6 ]] && ADDRES6="fd:16::1/128"
-    # [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="172.16.0.0/16"
-    # [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd:16::0/104"
+    [[ -z $ADDRESS ]] && ADDRESS="172.16.0.1/32"
+    [[ -z $ADDRES6 ]] && ADDRES6="fd:16::1/128"
+    [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="172.16.0.0/16"
+    [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd:16::0/104"
 
     ### SF < 0.4.7 compatible
-    [[ -z $ADDRESS ]] && ADDRESS="192.168.0.1/32"
-    [[ -z $ADDRES6 ]] && ADDRES6="fd::1/128"
-    [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="192.168.0.0/16"
-    [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd::0/104"
+    # [[ -z $ADDRESS ]] && ADDRESS="192.168.0.1/32"
+    # [[ -z $ADDRES6 ]] && ADDRES6="fd::1/128"
+    # [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="192.168.0.0/16"
+    # [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd::0/104"
 }
 
 # Delete any IPT rule and add new one

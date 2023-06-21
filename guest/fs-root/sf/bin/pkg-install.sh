@@ -54,7 +54,7 @@ dlx()
 			else
 				# HERE: Single file
 				unzip -o -j /tmp/pkg.zip "$asset" -d "${dstdir}" || return
-				chmod 755 "${dstdir}/${asset}" || return
+				chmod 755 "${dstdir}/$(basename "${asset}")" || return
 			fi
 			rm -f /tmp/pkg.zip \
 			&& return 0

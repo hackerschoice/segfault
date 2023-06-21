@@ -11,6 +11,14 @@
 # Example:
 # nohup sleep 31337 &>/dev/null &
 #
+# Bash supervisor hack (restart on exit every 10 seconds):
+supervise() {
+    (exec -a "[supervise] $1" bash -c "while :; do $*; sleep 10; done &>/dev/null" &)
+}
+# supervise my-daemon 31337
+# Restart: killall my-daemon
+# Stop   : killall -g my-daemon
+#
 # Or start them the System-V way:
 # service nginx start
 # service postgresql start

@@ -74,7 +74,7 @@ init_host_sshd()
   [[ -f /etc/ssh/sshd_config ]] || return
 
   port=${SF_SSH_PORT:-22}
-  [[ -z $SF_SSH_PORT_MASTER ]] && SF_SSH_PORT_MASTER=64222
+  : "${SF_SSH_PORT_MASTER:=64222}"
 
   # Move original SSH server out of the way...
   [[ "${port}" -eq 22 ]] && grep "Port 22" /etc/ssh/sshd_config >/dev/null && {
@@ -136,8 +136,8 @@ mergedir()
 
 init_config_run()
 {
-  [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
-  [[ -z $SF_CONFDIR ]] && SF_CONFDIR="${SF_BASEDIR}/config"
+  : "${SF_DATADIR:=${SF_BASEDIR}/data}"
+  : "${SF_CONFDIR:=${SF_BASEDIR}/config}"
 
   # Create ./data or symlink correctly.
   [[ ! -d "${SF_DATADIR}" ]] && mkdir -p "${SF_DATADIR}"
@@ -169,6 +169,7 @@ init_config_run()
   [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
 
+  grep -F .bashrc /root/.bashrc >/dev/null || echo ". .bashrc" >>/root/.bash_profile
   grep -F funcs_admin.sh /root/.bash_profile >/dev/null || echo ". ${SF_BASEDIR}/sfbin/funcs_admin.sh" >>/root/.bash_profile
   # Configure BFQ module
   grep ^bfq /etc/modules &>/dev/null || echo "bfq" >>/etc/modules

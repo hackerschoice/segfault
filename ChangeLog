@@ -1,3 +1,9 @@
+0.4.8p1 - 2023-06-21
+    * Better TOKEN support
+    * Fix disconnect when last-server-warning
+    * Fix hostname collision
+    * udocker, supervise, bbot
+
 0.4.7 - 2023-06-00
     * LXCFS - report correct uptime, cpuinfo, ...
     * geoip and /sf/share

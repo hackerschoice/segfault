@@ -31,6 +31,10 @@ The limits and constraints for all root servers are configured in `config/etc/sf
 
 Provisioning turns a freshly created Linux (a bare minimum Installation) into a SSC. It's how we 'ready' a newly launched AWS Instance for SSC deployment. You likely dont ever need this but [we wrote it down anyway](https://github.com/hackerschoice/segfault/wiki/AWS-Deployment).
 
+# GUI
+
+[SFUI](https://github.com/messede-degod/SF-UI) is a companion project created by [@messede-degod](https://github.com/messede-degod/SF-UI). It provides a 'Remote Desktop' (X11/Gnome) to your Root Server. It is run as a Cloud Service by the community. [Try it](https://shell.segfault.net)!
+
 ---
 
 Telegram: https://t.me/thcorg

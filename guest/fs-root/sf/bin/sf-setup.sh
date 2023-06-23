@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Called when guest instance is booting up (created) and before
+# Called when guest container is booting up (created) and before
 # the user shell is spawned.
 # Called within sf-guest context.
 
@@ -8,7 +8,7 @@
 # - Execute /sec/usr/etc/rc.local
 
 # NOTE: Possible that /sec/root etc already exists (old SECRET used after
-# earlier instance exited) - in which case do nothing.
+# earlier container exited) - in which case do nothing.
 
 CR="\e[1;31m" # red
 CN="\e[0m"    # none
@@ -82,6 +82,17 @@ xmkdir()
 	mkdir -p "$1"
 }
 
+xln()
+{
+	[[ -e "$2" ]] && return
+	ln -s "$1" "$2"
+}
+
+xln_app()
+{
+	xln "/usr/share/applications/$1" "/root/Desktop/$1"
+}
+
 link_etc()
 {
 	[[ ! -d /sec/usr/etc ]] && mkdir -p /sec/usr/etc
@@ -123,6 +134,19 @@ setup()
 	xmkdir /sec/usr/bin
 	xmkdir /sec/usr/sbin
 	xmkdir /sec/usr/share/cheatsheets/personal
+
+	# Create default Icons for SFUI
+	xmkdir /root/Desktop
+	xln_app debian-xterm.desktop
+	xln_app brave-browser.desktop
+	xln_app org.telegram.desktop.desktop
+	xln_app io.github.Hexchat.desktop
+	# xln_app pidgin.desktop
+	xln_app libreoffice-writer.desktop
+	xln_app libreoffice-draw.desktop
+	xln_app code.desktop
+	xln_app metasploit.desktop
+	xln_app burpsuite.desktop
 
 	# Copy Pelican www
 	[[ ! -d /sec/www ]] && {

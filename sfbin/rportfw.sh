@@ -15,7 +15,7 @@ ipbydev()
 	_ip="${_ip#*inet }"
 	_ip="${_ip%%/*}"
 	[[ -n $_ip ]] && { echo "$_ip"; return; }
-	echo -e >&2 "IP for dev '${1}' not found. Using $2"
+	echo -e >&2 "IP for dev '${1}' not found. Using ${2:-ERROR}"
 	echo "${2:?}"
 }
 

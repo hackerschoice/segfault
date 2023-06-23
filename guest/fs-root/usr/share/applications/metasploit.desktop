@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Metasploit
+Comment=Metasploit msfconsole
+Exec=xterm-dark msfconsole
+Terminal=false
+Type=Application
+#Encoding=UTF-8
+Icon=metasploit
+Categories=Utility;Network;
+Keywords=metasploit;hacking;security;network;msfconsole
+#StartupWMClass=XTerm

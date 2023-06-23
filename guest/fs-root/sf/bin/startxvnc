@@ -22,7 +22,7 @@ VNC_OPTS+=("-forever")
 VNC_OPTS+=("-localhost")
 #VNC_OPTS+=("-wirecopyrect" "-scrollcopyrect")
 #VNC_OPTS+=("-nopw")
-VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm-dark & }")
+VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm-dark -geometry 120x25+250+50 & }")
 VNC_PASSWDFILE="${HOME}/.vnc/passwd"
 
 mk_vncpass()

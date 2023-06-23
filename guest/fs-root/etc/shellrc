@@ -8,6 +8,7 @@ alias l='ls -Alh'
 alias lt='ls -Alhrt'
 alias lss='ls -AlhrS'
 alias xterm='xterm-dark'
+alias psg='ps alxwww | grep -i -E'
 
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s sf/dmesg/ -dnocolor=1; return; }

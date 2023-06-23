@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Tips & Tricks
+Comment=Tips & Tricks / Cheat Sheet
+Exec=brave-browser --new-window 'https://github.com/hackerschoice/thc-tips-tricks-hacks-cheat-sheet'
+Terminal=false
+Type=Application
+#Encoding=UTF-8
+Icon=/usr/share/icons/thc-logo.jpg
+Categories=Utility;Network;
+Keywords=hacking;security;network;cheat
+#StartupWMClass=XTerm

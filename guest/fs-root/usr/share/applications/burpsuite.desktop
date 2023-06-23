@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=burpsuite
+Encoding=UTF-8
+#Exec=sh -c "java -jar /usr/bin/burpsuite"
+Exec=burpsuite
+Icon=/usr/share/icons/Flat-Remix-Blue-Dark/apps/scalable/burp.svg
+StartupNotify=false
+Terminal=false
+Type=Application
+Categories=03-webapp-analysis;03-06-web-application-proxies;
+X-Kali-Package=burpsuite

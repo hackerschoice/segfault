@@ -612,10 +612,12 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_%arch:x86_64=amd64:aarch64
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
 	&& /pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		hexchat \
 		i3 \
 		jupyter \
 		pavucontrol \
 		pulseaudio \
+		telegram-desktop \
 		tigervnc-tools \
 	&& /pkg-install.sh GUI npm install -g carbonyl
 RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
@@ -701,14 +703,15 @@ RUN /pkg-install.sh    HACK ghbin wader/fq '_linux_%arch:x86_64=amd64:aarch64=ar
 	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr \
 	&& /pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch:x86_64=amd64:aarch64=arm64%' dalfox
 RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb   `# x86_64 only` \
-	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust '%arch%.*linux.musl.tar.xz$' \
-	&& /pkg-install.sh NET ghbin ginuerzh/gost  'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost \
-	&& /pkg-install.sh NET ghbin tulir/gomuks 'linux-%arch:x86_64=amd64:aarch64=arm64%' gomuks \
-	&& /pkg-install.sh NET ghbin maxmind/mmdbinspect 'linux_amd64.tar.gz$' mmdbinspect       `# x86_64 only` \
-	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux' sthp         `# x86_64 only` \
-	&& /pkg-install.sh NET ghbin schollz/croc 'Linux-%arch:x86_64=64bit:aarch64=ARM64%.deb' \
-	&& /pkg-install.sh NET ghbin vi/websocat '%arch%.*linux-musl' websocat \
-	&& /pkg-install.sh NET ghbin ViRb3/wgcf  'linux_%arch:x86_64=amd64:aarch64=arm64%$' wgcf \
+	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust      '%arch%.*linux.musl.tar.xz$' \
+	&& /pkg-install.sh NET ghbin ginuerzh/gost                     'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost                          \
+	&& /pkg-install.sh NET ghbin tulir/gomuks                      'linux-%arch:x86_64=amd64:aarch64=arm64%'      gomuks                        \
+	&& /pkg-install.sh NET ghbin Snawoot/hola-proxy                'linux-%arch:x86_64=amd64:aarch64=arm64%'      hola-proxy                    \
+	&& /pkg-install.sh NET ghbin maxmind/mmdbinspect               'linux_amd64.tar.gz$'                          mmdbinspect   `# x86_64 only` \
+	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux'                                   sthp          `# x86_64 only` \
+	&& /pkg-install.sh NET ghbin schollz/croc                      'Linux-%arch:x86_64=64bit:aarch64=ARM64%.deb'                                \
+	&& /pkg-install.sh NET ghbin vi/websocat                       '%arch%.*linux-musl'                           websocat                      \
+	&& /pkg-install.sh NET ghbin ViRb3/wgcf                        'linux_%arch:x86_64=amd64:aarch64=arm64%$'     wgcf                          \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		hping3 \
 		ipcalc ipcalc-ng \

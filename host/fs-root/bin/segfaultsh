@@ -449,7 +449,7 @@ print_goodbye()
 		echo -e "\
 ${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
-@@@           ${CDR}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}${CDY}           @@@
+@@@             ${CDR}${CUL}https://www.thc.org/segfault/free${CN}${CDY}                 @@@
 @@@             ${CB}${CUL}https://www.thc.org/segfault/upgrade${CN}${CDY}              @@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${CN}"
 
@@ -475,7 +475,7 @@ print_to_many_servers()
 --> ${CDY}You ($YOUR_IP) already have ${SF_LIMIT_SERVER_BY_IP} servers running.${CN}
 --> Log in to your already running servers before creating any more new servers.
 --> Read ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}
---> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
+--> Read ${CB}${CUL}https://www.thc.org/segfault/free${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 }
 
@@ -728,7 +728,7 @@ RX=${SF_MAXIN:-unlimited}
 SYN_BURST=${SF_USER_SYN_BURST}
 SYN_RATE=${SF_USER_SYN_LIMIT}/sec
 SERVERS=${SF_LIMIT_SERVER_BY_IP}
-GREETINGS=${SF_SYSCOP_MSG}" "/config/self-for-guest/lg-${LID}/limits"
+GREETINGS='${SF_SYSCOP_MSG}'" "/config/self-for-guest/lg-${LID}/limits"
 }
 
 check_banned()
@@ -822,7 +822,7 @@ print_relay_notice()
 --> You (${CDY}$YOUR_IP${CN}) are trying to connect from a Relay.
 --> Log in from Relays is available for ${CG}VALUED${CN} users only.
 --> To log in from Relays please ask us for an ACCESS TOKEN.
---> Read ${CB}${CUL}https://www.thc.org/segfault/youcheapfuck${CN}
+--> Read ${CB}${CUL}https://www.thc.org/segfault/free${CN}
 --> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
 	sleep 5
 }

@@ -1,4 +1,4 @@
-VER := 0.4.8p1
+VER := 0.4.8p2
 
 all:
 	make -C router
@@ -59,6 +59,11 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/Articles/wor
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/mydw.md"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/pages/about.md"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/www/content/images"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/applications/metasploit.desktop"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/applications/burpsuite.desktop"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/applications/thc-tips-and-tricks.desktop"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/icons/metasploit.svg"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/icons/thc-logo.jpg"
 
 FILES_MASTER += "segfault-$(VER)/master/Dockerfile"
 FILES_MASTER += "segfault-$(VER)/master/Makefile"

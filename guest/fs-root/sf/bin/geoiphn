@@ -1,0 +1,10 @@
+#! /bin/bash
+
+# Convert IP to "IP   CITY   COUNTRY   HOSTNAME"
+
+[[ -z $1 ]] && return
+ip="${1%:*}              "
+h=$(host "${ip%% *}") || h=""
+h=${h##* }
+g=$(GEOCOL=1 /sf/bin/geoip "${ip%% *}")
+echo "${ip:0:18} ${g} $h"

@@ -20,7 +20,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // set during compilation using ldflags
@@ -47,11 +47,6 @@ func main() {
 		ForceColors: true,
 	})
 
-	hostname, _ := os.Hostname()
-
-	log.Infof("ContainerGuard (CG) started protecting [%v]", hostname)
-	log.Infof("compiled on %v from commit %v", Buildtime, Version)
-
 	// number of virtual cores
 	var numCPU = runtime.NumCPU()
 	// MAX_LOAD defines the maximum amount of `strain` each CPU can have
@@ -60,33 +55,24 @@ func main() {
 	// last recorded loadavg after a trigger event
 	var LAST_LOAD float64 // default value 0.0
 
-	var count int
-	for range time.Tick(time.Second * time.Duration(*timerFlag)) {
+	hostname, _ := os.Hostname()
+	log.Infof("started protecting [%v] (%v load)", hostname, MAX_LOAD)
+	log.Infof("compiled on %v from commit %v", Buildtime, Version)
 
-		if sysLoad1mAvg() <= MAX_LOAD {
+	for range time.Tick(time.Second * time.Duration(*timerFlag)) {
+		CURRENT_LOAD := sysLoad1mAvg()
+
+		if CURRENT_LOAD <= MAX_LOAD {
 			continue
 		}
 
-		// protect legitimate users
-		if LAST_LOAD != 0.0 { // we got a trigger event
-			// after 60s stop protecting
-			if count > 60 / *timerFlag {
-				LAST_LOAD = 0.0
-				count = 0
-				continue
-			}
-
-			if sysLoad1mAvg() <= LAST_LOAD {
-				LAST_LOAD = sysLoad1mAvg()
-				count++
-				continue
-			}
-
-			// if load doesn't go down every `timerFlag``
-			LAST_LOAD = 0.0 // reset
+		// if load is going down don't trigger
+		if CURRENT_LOAD < LAST_LOAD {
+			LAST_LOAD = CURRENT_LOAD
+			continue
 		}
 
-		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", sysLoad1mAvg(), numCPU, MAX_LOAD)
+		log.Warnf("[TRIGGER] load (%.2f) on cpu (%v) higher than max_load (%v)", CURRENT_LOAD, numCPU, MAX_LOAD)
 
 		// docker client
 		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -100,7 +86,6 @@ func main() {
 			log.Error(err)
 		}
 
-		LAST_LOAD = sysLoad1mAvg()
 	}
 }
 
@@ -300,7 +285,7 @@ func _sendMessage(fd, message string) error {
 	// 	return fmt.Errorf("%v is NOT a socket! dodging attack...", file.Name())
 	// }
 
-	if !terminal.IsTerminal(int(file.Fd())) {
+	if !term.IsTerminal(int(file.Fd())) {
 		return fmt.Errorf("unable to write to %v: not a tty", file.Name())
 	}
 

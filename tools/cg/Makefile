@@ -26,5 +26,5 @@ release: build
 	tar czvf cg.tgz cg cg.sum
 	rm -f cg cg.sum
 	git add cg.tgz
-	git commit -m "cg: release"
-	git push
+	# git commit -m "cg: release"
+	# git push

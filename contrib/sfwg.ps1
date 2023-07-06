@@ -153,6 +153,7 @@ function Parse-Config
         Print-Fatal "X= does not contain a valid public key."
     }
 
+    # For future versions
     try{
         $CONF[0] -match '[0-9]' >$null
         $SF_VER=($Matches[0] -as [int])
@@ -165,50 +166,35 @@ function Parse-Config
     $PEER=$CONF[2]
     $EP=$CONF[3]
 
-    ### SF < 0.4.7 compatible
-    $env:ADDRESS="192.168.0.1/32"
-    $env:ADDRES6="fd::1/128"
-    $env:PEER_ADDRESS="192.168.0.0/16"
-    $env:PEER_ADDRES6="fd::0/104"
-
     $str=$CONF[4]
     if (![string]::IsNullOrEmpty($str)) {
         $ip = ($str -split ",")[0]
-        $env:PEER_ADDRES = $ip -replace 'x', '0'
+        $env:PEER_ADDRESS = $ip -replace 'x', '0'
         $ip = $ip -replace '/.*$'
-        $env:ADDRES = ($ip -replace 'x', '1') + "/32"
+        $env:ADDRESS = ($ip -replace 'x', '1') + "/32"
         $ip = ($str -split ",")[1]
-        $env:PEER_ADDRES6 = ($ip -replace 'x', '0')
+        $env:PEER_ADDRESS6 = ($ip -replace 'x', '0')
         $ip = $ip -replace '/.*$'
-        $env:ADDRES6 = ($ip -replace 'x', '1') + "/128"
+        $env:ADDRESS6 = ($ip -replace 'x', '1') + "/128"
+    }else{
+        Print-Fatal "X= is not a contain valid peer addresses"
     }
 
-    Print-Debug "ADDRES: $env:ADDRES"
-    Print-Debug "ADDRES6: $env:ADDRES6"
-    Print-Debug "PEER_ADDRES: $env:PEER_ADDRES"
-    Print-Debug "PEER_ADDRES6: $env:PEER_ADDRES6"
+    Print-Debug "ADDRES: $env:ADDRESS"
+    Print-Debug "ADDRES6: $env:ADDRESS6"
+    Print-Debug "PEER_ADDRESS: $env:PEER_ADDRESS"
+    Print-Debug "PEER_ADDRESS6: $env:PEER_ADDRESS6"
 
     
-    if ($SF_VER -eq 1) {
-        Set-Item -Path Env:WIRETAP_INTERFACE_PRIVATEKEY -Value $PRIV
-        Set-Item -Path Env:WIRETAP_PEER_PUBLICKEY -Value $PEER
-        Set-Item -Path Env:WIRETAP_PEER_ENDPOINT -Value $EP
+    Set-Item -Path Env:WIRETAP_RELAY_INTERFACE_PRIVATEKEY -Value $PRIV
+    Set-Item -Path Env:WIRETAP_RELAY_PEER_PUBLICKEY -Value $PEER
+    Set-Item -Path Env:WIRETAP_RELAY_PEER_ENDPOINT -Value $EP
+    Set-Item -Path Env:WIRETAP_SIMPLE -Value "true"
 
-        Print-Debug "WIRETAP_INTERFACE_PRIVATEKEY: $env:WIRETAP_INTERFACE_PRIVATEKEY"
-        Print-Debug "WIRETAP_PEER_PUBLICKEY: $env:WIRETAP_PEER_PUBLICKEY"
-        Print-Debug "WIRETAP_PEER_ENDPOINT: $env:WIRETAP_PEER_ENDPOINT"
-    }
-    else {
-        Set-Item -Path Env:WIRETAP_RELAY_INTERFACE_PRIVATEKEY -Value $PRIV
-        Set-Item -Path Env:WIRETAP_RELAY_PEER_PUBLICKEY -Value $PEER
-        Set-Item -Path Env:WIRETAP_RELAY_PEER_ENDPOINT -Value $EP
-        Set-Item -Path Env:WIRETAP_SIMPLE -Value "true"
-
-        Print-Debug "WIRETAP_RELAY_INTERFACE_PRIVATEKEY: $env:WIRETAP_RELAY_INTERFACE_PRIVATEKEY"
-        Print-Debug "WIRETAP_RELAY_PEER_PUBLICKEY: $env:WIRETAP_RELAY_PEER_PUBLICKEY"
-        Print-Debug "WIRETAP_RELAY_PEER_ENDPOINT: $env:WIRETAP_RELAY_PEER_ENDPOINT"
-        Print-Debug "WIRETAP_SIMPLE: $env:WIRETAP_SIMPLE"
-    }
+    Print-Debug "WIRETAP_RELAY_INTERFACE_PRIVATEKEY: $env:WIRETAP_RELAY_INTERFACE_PRIVATEKEY"
+    Print-Debug "WIRETAP_RELAY_PEER_PUBLICKEY: $env:WIRETAP_RELAY_PEER_PUBLICKEY"
+    Print-Debug "WIRETAP_RELAY_PEER_ENDPOINT: $env:WIRETAP_RELAY_PEER_ENDPOINT"
+    Print-Debug "WIRETAP_SIMPLE: $env:WIRETAP_SIMPLE"
 }
 
 
@@ -276,13 +262,13 @@ Parse-Config
 
 try {
     Print-Progress "Starting wiretap"
-    Print-Debug (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME")+"serve --allowed $env:PEER_ADDRESS"
+    Print-Debug (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME")+"serve --allowed $env:PEER_ADDRESSS"
     
     if (-not $env:DEBUG) {
-        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "-q", "--conn-timeout", "100", "--allowed", $env:PEER_ADDRESS -WindowStyle Hidden
+        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "-q", "--conn-timeout", "5000", "--allowed", $env:PEER_ADDRESS -WindowStyle Hidden
     }
     else {
-        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "--conn-timeout", "100", "--allowed", $env:PEER_ADDRESS -Wait # -WindowStyle Hidden
+        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "--conn-timeout", "5000", "--allowed", "$env:PEER_ADDRESS" -Wait # -WindowStyle Hidden
     }
     Print-Ok
 }catch{

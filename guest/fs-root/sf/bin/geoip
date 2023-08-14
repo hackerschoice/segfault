@@ -6,21 +6,29 @@ ip=$1
 db="/sf/share/GeoLite2-City.mmdb"
 [[ -f "/sf/share/dbip-city-lite.mmdb" ]] && db="/sf/share/dbip-city-lite.mmdb"
 
-res=$(mmdbinspect --db "$db" "$ip") || exit
+res=$(mmdbinspect --db "$db" "$ip" 2>/dev/null) || { [[ -z $GEOCOL ]] && exit; }
 city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
 country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
 
 unset YOUR_GEOIP
-if [[ -n $city ]] && [[ -n $country ]]; then
-	YOUR_GEOIP="${city}/${country}"
-elif [[ -n $city ]] || [[ -n $country ]]; then
-	YOUR_GEOIP="${city}${country}" # Either one but not both
+if [[ -z $GEOCOL ]]; then
+	if [[ -n $city ]] && [[ -n $country ]]; then
+		YOUR_GEOIP="${city}/${country}"
+	elif [[ -n $city ]] || [[ -n $country ]]; then
+		YOUR_GEOIP="${city}${country}" # Either one but not both
+	fi
+
+	[[ -z $YOUR_GEOIP ]] && {
+		echo >&2 "NOT FOUND"
+		exit 255
+	}
+else
+	str=${city// /_}
+	str="${str:----}                            "
+	YOUR_GEOIP="${str:0:18}"
+	str=${country// /_}
+	str="${str:----}                         "
+	YOUR_GEOIP+=" ${str:0:18}"
 fi
 
-[[ -z $YOUR_GEOIP ]] && {
-	echo >&2 "NOT FOUND"
-	exit 255
-}
-
 echo "${YOUR_GEOIP}"
-

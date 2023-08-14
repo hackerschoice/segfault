@@ -154,14 +154,14 @@ use_vpn()
 		# iproute2 does not support nexthop-multipath and fwmark tables.
 		# ip route add default nexthop via 172.20.0.253 nexthop via 172.20.0.252 table 53
 		# Error: "nexthop" or end of line is expected instead of "table"
-		# Instead use the first for port 53 traffic.
-		# ip route add default via "${gw_dns_ip[0]}" table 53
+		# Instead use our own fwmark by dns-tranction-id to spread port 53 load
 		i=0
 		for n in 0 1 2 3; do
 			ip route add default via "${gw_dns_ip[$i]}" table "${n}53"
 			((i++))
 			[[ $i -ge ${#gw_dns_ip[@]} ]] && i=0
 		done
+		# Previously we routed just via first gw: ip route add default via "${gw_dns_ip[0]}" table 53
 	}
 	ip route add default "${gw[@]}"
 }
@@ -329,6 +329,7 @@ ipt_direct()
 	ipset_add_domain 8lgm.segfault.net
 	ipset_add_domain adm.segfault.net
 	ipset_add_domain beta.segfault.net
+	ipset_add_domain lulz.segfault.net
 
 	# GitHub
 	ipset_add_domain github.com 

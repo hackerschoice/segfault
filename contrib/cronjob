@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-# Run regular maintenance jobs
+# Run regular maintenance jobs in host's crontab after 'sf up' has been started
 
 SF_MV_EXIT_FN="/sf/data/share/relay-exit-nodes-mullvad.txt"
 SF_MV_RELAY_FN="/sf/data/share/proxies.txt"

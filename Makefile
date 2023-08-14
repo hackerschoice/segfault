@@ -1,4 +1,4 @@
-VER := 0.4.8p2
+VER := 0.4.9p1
 
 all:
 	make -C router
@@ -44,6 +44,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/startxvnc"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/startxweb"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/startfb"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/geoip"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/geoiphn"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"

@@ -1,5 +1,8 @@
 ### Sourced as the last entry from ~/.zshrc or ~/.bashrc
 
+### Force future 'bash -c' to also load /etc/shellrc
+export BASH_ENV="/etc/shellrc"
+
 [[ -n $BASH ]] && export SHELL="/bin/bash" # user on zsh and did `bash`
 # shellcheck disable=SC1091
 source "/sf/bin/funcs.sh" 2>/dev/null
@@ -9,6 +12,8 @@ alias lt='ls -Alhrt'
 alias lss='ls -AlhrS'
 alias xterm='xterm-dark'
 alias psg='ps alxwww | grep -i -E'
+alias reboot='halt'
+alias shutdown='halt'
 
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s sf/dmesg/ -dnocolor=1; return; }
@@ -72,6 +77,12 @@ PROXY()
 	RANDOM=$(date '+%N')
 	[[ ! $n -gt 0 ]] && { TOR; return; }
 	echo "${arr[$((RANDOM % n))]}"
+}
+
+# ASN lookup (Careful, using government's beloved team-cymru)
+asn() {
+  [[ -n $1 ]] && { echo -e "begin\nverbose\n${1}\nend"|netcat whois.cymru.com 43| tail -n +2; return; }
+  (echo -e 'begin\nverbose';cat -;echo end)|netcat whois.cymru.com 43|tail -n +2
 }
 
 docker(){
@@ -221,7 +232,7 @@ tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 }
 
 # After 'alias ls=lsd...'
-function lsg {
+lsg() {
 	[[ ! -t 1 ]] && { ls -Alh | grep -i -E "$*"; return; }
 	ls -Alh --color=always | grep -i -E "$*" 
 }
@@ -252,7 +263,7 @@ function lsg {
 # Make the Project name visibile in the PS1 prompt
 [[ -z $VIRTUAL_ENV ]] && VIRTUAL_ENV="${SF_PRJ}"
 
-PATH="${HOME:-/sec/root}/go/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
+PATH="${HOME:-/sec/root}/go/bin:${HOME:-/sec/root}/.cargo/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
 [[ -d /usr/share/doc/python3-impacket/examples ]] && PATH="${PATH}:/usr/share/doc/python3-impacket/examples"
 
 _sf_info_non_perm()
@@ -281,3 +292,4 @@ apt-get()
 SHELLNAME="${SHELL##*/}"
 [[ -f "${HOME}/.gf/gf-completion.${SHELLNAME}" ]] && source "${HOME}/.gf/gf-completion.${SHELLNAME}"
 unset SHELLNAME
+

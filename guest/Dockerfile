@@ -420,12 +420,21 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 # 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 # 		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### 2023-06: https://github.com/Xpra-org/xpra/issues/3863
+# RUN	/pkg-install.sh GUI bash -c '{ : \
+# 		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra-2023.asc \
+# 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra-beta.sources \
+# 		&& apt-get update \
+# 		&& pkg=("xpra" "xpra-html5") \
+# 		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
+# 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
+# 		&& rm -f /var/lib/apt/lists/xpra*; }'
+### 2023-07: beta is badly synced
+### E: Failed to fetch https://xpra.org/beta/bookworm/main/binary-amd64/Packages.gz  File has unexpected size (41831 != 39348). Mirror sync in progress? [IP: 78.129.163.65 443]
 RUN	/pkg-install.sh GUI bash -c '{ : \
 		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra-2023.asc \
-		&& wget -O "/etc/apt/sources.list.d/xpra-beta.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra-beta.sources \
+		&& wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra.sources \
 		&& apt-get update \
 		&& pkg=("xpra" "xpra-html5") \
-		&& { [[ $HOSTTYPE != aarch64 ]] && pkg+=("xpra-x11"); true; `### x86_64 only`;  } \
 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### x86_64 only
@@ -433,7 +442,7 @@ RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
 RUN /pkg-install.sh GUI bash -c '{ true; \
-		rm -f /etc/apt/sources.list.d/*.list; \
+		rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; \
 		apt-get update ; }'
 RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aarch64=arm64%.' sing-box \
 	&& /pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-%arch:x86_64=amd64:aarch64=arm64%.zip' loclx \
@@ -712,6 +721,7 @@ RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gso
 	&& /pkg-install.sh NET ghbin schollz/croc                      'Linux-%arch:x86_64=64bit:aarch64=ARM64%.deb'                                \
 	&& /pkg-install.sh NET ghbin vi/websocat                       '%arch%.*linux-musl'                           websocat                      \
 	&& /pkg-install.sh NET ghbin ViRb3/wgcf                        'linux_%arch:x86_64=amd64:aarch64=arm64%$'     wgcf                          \
+	&& /pkg-install.sh NET ghbin poscat0x04/wgcf-teams             '-linux'                                       wgcf-teams                    \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
 		hping3 \
 		ipcalc ipcalc-ng \
@@ -730,7 +740,16 @@ RUN /pkg-install.sh HUGE npm install -g wscat
 RUN /pkg-install.sh HUGE bash -c 'mkdir -p /usr/share/wordlists; curl -fsSL https://crackstation.net/files/crackstation-human-only.txt.gz | gunzip >/usr/share/wordlists/crackstation-human-only.txt'
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		bpytop \
-		btop
+		btop \
+		ncdu
+RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		alsa-utils \
+		alsamixergui \
+		qasmixer
+RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+		php8.2-fpm \
+		php8.2-xml
+RUN /pkg-install.sh HACK pipx install pwncat-cs
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

@@ -134,6 +134,23 @@ warn_file()
 	WARN "Not found: $1"
 }
 
+warn_outdated()
+{
+    local fn dst src
+    dst="${SF_BASEDIR}/${1}"
+    src="${BINDIR}/../${1}"
+
+    [[ ! -f "$dst" ]] && { WARN "Not found: $dst"; return; }
+    [[ ! -f "$src" ]] && ERREXIT 255 "Not found: $src"
+
+    # Installed file $dst is newer or equal than $src
+    [[ ! "$dst" -ot "$src" ]] && return
+
+    [[ $(stat -c%s "$dst") -eq $(stat -c%s "$src") ]] && return
+
+    WARN "$dst is outdated? Try ${CDC}touch $dst${CN} to ignore."
+}
+
 load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 [[ -z $SF_SHMDIR ]] && SF_SHMDIR="/dev/shm/sf"
@@ -202,6 +219,8 @@ blockio_init
 sysinc net.ipv4.neigh.default.gc_thresh3 65536
 sysinc net.netfilter.nf_conntrack_buckets 16384 # default is 65536 for >4GB systems
 sysinc net.netfilter.nf_conntrack_max 1048576
+# find /proc/*/fd -lname anon_inode:inotify | cut -d/ -f3 | xargs -I '{}' -- ps --no-headers -o '%p %U %c' -p '{}' | uniq -c | sort -nr 
+sysinc fs.inotify.max_user_instances 1024
 
 # Conntrack & Namespaces is a mess. Restricting these inside a container
 # only results that the connection is dropped sooner but the state still
@@ -225,9 +244,11 @@ sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
 # 8192 => 16g as HUGE
 [[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN "Huge Tables not set. Consider ${CDC}echo \"vm.nr_hugepages=8192\" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192${CN}"
 
-warn_file "${SF_BASEDIR}/config/etc/nginx/nginx-rpc.conf"
-warn_file "${SF_BASEDIR}/config/etc/nginx/nginx.conf"
-warn_file "${SF_BASEDIR}/config/etc/sf/sf.conf"
+# Warn for outdated files in /sf/config/* (that are older and different size)
+mapfile -t arr < <(cd "${BINDIR}/../" || exit; find config -type f)
+for fn in "${arr[@]}"; do
+    warn_outdated "$fn"
+done
 
 # Check if there are any fils in /sf/sfbin that are not equal to ./sfbin
 for x in "${BINDIR}/"*; do

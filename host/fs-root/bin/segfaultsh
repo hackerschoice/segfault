@@ -1022,7 +1022,8 @@ fi
         read -r -n128 -t30 SECRET || err=1
         echo -en "${CN}"
         [[ -n $err ]] && exit 255
-        SECRET="${SECRET//[^0-9a-zA-Z]}"
+        SECRET="${SECRET//[^0-9a-zA-Z-]}"
+		SECRET="${SECRET##*-}"  # Remove host part 'lsd-ABCD...'
         [[ ${#SECRET} -eq 24 ]] && break
         [[ "$SECRET" == exit ]] && exit 0
         [[ "$SECRET" == new ]] && { unset SECRET; break; }
@@ -1031,12 +1032,16 @@ fi
 }
 # SECRET and SF_DEBUG are user supplied.
 # Connect to existing session
-if [[ -n $SECRET ]] && [[ ${#SECRET} -eq 24 ]] && [[ ! "${SECRET}" =~  [^a-zA-Z0-9] ]]; then
-	IS_TRY_EXISTING=1
-	SF_SEC="${SECRET}"
-else
-	SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
+
+if [[ -n $SECRET ]]; then
+	SECRET="${SECRET//[^a-zA-Z0-9-]}"
+	SECRET="${SECRET##*-}"  # Remove host part 'lsd-ABCD...'
+	[[ ${#SECRET} -eq 24 ]] && {
+		IS_TRY_EXISTING=1
+		SF_SEC="${SECRET}"
+	}
 fi
+[[ -z $SF_SEC ]] && SF_SEC="$(head -c 1024 /dev/urandom | tr -dc '[:alpha:]' | head -c 24)"
 
 [[ -n $SF_IS_WEBSHELL ]] && {
 	# Correct YOUR_IP

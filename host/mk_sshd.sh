@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # Executed inside alpine-gcc context to build patched sshd
-# diff -u openssh-9.2p1-orig/ openssh-9.2p1-sf/
+# diff -x '!*.[ch]' -u -r openssh-9.2p1-orig openssh-9.2p1-sf | grep -v ^Only
 
 DSTDIR="/src/fs-root/usr/sbin"
 DSTBIN="${DSTDIR}/sshd"

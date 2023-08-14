@@ -169,7 +169,7 @@ init_config_run()
   [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
 
-  grep -F .bashrc /root/.bashrc >/dev/null || echo ". .bashrc" >>/root/.bash_profile
+  grep -F .bashrc /root/.bash_profile >/dev/null || echo ". .bashrc" >>/root/.bash_profile
   grep -F funcs_admin.sh /root/.bash_profile >/dev/null || echo ". ${SF_BASEDIR}/sfbin/funcs_admin.sh" >>/root/.bash_profile
   # Configure BFQ module
   grep ^bfq /etc/modules &>/dev/null || echo "bfq" >>/etc/modules
@@ -277,6 +277,9 @@ if grep "^#SystemMaxUse=$" /etc/systemd/journald.conf >/dev/null; then
 fi
 journalctl --vacuum-size=20M
 journalctl --vacuum-time=10d
+
+sed 's/rotate 4/rotate 2/' -i /etc/logrotate.conf
+sed 's/rotate 4/rotate 2\n\tsize 64M\n\tminsize 128k/' -i /etc/logrotate.d/rsyslog
 
 # NOTE: Only needed if source is mounted into vmbox (for testing)
 [[ "$(stat -c %G /research/segfault 2>/dev/null)" == "vboxsf" ]] && usermod -a -G vboxsf "${SF_HOST_USER}"

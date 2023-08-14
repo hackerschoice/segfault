@@ -38,10 +38,10 @@ Sanitize()
 
 GetFormVars()
 {
-	local ifs
-	ifs=$IFS
+	local IFS
 
 	IFS=\& read -r -a arr <<< "${REQUEST_BODY}"
+	unset IFS
 
 	local i
 	local str
@@ -50,6 +50,7 @@ GetFormVars()
 		((i++))
 		key=${str%%=*}
 		[[ ${#key} -le 0 ]] && BAIL "Bad Request" "ERROR: " "Body contains bad variable: '$str'"
+		key=${key,,}
 		val=${str#*=}
 
 		[[ ${key} == "nocolor" ]] && unset COLOR
@@ -59,16 +60,41 @@ GetFormVars()
 		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
 		[[ ${key} == "exit_private" ]] && R_WT_PRIVATE="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "exit_public" ]] && R_WT_PUBLIC="${val//[^[:alnum:]+\/]}="
+		[[ ${key} == "privatekey" ]] && key="private"
 		[[ ${key} == "private" ]] && R_WG_PRIVATE="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:13}"; }
+		### wgOUT
+		[[ ${key} == "psk" ]] && R_OUT_PSK="${val//[^[:alnum:]+\/]}="
+		[[ ${key} == "public"    ]] && key="peer"  # Alias
+		[[ ${key} == "publickey" ]] && key="peer"  # Alias
+		[[ ${key} == "peer" ]] && R_OUT_PEER="${val//[^[:alnum:]+\/]}="
+		# EndPoint must be IPv4 because not all UPLINK VPN support IPv6
+		# EndPoint 1.2.3.4 or 1.2.3.4:51820 
+		[[ ${key} == "ep" ]] && key="endpoint" # Alias
+		[[ ${key} == "endpoint" ]] && R_OUT_ENDPOINT="${val//[^[:digit:].:]}"
+		### if ADDRESS and if it contains ":" then assume IPv6"
+		[[ ${key} == "address" ]] && [[ ${val} == *":"* ]] && key="ip6"      # Alias
+
+		[[ ${key} == "address" ]] && key="ip4"      # Alias
+		[[ ${key} == "ip"      ]] && key="ip4"      # Alias
+		[[ ${key} == "ipv4"    ]] && key="ip4"     # Alias
+		[[ ${key} == "ip4"     ]] && {
+			val=${val%%\/*}  # Strip /32
+			R_OUT_IP4="${val//[^0-9.]}"
+		}
+		[[ ${key} == "ipv6" ]] && key="ip6"    # Alias
+		[[ ${key} == "address6" ]] && key="ip6"    # Alias
+		[[ ${key} == "addres6" ]] && key="ip6"    # Alias
+		[[ ${key} == "ip6"  ]] && {
+			val=${val%%\/*}  # Strip /128
+			R_OUT_IP6="${val//[^0-9a-f:]}"
+		}
 		[[ ${key} == "dev" ]] && {
 			val="${val//[^[:alnum:]]}"
 			WG_DEV="${val:0:13}"
 			[[ ! "${WG_DEV}" =~ ^wg ]] && WG_DEV="wg${WG_DEV}"
 		}
 	done
-
-	IFS=$ifs
 }
 
 # Load PID of WireGuard container
@@ -88,7 +114,7 @@ GenSecret()
 	str=${str//[^[:alnum:]]}
 	str=${str:0:$len}
 
-	echo $str
+	echo "$str"
 }
 
 net_print_example()
@@ -97,16 +123,17 @@ net_print_example()
 	name="${1}"
 
 	echo -en "\
-To connect ${G}${name}${N} use this command on the Exit Node:
+To connect ${G}${name}${N} use this command on the LINUX Exit Node:
 ${C}X='${WT_VER}-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
 X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
-X=\"\$X\" bash -c \"\$(curl -fsSL thc.org/sfwg)\"${N}
- ---OR---
-${C}X='${WT_VER}-${WT_PRIVATE}'
-X+='-${WG_PUBLIC}'
-X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
-X=\"\$X\" bash -c \"\$(wget --no-verbose -O- thc.org/sfwg)\"${N}
+DL='curl -fsSL thc.org/sfwg || wget --no-verbose -qO- thc.org/sfwg'
+X=\"\$X\" bash -c \"\$(sh -c \"\$DL\")\"${N}
+or this command on the WINDOWS Exit Node:
+${CY}${F}\$env:X='${WT_VER}-${WT_PRIVATE}'
+\$env:X+='-${WG_PUBLIC}'
+\$env:X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
+irm https://thc.org/sfwg.ps1 | iex${N}
 "
 }
 
@@ -380,6 +407,48 @@ xrm()
 	return $err
 }
 
+set_route()
+{
+	# Add static routes for RPC
+	# nsenter -t "${PID}" -n ip route add "${SF_PC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${WG_DEV}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${WG_DEV}"
+
+	# Packets to 172.16.0.3 should not be forwarded back to 172.16.0.3
+	# Can not use 'sysctl net.ipv4.conf.wgExit.forwarding=1' because /proc is mounted ro
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables  -I FORWARD -i "${WG_DEV}" -j DROP
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
+}
+
+set_normal_route()
+{
+	# Delete static routes
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+
+	# Should not exist anyway:
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
+
+	# WG OUT specific
+	epip=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route show | grep -F "via ${SF_NET_LG_ROUTER_IP} dev" | grep -v ^default)
+	epip="${epip%% *}"
+	epip=${epip//[^0-9.]}
+	[[ -n $epip ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+
+	# Restore default routing
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
+	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
+	# Zero the file
+	:>"${LID_PROMPT_FN}"
+}
+
 net_down()
 {
 	local name
@@ -395,13 +464,10 @@ net_down()
 		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete "wg${name}" 2>/dev/null || return
 	fi
 	echo -e "${G}SUCCESS${N}"
-
 	echo -e "Use ${C}curl sf/net/up -d name=${name:-<NAME>}${N} to connect again."
-	# Restore default routing
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
-	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
-	# Empty file
-	>"${LID_PROMPT_FN}"
+
+	set_normal_route
+
 	# Delete WG NAME
 	rm -f "${LID_WGNAME_FN:?}" "${USER_DB_WGNAME_UP_FN:?}"
 }
@@ -444,25 +510,26 @@ cmd_net()
 	exit
 }
 
+wg_show()
+{
+	if [[ -z $COLOR ]]; then
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg show "${WG_DEV}"
+	else
+		# Use 'script' to force color output
+		script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${WG_DEV}\"" /dev/null </dev/null
+	fi
+}
 
 cmd_net_show()
 {
 	local str
-	# local dev
 	local name
 	local is_not_connected
 	local now
+	local IFS
 
-	# dev="${WG_DEV:-all}"
-	# [[ -n $R_WT_NAME ]] && dev="wg${R_WT_NAME}"
-
-	unset IFS
-	if [[ -z $COLOR ]]; then
-		str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg show "${WG_DEV}")
-	else
-		# Use 'script' to force color output
-		str=$(script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${WG_DEV}\"" /dev/null </dev/null)
-	fi
+	IFS=""
+	str=$(wg_show)
 	{ [[ -z $str ]] || [[ $str == *"No such device"* ]]; } && {
 		echo -e "\
 ${Y}WARNING${N}: No Exit Node enabled.
@@ -516,9 +583,9 @@ cmd_net_help()
 {
 	echo -en "\
 Create Exit Node : ${C}curl sf/net/init [-d name=<NAME>] [-d private=<PrivateKey>]
-                                     [-d exit_public=<PublicKey>]
-                                     [-d exit_private=<PrivateKey>]${N}
-Delete Exit Node : ${C}curl sf/net/del  -d name=<NAME|all>${N}
+                                    [-d exit_public=<PublicKey>]
+                                    [-d exit_private=<PrivateKey>]${N}
+Delete Exit Node : ${C}curl sf/net/del  [-d name=<NAME|all>]${N}
 List Exit Nodes  : ${C}curl sf/net/list${N}
 Show connections : ${C}curl sf/net/show${N}
 Move port to a different Root Server:
@@ -544,50 +611,12 @@ CheckGoodKey()
 	[[ ${#key} -eq 44 ]] && return
 	BAIL "${R}ERROR${N}: Bad Key for ${opt}="
 }
-# shellcheck disable=2188 # unrecognized redirection (haha. shellsheck you suck)
-0<&- # Close STDIN
-Sanitize
-GetFormVars
-[[ -n $COLOR ]] && {
-	# COLOR is set (to 'always')
-	Y=$CDY
-	C=$CDC
-	R=$CR
-	G=$CDG
-	M=$CDM
-	YY=$CY
-	W=$CW
-	N=$CN
-	F=$CF
-}
 
-CheckGoodKey "$R_WG_PRIVATE" "--private"
-CheckGoodKey "$R_WT_PRIVATE" "--exit_private"
-CheckGoodKey "$R_WT_PUBLIC"  "--exit_public"
+wg_net_init()
+{
+	local arr
+	local IFS
 
-[[ -n $R_WT_PRIVATE ]] && [[ -n $R_WT_PUBLIC ]] && BAIL "${R}ERROR${N}: Set either PRIVATE or PUBLIC but not both."
-
-# Split into arguments
-_IFS=$IFS
-IFS=/ read -r -a ARGS <<< "${REQUEST_URI:1}"  # Ignore first '/'. Split into arguements.
-IFS=$_IFS
-
-[[ "${FCGI_CMD}" == "dmesg" ]] && {
-	# dmesg --color=always -f kern --level err,warn -e | tail -n100
-	dmesg --color="${COLOR:-never}" -f kern --level err -e | tail -n20
-	exit
-}
-
-[[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
-
-# /net       -> Show port assignment
-# /net/init  -> Assigned port to this LID or create new port.
-# /net/up    -> Create WireGuard interface
-# /net/show  -> Show WireGuard peers
-# /net/down
-# /net/del
-# /net/list
-[[ "${FCGI_CMD}" == "net" ]] && {
 	# Retrieve (LID CID PID)
 	arr=($(redr GET "ip:${REMOTE_ADDR}")) || BAIL "Bad Value" "Bad Value: " "ret=$?, ${#arr[@]}"
 	[[ ${#arr[@]} -ne 3 ]] && BAIL "Value != 3" "Value != 3: " "${#arr[@]}"
@@ -600,9 +629,176 @@ IFS=$_IFS
 	# after a SSC restart.
 	LID_WGNAME_FN="/dev/shm/sf/self-for-guest/lg-${LID}/wgname"
 	USER_DB_WGNAME_UP_FN="/config/db/user/lg-${LID}/wg/name_up"
+	# USER_DB_WGCLIENT_FN="/config/db/user/lg-${LID}/wg/client"
 
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
+
+	# Split into arguments
+	IFS=/ read -r -a ARGS <<< "${REQUEST_URI:1}"  # Ignore first '/'. Split into arguements.
+
+	# Load CLIENT config
+	# source "${USER_DB_WGCLIENT_FN}" 2>/dev/null
+}
+
+ERR_wg_help_exit()
+{
+	echo -e "${R}ERROR${N}: $1"
+
+	cmd_wg_help
+	exit
+}
+
+# CLIENT
+cmd_wg_up()
+{
+	local epip
+	local args
+	local err
+	local epport
+
+	[[ ${R_OUT_ENDPOINT} != *:* ]] && R_OUT_ENDPOINT+=":51820"
+	epip="${R_OUT_ENDPOINT%%:*}"
+	[[ -z "$epip" ]] && unset R_OUT_ENDPOINT
+	[[ -z $R_OUT_ENDPOINT ]] && ERR_wg_help_exit "No EndPoint found. Please use ${C}-d endpoint=1.2.3.4:51820${N}"
+
+	[[ -n ${R_OUT_PSK} ]] && [[ ${#R_OUT_PSK} -ne 44 ]] && ERR_wg_help_exit "Bad PSK. Please use ${C}-d psk=1234567890abcdef1234567890abcdef1234567890a=${N}"
+	[[ ${#R_OUT_PEER} -ne 44 ]] && ERR_wg_help_exit "Bad public key. Please use ${C}-d PublicKey=1234567890abcdef1234567890abcdef1234567890a=${N}"
+	[[ ${#R_WG_PRIVATE} -ne 44 ]] && ERR_wg_help_exit "Bad private key. Please use ${C}-d PrivateKey=1234567890abcdef1234567890abcdef1234567890a=${N}"
+
+	[[ -z $R_OUT_IP4 ]] && [[ -z $R_OUT_IP6 ]] && ERR_wg_help_exit "Bad IP (${R_OUT_IP4:-???},${R_OUT_IP6:-???}) for this peer. Please use ${C}-d ip=1.2.3.4${N} and/or ${C}-d ip6=fd:16::1${N}"
+
+	# Delete any EXIT or OUT 
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
+
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add '${WG_DEV}' (${err:0:64})." "Failed ${WG_DEV}" ": $err"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
+	[[ -n $R_OUT_IP4 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip address add dev "${WG_DEV}" "${R_OUT_IP4}" || BAIL "${R}ERROR${N}: Failed to assign IPv4 address '${R_OUT_IP4}'."; }
+	[[ -n $R_OUT_IP6 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add dev "${WG_DEV}" "${R_OUT_IP6}" || BAIL "${R}ERROR${N}: Failed to assign IPv6 address '${R_OUT_IP6}'."; }
+
+	args=()
+	[[ -n $R_OUT_PSK ]] && {
+		args+=("preshared-key" "/dev/shm/psk.$$")
+		echo "$R_OUT_PSK" >"/dev/shm/psk.$$"
+	}
+	echo "$R_WG_PRIVATE" >"/dev/shm/private.$$"
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
+	rm -f "/dev/shm/private.$$" "/dev/shm/psk.$$"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((1500 - 80 - 80)) up dev "${WG_DEV}"
+
+	# Route to WG endpoint:
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+
+	set_route
+	echo "(%F{yellow}EXIT:%B${R_WT_NAME:-$epip}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
+	echo -e "${G}SUCCESS${N}"
+	echo -en "\
+---
+Use ${C}curl sf/wg/down${N} to disconnect.
+Use ${C}curl sf/wg/show${N} to check when WireGuard to ${G}${R_OUT_ENDPOINT}${N} has connected.
+"
+
+	### Save config
+# 	echo -e "\
+# IS_WG_CLIENT=1
+# WG_DEV=\"${WG_DEV}\"" >"${USER_DB_WGCLIENT_FN}"
+	exit
+}
+
+cmd_wg_help()
+{
+	echo -en "\
+Use ${C}curl sf/wg/up -d endpoint=<Server's IP Address, e.g. 1.2.3.4:51820> \\ 
+                  -d PublicKey=<Server's Public Key> \\
+                  -d PrivateKey=<Client's Private Key> \\
+                  -d Address=<Client's IPv4, e.g. 1.2.3.4> \\
+                  -d Address=<Client's IPv6, e.g. fd:16::1> \\
+                  -d psk=<Pre-Shared-Secret> \\ ${F}# optional${C}
+                  -d name=<A cool Name>        ${F}# optional${C}${N}
+Use ${C}curl sf/wg/down${N} to disconnect.
+Use ${C}curl sf/wg/show${N} to check WireGuard connetion."
+}
+
+# CLIENT
+cmd_wg_del()
+{
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
+	# [[ -f "${USER_DB_WGCLIENT_FN}" ]] && rm -f "${USER_DB_WGCLIENT_FN}"
+	echo -e "${G}SUCCESS${N}"
+	set_normal_route
+	exit
+}
+
+cmd_wg_show()
+{
+	local str
+	str=$(wg_show)
+	{ [[ -z $str ]] || [[ $str == *"No such device"* ]]; } && {
+		echo -e "${Y}WARNING${N}: No Exit Node configured."
+		cmd_wg_help
+		exit
+	}
+	echo "$str"
+	exit
+}
+
+# shellcheck disable=2188 # unrecognized redirection (haha. shellsheck you suck)
+0<&- # Close STDIN
+Sanitize
+GetFormVars
+[[ -n $COLOR ]] && {
+	# COLOR is set (to 'always')
+	Y=$CDY
+	C=$CDC
+	R=$CR
+	G=$CDG
+	B=$CB
+	M=$CDM
+	YY=$CY
+	W=$CW
+	N=$CN
+	F=$CF
+}
+
+
+[[ "${FCGI_CMD}" == "dmesg" ]] && {
+	# dmesg --color=always -f kern --level err,warn -e | tail -n100
+	dmesg --color="${COLOR:-never}" -f kern --level err -e | tail -n20
+	exit
+}
+
+[[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
+
+wg_net_init
+
+# /wg/up
+# /wg/show
+# /wg/del
+[[ "${FCGI_CMD}" == "wg" ]] && {
+	[[ -z $WG_DEV ]] && WG_DEV="wgOut"
+
+	[[ ${ARGS[1]} == 'up'   ]] && cmd_wg_up
+	[[ ${ARGS[1]} == 'del'  ]] && cmd_wg_del
+	[[ ${ARGS[1]} == 'down' ]] && cmd_wg_del
+	[[ ${ARGS[1]} == 'show' ]] && cmd_wg_show
+	cmd_wg_help
+
+	exit
+}
+
+# /net       -> Show port assignment
+# /net/init  -> Assigned port to this LID or create new port.
+# /net/up    -> Create WireGuard interface
+# /net/show  -> Show WireGuard peers
+# /net/down
+# /net/del
+# /net/list
+[[ "${FCGI_CMD}" == "net" ]] && {
+	CheckGoodKey "$R_WG_PRIVATE" "--private"
+	CheckGoodKey "$R_WT_PRIVATE" "--exit_private"
+	CheckGoodKey "$R_WT_PUBLIC"  "--exit_public"
+
+	[[ -n $R_WT_PRIVATE ]] && [[ -n $R_WT_PUBLIC ]] && BAIL "${R}ERROR${N}: Set either PRIVATE or PUBLIC but not both."
 
 	# Sanitize 0.4.8rc1 bug where '172...' was '"172...' in .env
 	WG_IPS="${WG_IPS//[^a-fx0-9\/,:.]}"
@@ -678,9 +874,9 @@ IFS=$_IFS
 
 	err=$(nsenter -t "${WG_PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add ${WG_DEV} (${err:0:32})." "Failed ${WG_DEV}" ": $err"
 	nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
-	echo "$WG_PRIVATE" >/dev/shm/private.$$
+	echo "$WG_PRIVATE" >"/dev/shm/private.$$"
 	err=$(nsenter -t "${WG_PID}" -n wg set "${WG_DEV}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
-	rm -f /dev/shm/private.$$
+	rm -f "/dev/shm/private.$$"
 	# Move Interface to user's container:
 	err=$(nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" netns "${PID}" 2>&1) || BAIL "${R}ERROR${N}: Failed to move ${WG_DEV}." "Failed ${WG_DEV} netns $PID" ": $err"
 
@@ -689,20 +885,7 @@ IFS=$_IFS
 	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu 1420 up dev "${WG_DEV}"
 
-	# Add static routes for RPC
-	# nsenter -t "${PID}" -n ip route add "${SF_PC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${WG_DEV}"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${WG_DEV}"
-
-	# Packets to 172.16.0.3 should not be forwarded back to 172.16.0.3
-	# Can not use 'sysctl net.ipv4.conf.wgExit.forwarding=1' because /proc is mounted ro
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables  -I FORWARD -i "${WG_DEV}" -j DROP
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
+	set_route
 
 	echo "${WT_NAME}" >"${LID_WGNAME_FN}"
 	echo "${WT_NAME}" >"${USER_DB_WGNAME_UP_FN}"

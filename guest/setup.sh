@@ -113,6 +113,9 @@ mk_hook /usr/share/code/bin code
 mk_hook /usr/share/code code
 [[ -f /usr/share/code/bin/code.orig ]] && sed 's/PATH\/code\"/PATH\/code.orig\"/' -i /usr/share/code/bin/code.orig
 
+# Apache needs to enable modules
+command  -v a2enmod >/dev/null && a2enmod php8.2
+
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {
 	while [[ $i -lt ${#WARNS[@]} ]]; do

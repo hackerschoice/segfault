@@ -656,6 +656,35 @@ docker_clean()
 	echo "May want to ${CDC}docker system prune -f -a${CN}"
 }
 
+# Convert a PID to a LG
+pid2lg()
+{
+	local p c str
+	p=$1
+	c=$(grep docker- "/proc/${p}/cgroup")
+	[[ -z $c ]] && { echo "LG-NOT-FOUND"; return 255; }
+	c=${c##*docker-}
+	c=${c%\.scope}
+	str=$(docker inspect "$c" -f '{{.Name}}')
+	basename "$str"
+}
+
+# grep through all environ of first child of sshd
+lgenv()
+{
+	local x y p match
+	for x in /proc/*/exe; do
+		[[ $(readlink "$x") != "/usr/sbin/sshd" ]] && continue
+		p=$(dirname "$x")
+		p=${p##*\/}
+		for y in $(<"/proc/${p}/task/${p}/children"); do
+			strings "/proc/${y}/environ" | grep "$@" || continue
+			echo "$y $(pid2lg "$y") $(strings /proc/${y}/environ| grep SSH_CONNECTION)"
+			break
+		done	
+	done
+}
+
 # [Sort Row] <info-string> <Keep Stats>
 _sfmax()
 {

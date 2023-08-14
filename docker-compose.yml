@@ -157,7 +157,8 @@ services:
     cap_add:
       - NET_ADMIN #required
     environment:
-      - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
+      # - PRIVATE_KEY=${SF_NORDVPN_PRIVATE_KEY:-}
+      - CONFIG=${SF_NORDVPN_CONFIG:-}
       - PROVIDER=NordVPN
       - NETWORK=${SF_NET_LG}
       - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP}
@@ -173,6 +174,7 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1 # SNAT
       - net.netfilter.nf_conntrack_frag6_timeout=10
       - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
       - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
@@ -222,6 +224,7 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1 # SNAT
       - net.netfilter.nf_conntrack_frag6_timeout=10
       - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
       - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
@@ -240,6 +243,8 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+    # entrypoint: sleep infinity  # FIXME-2022
+
 
   mullvad:
     image: hackerschoice/cryptostorm
@@ -271,6 +276,7 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv4.conf.all.rp_filter=2
       - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1 # SNAT
       - net.netfilter.nf_conntrack_frag6_timeout=10
       - net.netfilter.nf_conntrack_generic_timeout=180           # default is 600
       - net.netfilter.nf_conntrack_tcp_timeout_syn_sent=10       # default is 120
@@ -696,6 +702,8 @@ networks:
   guest-net:
     name: sf-guest
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1420
     # Can not use 'internal'. This will only remvoe the host's bridge
     # but this also means we can not route via 10.11.0.* even if we can
     # ping the router.

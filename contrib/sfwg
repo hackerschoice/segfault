@@ -101,12 +101,6 @@ x2data()
     [[ -z $ADDRES6 ]] && ADDRES6="fd:16::1/128"
     [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="172.16.0.0/16"
     [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd:16::0/104"
-
-    ### SF < 0.4.7 compatible
-    # [[ -z $ADDRESS ]] && ADDRESS="192.168.0.1/32"
-    # [[ -z $ADDRES6 ]] && ADDRES6="fd::1/128"
-    # [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="192.168.0.0/16"
-    # [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd::0/104"
 }
 
 # Delete any IPT rule and add new one
@@ -352,10 +346,6 @@ wt_up()
         "${cmd_checkrunning[@]}" && ERREXIT 255 "${CDM}Wiretap${CN} is already running. To stop: ${CDC}killall '${killname}'${CN}"
     fi
         
-    # command -v wiretap >/dev/null || {
-    #     export PATH=".:$PATH"
-    #     [[ ! -e wiretap ]] && wt_dl
-    # }
     [[ -d wiretap ]] && { ERR "Directory ${CDY}./wiretap${CN} is in the way"; return 255; }
     if [[ -f wiretap ]]; then
         WARN "Using existing ${CDM}./wiretap${CN}"
@@ -366,18 +356,17 @@ wt_up()
     [[ -n $WITH_IPV6 ]] && peer_addr+=",${PEER_ADDRES6}"
 
     # CWD may have changed by wt_dl
-    # ./wiretap configure --simple
     unset ENVSTR
-    if [[ $SF_VER -eq 1 ]]; then
-        addenv WIRETAP_INTERFACE_PRIVATEKEY "$PRIV"
-        addenv WIRETAP_PEER_PUBLICKEY "${PEER}"
-        addenv WIRETAP_PEER_ENDPOINT "${EP}"
-    else
-        addenv WIRETAP_RELAY_INTERFACE_PRIVATEKEY "${PRIV}"
-        addenv WIRETAP_RELAY_PEER_PUBLICKEY "${PEER}"
-        addenv WIRETAP_RELAY_PEER_ENDPOINT "${EP}"
-        addenv WIRETAP_SIMPLE "true"
-    fi
+    ## 0.2.0 < wiretap <=0.2.1
+    addenv WIRETAP_INTERFACE_PRIVATEKEY "$PRIV"
+    addenv WIRETAP_PEER_PUBLICKEY "${PEER}"
+    addenv WIRETAP_PEER_ENDPOINT "${EP}"
+
+    ## wiretap >=0.3.1
+    addenv WIRETAP_RELAY_INTERFACE_PRIVATEKEY "${PRIV}"
+    addenv WIRETAP_RELAY_PEER_PUBLICKEY "${PEER}"
+    addenv WIRETAP_RELAY_PEER_ENDPOINT "${EP}"
+    addenv WIRETAP_SIMPLE "true"
 
     if [[ -z $SF_DEBUG ]]; then
         PATH=".:$PATH" exec -a '[updated]' wiretap serve -q --allowed "${peer_addr}" &>/dev/null &

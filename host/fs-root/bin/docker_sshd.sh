@@ -250,6 +250,7 @@ vboxfix /bin/segfaultsh
 # Allow segfaultsh access to /sf/bin if mounted from extern (during debugging)
 vboxfix /sf/bin
 
+[[ -n $SF_DEBUG_SSHD ]] && sleep infinity
 # This will execute 'segfaultsh' on root-login (uid=1000)
 exec 0<&- # Close STDIN
 exec /usr/sbin/sshd -u0 -D

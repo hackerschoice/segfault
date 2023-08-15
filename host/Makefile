@@ -7,6 +7,7 @@ albuild:
 		docker run --network host --name alpine-gcc alpine sh -c 'apk update && apk add gcc patch libc-dev musl-dev zlib-dev openssl-dev make linux-headers libcap-dev bash' \
 		&& docker commit alpine-gcc alpine-gcc; }"
 
+# See mk_sshd.sh for manual debugging
 fs-root/usr/sbin/sshd: sf-sshd.patch mk_sshd.sh
 	docker run --rm -v$$(pwd):/src --net=host -w /tmp alpine-gcc /src/mk_sshd.sh
 

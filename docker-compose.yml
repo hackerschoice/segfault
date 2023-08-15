@@ -628,6 +628,7 @@ services:
       - SF_DIRECT
       - SF_DEBUG
       - SF_BACKING_FS
+      # - SF_DEBUG_SSHD=1  # FIXME-2022 sshd debug
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"
@@ -639,7 +640,8 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
-      # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-2022
+    # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-2022
+      # - /research/segfault/host:/host:ro # FIXME-2022 sshd debug
 
   nginx:
     image: nginx

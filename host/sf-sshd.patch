@@ -1,6 +1,6 @@
-diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/channels.c openssh-9.2p1-sf/channels.c
---- openssh-9.2p1-orig/channels.c	2023-02-02 12:21:54.000000000 +0000
-+++ openssh-9.2p1-sf/channels.c	2023-08-07 11:02:57.954485279 +0000
+diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/channels.c openssh-9.2p1-sf/channels.c
+--- openssh-9.2p1-orig/channels.c	2023-02-02 12:21:54
++++ openssh-9.2p1-sf/channels.c	2023-08-15 06:13:05
 @@ -3639,7 +3639,7 @@
  	ssh->chanctxt->IPv4or6 = af;
  }
@@ -18,9 +18,9 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/channels.c openssh-9.2p1-sf/channels.
  			    strcmp(listen_addr, "0.0.0.0") != 0 &&
  			    strcmp(listen_addr, "*") != 0) {
  				ssh_packet_send_debug(ssh,
-diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1-sf/serverloop.c
---- openssh-9.2p1-orig/serverloop.c	2023-02-02 12:21:54.000000000 +0000
-+++ openssh-9.2p1-sf/serverloop.c	2023-08-07 17:38:57.711615443 +0000
+diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1-sf/serverloop.c
+--- openssh-9.2p1-orig/serverloop.c	2023-02-02 12:21:54
++++ openssh-9.2p1-sf/serverloop.c	2023-08-15 06:18:17
 @@ -102,6 +102,12 @@
  /* requested tunnel forwarding interface(s), shared with session.c */
  char *tun_fwd_ifnames = NULL;
@@ -34,15 +34,18 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1-sf/serverl
  /* returns 1 if bind to specified port by specified user is permitted */
  static int
  bind_permitted(int port, uid_t uid)
-@@ -391,6 +397,8 @@
+@@ -391,8 +397,10 @@
  			/* Clean up sessions, utmp, etc. */
  			cleanup_exit(255);
  		}
+-
+ 		channel_after_poll(ssh, pfd, npfd_active);
 +		if (sf_sigusr1_received != 0)
 +			sf_sshd2ns();
- 
- 		channel_after_poll(ssh, pfd, npfd_active);
++
  		if (conn_in_ready &&
+ 		    process_input(ssh, connection_in) < 0)
+ 			break;
 @@ -637,12 +645,14 @@
  
  	if (strcmp(ctype, "session") == 0) {
@@ -87,10 +90,10 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1-sf/serverl
  		}
  		if ((resp = sshbuf_new()) == NULL)
  			fatal_f("sshbuf_new");
-diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
---- openssh-9.2p1-orig/sshd.c	2023-02-02 12:21:54.000000000 +0000
-+++ openssh-9.2p1-sf/sshd.c	2023-08-07 17:38:29.479621863 +0000
-@@ -536,6 +536,69 @@
+diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
+--- openssh-9.2p1-orig/sshd.c	2023-02-02 12:21:54
++++ openssh-9.2p1-sf/sshd.c	2023-08-15 06:13:05
+@@ -536,8 +536,71 @@
  		return 0;
  	}
  }
@@ -100,7 +103,7 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
 +#ifndef SECBIT_KEEP_CAPS
 +#define SECBIT_KEEP_CAPS (1<<4)
 +#endif
-+
+ 
 +int sf_done;
 +int sf_by_signal;
 +int sf_sigusr1_received;
@@ -108,7 +111,7 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
 +size_t sf_ports_n;
 +static char sf_nsnet_name[128];
 +static struct ssh *sf_ssh;
-+static void
+ static void
 +cb_sigusr1(int sig)
 +{
 +	debug("SIGUSR1 RECEIVED");
@@ -157,10 +160,12 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
 +
 +	sf_done = 1;
 +}
- 
- static void
++
++static void
  privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
-@@ -576,9 +639,35 @@
+ {
+ #ifdef DISABLE_FD_PASSING
+@@ -576,8 +639,34 @@
  
  	reseed_prngs();
  
@@ -169,7 +174,7 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
 +
  	/* Drop privileges */
  	do_setusercontext(authctxt->pw);
- 
++
 +	// Set the effective CAPS to remove SECUREBITS
 +	cap_t caps = cap_get_proc();
 +	const cap_value_t cl[] = {CAP_SETPCAP};
@@ -192,7 +197,6 @@ diff -x '!*.[ch]' -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
 +	snprintf(sf_nsnet_name, sizeof sf_nsnet_name, "/dev/shm/ns-net-%d", getpid());
 +	sf_ssh = ssh;
 +	signal(SIGUSR1, cb_sigusr1);
-+
+ 
   skip:
  	/* It is safe now to apply the key state */
- 	monitor_apply_keystate(ssh, pmonitor);

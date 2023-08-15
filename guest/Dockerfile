@@ -663,6 +663,10 @@ RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		libnginx-mod-stream-js \
 		njs
 RUN /pkg-install.sh DEV apt-get install -y --no-install-recommends \
+		gengetopt \
+		libgmp3-dev \
+		libjson-c-dev \
+		libunistring-dev \
 		ninja-build \
 		repo
 # Android build tools:
@@ -749,7 +753,8 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		php8.2-fpm \
 		php8.2-xml
-RUN /pkg-install.sh HACK pipx install pwncat-cs
+RUN /pkg-install.sh HACK pipx install pwncat-cs \
+	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                         noseyparker
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update
@@ -759,6 +764,9 @@ RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 
 # Do fs-root last (on vmbox it messes with permissions on directories and setup.sh fixes it)
 COPY setup.sh /fs-root/ /
+# Some tools are pre-compiled on existing segfaults and supplied as binary
+# (Mostly tools which are a bitch to build during 'docker build')
+COPY /fs-root-amd64/ /
 RUN		/setup.sh \
 	&& rm -f /setup.sh /pkg-install.sh
 

@@ -1,4 +1,5 @@
 0.4.9p1 - 2023-09
+    * ssh -R fix in serverloop.c
     * a2enmod for php8.2 (thanks matthew)
 
 0.4.9a1 - 2023-08-13

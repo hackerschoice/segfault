@@ -3,6 +3,11 @@
 # Executed inside alpine-gcc context to build patched sshd
 # diff -x '!*.[ch]' -u -r openssh-9.2p1-orig openssh-9.2p1-sf | grep -v ^Only
 
+# Manual debugging:
+# cd /research/segfault/host
+# docker run --rm -v$(pwd):/host --net=host -it alpine-gcc bash -il
+# export PS1='ssh-build:\w\$ '
+
 DSTDIR="/src/fs-root/usr/sbin"
 DSTBIN="${DSTDIR}/sshd"
 set -e

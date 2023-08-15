@@ -65,6 +65,7 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/applications/burpsuite.d
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/applications/thc-tips-and-tricks.desktop"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/icons/metasploit.svg"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/share/icons/thc-logo.jpg"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root-amd64/usr/bin/xmap"
 
 FILES_MASTER += "segfault-$(VER)/master/Dockerfile"
 FILES_MASTER += "segfault-$(VER)/master/Makefile"

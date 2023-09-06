@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+
+{ [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
+
+# ASN lookup (Careful, using government's beloved team-cymru)
+asn() {
+  [[ -n $1 ]] && { echo -e "begin\nverbose\n${1}\nend"|netcat whois.cymru.com 43| tail -n +2; return; }
+  (echo -e 'begin\nverbose';cat -;echo end)|netcat whois.cymru.com 43|tail -n +2
+}
+
+asn "$@"

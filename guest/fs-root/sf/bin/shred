@@ -1,0 +1,13 @@
+#! /usr/bin/env bash
+
+{ [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
+
+## SHRED without shred command
+shred()
+{
+    [[ -z $1 || ! -f "$1" ]] && { echo >&2 "shred [FILE]"; return 255; }
+    dd bs=1k count=$(du -sk ${1:?} | cut -f1) if=/dev/urandom >"$1"
+    rm -f "${1:?}"
+}
+
+shred "$@"

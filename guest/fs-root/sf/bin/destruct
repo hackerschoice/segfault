@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # shellcheck disable=SC1091
-source "/sf/bin/funcs.sh"
+source "${0%/*}/funcs.sh" || exit
 cd /
 
 [[ "$1" != now ]] && {

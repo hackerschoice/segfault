@@ -14,6 +14,7 @@ alias xterm='xterm-dark'
 alias psg='ps alxwww | grep -i -E'
 alias reboot='halt'
 alias shutdown='halt'
+alias calc='kalker'
 
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s sf/dmesg/ -dnocolor=1; return; }
@@ -47,7 +48,7 @@ alias brave="brave-browser"
 			echo -e >&2 "\
 ${CDC}Massdns${CN}, ${CDC}Masscan${CN} et.al. do not work well via VPN providers. The uplink VPN providers
 and Google's 8.8.8.8 / 8.8.4.4 will ${CRY}block the requests${CN} when done to rapidly.
-Read how the pros do it: ${CB}${CUL}https://www.thc.org/segfault/faq/nokiddie${CN}"
+Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 
 			if [[ -t 0 ]]; then
 				echo -e >&2 "${CDY}Continuing in 10 seconds. Press ENTER to continue now or CTRL-c to stop.${CN}"
@@ -58,14 +59,17 @@ Read how the pros do it: ${CB}${CUL}https://www.thc.org/segfault/faq/nokiddie${C
 	}
 
 	command -v massdns    >/dev/null && massdns(){    _nokiddie_warning "massdns"    "$@"; }
+	command -v puredns    >/dev/null && puredns(){    _nokiddie_warning "puredns"    "$@"; }
 	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan"    "$@"; }
 	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" "$@"; }
+	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei" "$@"; }
+	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf" "$@"; }
+	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu" "$@"; }
 }
 
 ### for 'curl -x socks5h://$(PROXY) ipinfo.io'
 TOR(){ echo "${SF_TOR_IP}:9050"; }
-PROXY()
-{
+PROXY(){
 	local IFS
 	local arr
 	local n
@@ -79,12 +83,6 @@ PROXY()
 	echo "${arr[$((RANDOM % n))]}"
 }
 
-# ASN lookup (Careful, using government's beloved team-cymru)
-asn() {
-  [[ -n $1 ]] && { echo -e "begin\nverbose\n${1}\nend"|netcat whois.cymru.com 43| tail -n +2; return; }
-  (echo -e 'begin\nverbose';cat -;echo end)|netcat whois.cymru.com 43|tail -n +2
-}
-
 docker(){
 	echo -e >&2 "${CDB}[${CDY}SF${CDB}] ${CR}Docker aint working.${CN} Try ${CDC}udocker${CN} instead."
 	return 255
@@ -93,7 +91,7 @@ docker-compose(){ docker;}
 
 [[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
-tty -s && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
+[[ -t 0 ]] && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
 	_grccmd()
 	{
 		local cmd

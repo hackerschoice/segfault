@@ -7,8 +7,8 @@ gsexec() {
     local sec
     sec="$1"
     shift 1
-    echo "$*; exit; __START"|gs-netcat -s "$sec"|sed -n '/__START/,$p'|tail +2
+    echo "$*; exit; __START"|gs-netcat -s "$sec" 2>/dev/null|sed -n '/__START/,$p'|tail +2
 }
 
-[[ $# -ne 2 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexec SECRET 'command'"; exit 255; }
+[[ $# -lt 2 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexec SECRET 'command'"; exit 255; }
 gsexec "$@"

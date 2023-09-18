@@ -13,7 +13,7 @@
 
 SFI_SRCDIR="$(cd "$(dirname "${0}")/.." || exit; pwd)"
 # shellcheck disable=SC1091
-source "${SFI_SRCDIR}/provision/system/funcs" || exit 255
+source "${0%/*}/system/funcs" || exit 255
 NEED_ROOT
 
 SUDO_SF()
@@ -25,9 +25,9 @@ SUDO_SF()
 init_vars()
 {
   if command -v apt-get >/dev/null; then
-    source "${SFI_SRCDIR}/provision/funcs_ubuntu.sh"
+    source "${0%/*}/funcs_ubuntu.sh"
   elif command -v yum >/dev/null; then
-    source "${SFI_SRCDIR}/provision/funcs_al2.sh"
+    source "${0%/*}/funcs_al2.sh"
   else
     ERREXIT 255 "Unknown Linux flavor: No apt-get and no yum."
   fi
@@ -130,7 +130,12 @@ mergedir()
   [[ ! -d "${SF_BASEDIR}/${dst}" ]] && mkdir -p "${SF_BASEDIR}/${dst}"
 
   DEBUGF "Merge $src $dst"
-  [[ ! -d "${SF_BASEDIR}/${src}" ]] && { cp -r "${SFI_SRCDIR}/${src}" "${SF_BASEDIR}/${dst}" || ERREXIT; } || { CONFLICT+=("${src}"); return 1; }
+  if [[ -d "${SF_BASEDIR}/${src}" ]]; then
+    CONFLICT+=("${src}")
+    return 1
+  fi
+  cp -r "${SFI_SRCDIR}/${src}" "${SF_BASEDIR}/${dst}" || ERREXIT
+  
   return 0
 }
 

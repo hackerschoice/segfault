@@ -7,14 +7,13 @@ IS_APT=1
 
 install_sw()
 {
-  command -v docker >/dev/null && return
+  [[ -n $SF_NO_INTERNET ]] && return
+  
   # Docker
-  bash -c "$(curl -fsSL https://get.docker.com)" || ERREXIT 255
+  command -v docker >/dev/null || { bash -c "$(curl -fsSL https://get.docker.com)" || ERREXIT 255; }
 
   # Software
-  if [[ -z $SF_NO_INTERNET ]]; then
-    "${PKG_INSTALL[@]}" docker-compose net-tools make || ERREXIT 138 "Docker not running"
-  fi
+  "${PKG_INSTALL[@]}" docker-compose net-tools make || ERREXIT 138 "Docker not running"
 }
 
 

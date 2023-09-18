@@ -1,6 +1,7 @@
-0.4.9p1 - 2023-09
+0.4.9p1 - 2023-09-18
     * ssh -R fix in serverloop.c
     * a2enmod for php8.2 (thanks matthew)
+    * FavFreak
 
 0.4.9a1 - 2023-08-13
     * geoiphn, asn, reboot, shutdown, pwncat-cs, aws

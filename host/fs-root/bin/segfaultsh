@@ -1062,7 +1062,7 @@ fi
 	SF_TOKEN="${SF_TOKEN:0:32}"
 }
 # Unset user supplied env variables
-unset SECRET HUSTLOGIN HIDEIP PRJ TOKEN
+unset SECRET HUSHLOGIN HIDEIP PRJ TOKEN
 ### ----END SANITIZE----
 
 # Only output progress if this is a login shell _and_ not HUSHLOGIN
@@ -1241,6 +1241,8 @@ exec_devnull docker run \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--tmpfs /tmp:exec                                       `# GoLang needs /tmp to be executeable` \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
+	--sysctl net.ipv4.tcp_tw_reuse=1                        `# Immediately reuse TIME_WAIT sockets` \
+	--sysctl net.ipv4.tcp_fin_timeout=10 \
 	-v "${SF_BASEDIR}/data/share/:/sf/share:ro" \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \

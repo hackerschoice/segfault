@@ -127,6 +127,7 @@ setup()
 	rmsymdir /home /sec/home
 	rmsymdir /root /sec/root
 	rmsymdir /root/.gf /usr/share/gf
+	rmsymdir /usr/share/wordlists /sec/root/wordlists
 
 	# Create useful directory
 	xmkdir /dev/shm/tmp && chmod 1777 /dev/shm/tmp

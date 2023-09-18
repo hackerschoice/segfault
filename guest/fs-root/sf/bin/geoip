@@ -1,5 +1,7 @@
 #! /bin/bash
 
+source "${0%/*}/funcs.sh" || exit
+
 ip=$1
 [[ -z $ip ]] && { echo >&2 "$0 [IP-Address]"; exit 255; }
 

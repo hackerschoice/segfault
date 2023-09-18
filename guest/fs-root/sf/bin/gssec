@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-{ [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
+source "${0%/*}/funcs.sh" || exit
 
 gssec() {
     [[ -z $GS_SEED ]] && { echo -e >&2 "${CY}ERROR${CN}: Please first set: ${CDC}GS_SEED=MySuperStrongMasterSeed${CN}"; return 255; }

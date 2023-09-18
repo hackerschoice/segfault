@@ -17,6 +17,16 @@ export PIPX_BIN_DIR=/usr/bin
 dearch()
 {
 	local str
+	local ht
+
+	# 'lsd_.*_%arch1%.deb$' ==> lsd_.*_amd64.deb
+	[[ $1 =~ %arch1% ]] && {
+		[[ $HOSTTYPE == x86_64 ]] && ht="amd64"
+		[[ $HOSTTYPE == aarch64 ]] && ht="arm64"
+		echo "${1//%arch1%/$ht}"
+		return
+	}
+
     # Convert any '%arch%' to 'x86_64'
 	str=${1//%arch%/$HOSTTYPE}
 	[[ $str =~ %arch.*% ]] && {
@@ -31,17 +41,36 @@ dearch()
 	echo "$str"
 }
 
+xmv() {
+	local asset
+	local dass
+	local dstdir
+	asset="$1"
+	dass="$2"
+	dstdir="$3"
+
+	[[ "$asset" != "$dass" ]] && {
+		mv "${dstdir}"/${asset} "${dstdir}/${dass}" || return
+	}
+
+	chmod 755 "${dstdir}/${dass}" || return
+}
+
 # Download & Extract
-# [URL] [asset] <dstdir>
+# [URL] [asset] <dstdir> <destination asset>
 dlx()
 {
 	local url
 	local asset
 	local dstdir
+	local dass
 	url="$1"
-	asset="$2"
+	asset="$2"  # May contain wildcards/Need globbing
 	dstdir="$3"
+	dass="$4"
+
 	[[ -z $dstdir ]] && dstdir="/usr/bin"
+	[[ -z $dass ]] && dass="$asset"
 
 	[[ -z "$url" ]] && { echo >&2 "[${asset}] URL: '$loc'"; return 255; }
 	case $url in
@@ -53,8 +82,8 @@ dlx()
 				unzip /tmp/pkg.zip -d "${dstdir}" || return
 			else
 				# HERE: Single file
-				unzip -o -j /tmp/pkg.zip "$asset" -d "${dstdir}" || return
-				chmod 755 "${dstdir}/$(basename "${asset}")" || return
+				{ unzip -o -j /tmp/pkg.zip "$asset" -d "${dstdir}" \
+				&& xmv "$asset" "$dass" "$dstdir"; } || return
 			fi
 			rm -f /tmp/pkg.zip \
 			&& return 0
@@ -68,32 +97,32 @@ dlx()
 			;;
 		*.tar.gz|*.tgz)
 			curl -SsfL "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
-			&& chmod 755 "${dstdir}/${asset}" \
+			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*.gz)
 			curl -SsfL "$url" | gunzip >"${dstdir}/${asset}" \
-			&& chmod 755 "${dstdir}/${asset}" \
+			&& chmod 755 "${dstdir}/${dass}" \
 			&& return 0
 			;;
 		*.tar.bz2)
 			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
-			&& chmod 755 "${dstdir}/${asset}" \
+			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*.bz2)
 			curl -SsfL "$url" | bunzip2 >"${dstdir}/${asset}" \
-			&& chmod 755 "${dstdir}/${asset}" \
+			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*.xz)
 			curl -SsfL "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin --wildcards "$asset" \
-			&& chmod 755 "${dstdir}/${asset}" \
+			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*)
 			curl -SsfL "$url" >"${dstdir}/${asset}" \
-			&& chmod 755 "${dstdir}/${asset}" \
+			&& chmod 755 "${dstdir}/${dass}" \
 			&& return 0
 	esac
 }
@@ -134,22 +163,26 @@ ghbin()
 {
 	local url
 	local asset
+	local dst
     local src
     src=$(dearch "$2") || exit 0
-	asset="$3"
+	asset=$(dearch "$3") || exit 0
+	dst="$5"
 
 	url=$(ghlatest "$1" "$src")
-	dlx "$url" "$asset"
+	dlx "$url" "$asset" "" "$dst"
 }
 
 ghdir()
 {
 	local url
     local src
+	local dst
     src=$(dearch "$2") || exit 0
+	dst="$3"
 
 	url=$(ghlatest "$1" "$src")
-	dlx "$url" "" "$3"
+	dlx "$url" "" "$dst"
 }
 
 bin()

@@ -1,5 +1,7 @@
 #! /bin/bash
 
+source "${0%/*}/funcs.sh" || exit
+
 # Convert IP to "IP   CITY   COUNTRY   HOSTNAME"
 
 [[ -z $1 ]] && return

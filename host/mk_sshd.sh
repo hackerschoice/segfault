@@ -13,7 +13,9 @@ DSTBIN="${DSTDIR}/sshd"
 set -e
 SRCDIR="/tmp/openssh-9.2p1"
 [[ ! -d "$SRCDIR" ]] && {
-	wget -O - https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.2p1.tar.gz | tar xfz -
+	# Cloudflare to often returns 503 - "BLOCKED"
+	# wget -O- https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.2p1.tar.gz | tar xfz -
+	wget -O- https://artfiles.org/openbsd/OpenSSH/portable/openssh-9.2p1.tar.gz | tar xfz -
 
 	cd "$SRCDIR"
 

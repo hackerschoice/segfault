@@ -515,7 +515,7 @@ lgban()
 	}
 
 	lgstop "${lid}" "$@"
-	_sf_lgrm "${lid}"
+	#_sf_lgrm "${lid}" # Dont lgrm here and give user chance to explain to re-instate his server.
 
 	_sf_deinit
 }

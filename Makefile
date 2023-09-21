@@ -1,4 +1,4 @@
-VER := 0.4.9p1
+VER := 0.4.9p3
 
 all:
 	make -C router
@@ -134,6 +134,9 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/sf/sf.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/redis/redis.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
 FILES_CONFIG += "segfault-$(VER)/config/etc/resolv.conf"
+FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-new.sh-example"
+FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-all.sh-example"
+FILES_CONFIG += "segfault-$(VER)/config/etc/logoutmsg-all.sh-example"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/ChangeLog"
@@ -146,8 +149,6 @@ FILES_ROOT += "segfault-$(VER)/sfbin/funcs_redis.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_admin.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_net.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
-FILES_ROOT += "segfault-$(VER)/sfbin/loginmsg-new.sh-example"
-FILES_ROOT += "segfault-$(VER)/sfbin/loginmsg-all.sh-example"
 
 FILES_CLEANER += "segfault-$(VER)/tools/cg/Dockerfile"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/go.mod"

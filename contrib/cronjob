@@ -1,6 +1,8 @@
 #! /usr/bin/env bash
 
 # Run regular maintenance jobs in host's crontab after 'sf up' has been started
+# PHY: crontab -l | grep -v cronjob | echo "15 0 * * sun /sf/sfbin/cronjob all >/dev/shm/sf/run/logs/cronjob.out" | crontab -
+
 
 SF_MV_EXIT_FN="/sf/data/share/relay-exit-nodes-mullvad.txt"
 SF_MV_RELAY_FN="/sf/data/share/proxies.txt"
@@ -14,7 +16,6 @@ mk_mullvad_relays()
 {
     local IFS
     local str
-    local fn
     local arr
     local ip
     local ips

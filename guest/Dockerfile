@@ -432,7 +432,7 @@ RUN	/pkg-install.sh GUI bash -c '{ : \
 		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra-2023.asc \
 		&& wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra.sources \
 		&& apt-get update \
-		&& pkg=("xpra" "xpra-html5") \
+		&& pkg=("xpra" "xpra-x11" "xpra-html5") \
 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### x86_64 only
@@ -544,6 +544,7 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		mmh3   `# FavFreak` \
 		pyTelegramBotAPI \
 		tgcrypto \
+		uploadserver \
 		wsgidav
 RUN /pkg-install.sh    LARGE pipx install gdown \
 	&& /pkg-install.sh LARGE pipx install udocker
@@ -769,6 +770,7 @@ RUN	/pkg-install.sh HACK bash -c '{  wget -O "/usr/bin/favfreak.py" https://raw.
 		&& wget -O /usr/share/wordlists/meg/openredirects "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/openredirects" \
 		&& wget -O /usr/share/wordlists/meg/configfiles   "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/configfiles" \
 		&& wget -O /usr/share/wordlists/meg/crlfinjection "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/crlfinjection"; }'
+RUN /pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

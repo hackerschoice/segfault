@@ -1,0 +1,6 @@
+#! /bin/bash
+
+# Location: config/etc
+# Rename this file to logoutmsg-all.sh and it will get sourced during logout before RTFM/GOODBYE
+echo -e "SPONSOR          : ${CY}${CUL}${CN} <-- We host there."
+

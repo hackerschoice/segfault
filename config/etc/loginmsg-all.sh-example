@@ -1,5 +1,6 @@
 #! /bin/bash
 
+# Location: config/etc
 # Rename this file to loginmsg-all.sh and it will get sourced during login process for _all_ users.
 
 echo -en "Hello $SF_HOSTNAME. This server is currently not available. Please come back another time."

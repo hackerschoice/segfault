@@ -1,5 +1,6 @@
 #! /bin/bash
 
+# Location: config/etc
 # Rename this file to loginmsg-new.sh and it will get sourced during login process for new root servers.
 
 echo -en "Creating new servers is currently not avaialble."

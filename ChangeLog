@@ -1,3 +1,9 @@
+0.4.9p3 - 2023-09-20
+    * Helix (hx)
+
+0.4.9p2 - 2023-09-18
+    * xpra-x11 is back.
+
 0.4.9p1 - 2023-09-18
     * ssh -R fix in serverloop.c
     * a2enmod for php8.2 (thanks matthew)

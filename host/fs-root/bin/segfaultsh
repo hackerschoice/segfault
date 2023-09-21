@@ -455,6 +455,8 @@ ${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 	}
 
+	sysmsg "/config/host/etc/logoutmsg-all.sh"
+
 	echo -e "\
 RTFM             : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
 GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
@@ -1078,7 +1080,7 @@ export LID
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
 
 # Show system messages
-sysmsg "/sf/bin/loginmsg-all.sh"
+sysmsg "/config/host/etc/loginmsg-all.sh"
 
 # Call init_vars() after LID is set
 init_vars
@@ -1117,7 +1119,7 @@ if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	touch "${HNLID_FILE}"
 else
 	print_disclaimer
-	sysmsg "/sf/bin/loginmsg-new.sh"
+	sysmsg "/config/host/etc/loginmsg-new.sh"
 	# ######################################################################
 	# 70 long
 	# Got 54 space

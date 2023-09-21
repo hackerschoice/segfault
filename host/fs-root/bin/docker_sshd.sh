@@ -174,9 +174,10 @@ done
 # LXCFS creates different directories depending on the version.
 [[ -d /var/lib/lxcfs/proc ]] && {
 	unset str
-	for fn in $(cd /var/lib/lxcfs; find proc -type f 2>/dev/null; find sys -type f 2>/dev/null); do
+	for fn in $(cd /var/lib/lxcfs; find proc -type f 2>/dev/null); do
 		str+="'-v' '/var/lib/lxcfs/${fn}:/$fn:ro' "
 	done
+	[[ -d /var/lib/lxcfs/sys/devices/system/cpu ]] && str+="'-v' '/var/lib/lxcfs/sys/devices/system/cpu:/sys/devices/system/cpu:ro'"
 	LXCFS_STR=$str
 }
 

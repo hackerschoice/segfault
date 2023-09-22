@@ -6,12 +6,19 @@
 
 source .env_hosts || exit
 
-for h in "${HOSTS[@]}"; do
-    echo "Syncing ${h} DOWN"
+# Reverse order so that first in HOSTS has master priority
+i=${#HOSTS[@]}
+while [[ $i -gt 0 ]]; do
+    ((i--))
+    h="${HOSTS[$i]}"
+    echo "#${i} Syncing ${h} DOWN"
     rsync -ral "${h}":/sf/config/db/banned "${h}":/sf/config/db/token "${h}":/sf/config/db/limits .
 done
 
+echo "===================================================="
+i=0
 for h in "${HOSTS[@]}"; do
-    echo "Syncing ${h} UP"
+    echo "#$i Syncing ${h} UP"
     rsync -ral banned token limits "${h}":'/sf/config/db'
+    ((i++))
 done

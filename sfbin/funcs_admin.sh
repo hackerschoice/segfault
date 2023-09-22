@@ -108,13 +108,17 @@ _sfcg_forall()
 	local a
 	local ts
 	local fn
+	local skip_token
 	local -
+
+	skip_token="$1"
 
 	set -o noglob
 	IFS=$'\n' arr=($(docker ps --format "{{.Names}}"  --filter 'name=^lg-'))
 
 	for l in "${arr[@]}"; do
 		ts=2147483647
+		[[ -n $skip_token ]] && [[ -e "${_sf_dbdir}/user/${l}/token" ]] && continue
 		fn="${_sf_dbdir}/user/${l}/created.txt"
 		[[ -f "$fn" ]] && ts=$(date +%s -u -r "$fn")
 		a+=("$ts $l")
@@ -528,6 +532,7 @@ lgstop()
 	[[ -n $2 ]] && {
 		lgwall "${1}" "$2"
 		echo -e "$2" >"${_sf_dbdir}/user/${1}/syscop-msg.txt"
+		docker top "$1" -e -o pid,ppid,%cpu,rss,start_time,exe,comm,cmd | cut -c -512  >"${_sf_dbdir}/user/${1}/syscop-ps.txt"
 	}
 	docker stop "${1}"
 }
@@ -586,13 +591,15 @@ lgx()
 {
 	local lglid
 	local match
+	local skip_token
     local IFS
 	match="$1"
+	skip_token="$2"
 
 	_sf_init
 	[[ -z $match ]] && return
 
-    IFS=$'\n' arr=($(_sfcg_forall))
+    IFS=$'\n' arr=($(_sfcg_forall "$skip_token"))
 	for lglid in "${arr[@]}"; do
 		_sfcg_psarr "$lglid" "$match" >/dev/null && continue
 		echo "$lglid "

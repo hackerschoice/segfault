@@ -1,4 +1,4 @@
-all: albuild fs-root/bin/docker-exec-sigproxy fs-root/usr/sbin/sshd Dockerfile
+all: albuild fs-root/bin/docker-exec-sigproxy fs-root/bin/unix-socket-client fs-root/usr/sbin/sshd Dockerfile
 	docker build --no-cache --network host -t sf-host .
 
 albuild:
@@ -13,6 +13,10 @@ fs-root/usr/sbin/sshd: sf-sshd.patch mk_sshd.sh
 
 fs-root/bin/docker-exec-sigproxy: docker-exec-sigproxy.c
 	docker run --rm -v$$(pwd):/src -w /src alpine-gcc gcc -Wall -O2 -o fs-root/bin/docker-exec-sigproxy docker-exec-sigproxy.c
+	@echo SUCCESS
+
+fs-root/bin/unix-socket-client: unix-socket-client.c
+	docker run --rm -v$$(pwd):/src -w /src alpine-gcc gcc -Wall -O2 -o fs-root/bin/unix-socket-client unix-socket-client.c
 	@echo SUCCESS
 
 diff:

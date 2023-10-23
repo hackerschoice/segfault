@@ -1307,7 +1307,7 @@ tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 echo_pty -e "....[${CG}OK${CN}]"
 
 # Add a log entry into elastisearch using logpipe
-echo "LID:${LID}|Hostname:${SF_HOSTNAME}|" | unix-socket-client &> /dev/null
+echo "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}|" | unix-socket-client &> /dev/null
 
 # Spawn shell
 spawn_shell_exit "$@"

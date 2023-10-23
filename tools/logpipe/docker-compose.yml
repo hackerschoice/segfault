@@ -1,0 +1,6 @@
+services:
+  sf-logpipe:
+    image: sf-logpipe
+    volumes:
+      - /dev/shm/sf/run/logpipe/:/app/sock/:rw
+      - ./config.yaml:/app/config.yaml:ro

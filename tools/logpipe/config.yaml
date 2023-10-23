@@ -1,0 +1,6 @@
+metric_logger_queue_size: 1000
+metric_flush_interval: 1 #in minutes
+elastic_server_host: "sf-stats.net"
+elastic_index_name: "sf-stats"
+elastic_username: ""
+elastic_password: ""

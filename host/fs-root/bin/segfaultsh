@@ -353,7 +353,9 @@ init_vars()
 
 	# Set the number of CPU's a guest can use up to a max of 4.
 	# Min is 1 or NPROC / 4 to a max of 4.
-	[[ -z $SF_CPUS ]] && {
+	if [[ -n $SF_CPUS ]]; then
+		[[ $SF_CPUS -gt $NPROC ]] && SF_CPUS="$NPROC"
+	else
 		SF_CPUS=$((NPROC / 4))
 		if [[ $SF_CPUS -le 1 ]]; then
 			SF_CPUS=1
@@ -361,7 +363,7 @@ init_vars()
 		elif [[ $SF_CPUS -gt 4 ]]; then
 			SF_CPUS=4
 		fi
-	}
+	fi
 
 	# Check if we are still in sshd's Network Namespace
 	IS_SSHD_NS_NET=1
@@ -611,7 +613,7 @@ load_limits()
 	# then root is mounted read-only
 	#SF_USER_ROOT_FS_SIZE=2GB
 	SF_USER_ROOT_FS_INODE=65536
-	SF_USER_MEMORY_LIMIT=256MB
+	SF_USER_MEMORY_LIMIT=256m
 	SF_USER_PIDS_LIMIT=128
 	SF_USER_CPU_SHARE=8
 	SF_USER_OOM_SCORE=500
@@ -639,10 +641,10 @@ load_limits()
 		[[ -f "${SF_USER_DB_DIR}/token" ]] && {
 			SF_TOKEN="$(<"${SF_USER_DB_DIR}/token")"
 			# Delete user token if token no longer exists
-			[[ ! -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]] && {
-				rm -f "${SF_USER_DB_DIR}/token"
-				unset SF_TOKEN
-			}
+			# [[ ! -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]] && {
+				# rm -f "${SF_USER_DB_DIR}/token"
+				# unset SF_TOKEN
+			# }
 		}
 	else
 		# HERE: SF_TOKEN is user supplied.
@@ -654,7 +656,14 @@ load_limits()
 			tofile "${SF_TOKEN}" "${SF_USER_DB_DIR}/token"
 		fi
 	fi
-	[[ -n $SF_TOKEN ]] && [[ -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]] && eval "$(<"${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf")"
+	[[ -n $SF_TOKEN ]] && {
+		if [[ -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]]; then
+			eval "$(<"${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf")"
+		else
+			# token-<TOKEN>.conf does not exist.
+			unset SF_TOKEN
+		fi
+	}
 
 	# Then source user specific limits
 	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(<"${SF_USER_DB_DIR}/limits.conf")"
@@ -683,6 +692,8 @@ load_limits()
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
 	DOCKER_ARGS+=("--blkio-weight=${SF_USER_BLKIO_WEIGHT}")
 
+	[[ -n $SF_USER_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
+
 	if [[ -z $SF_USER_ROOT_FS_SIZE ]]; then
 		DOCKER_ARGS+=("--read-only")
 	else
@@ -697,7 +708,8 @@ load_limits()
 		}
 	fi
 
-	[[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
+	# NOTE: This is no longer used because /dev/shm is now mounted as tmpfs to make UML work
+	# [[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
 	[[ -n $SF_SYSBOX ]] && SYSBOX_ARGS+=("--runtime=sysbox-runc")
 
@@ -1241,9 +1253,10 @@ exec_devnull docker run \
 	-e SF_IS_GOLD_PROMPT \
 	-e SF_DEBUG \
 	--log-driver "${SF_DOCKER_LOG}" \
-	--tmpfs /tmp:exec                                       `# GoLang needs /tmp to be executeable` \
-	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs)` \
-	--sysctl net.ipv4.tcp_tw_reuse=1                        `# Immediately reuse TIME_WAIT sockets` \
+	--tmpfs /tmp:exec,size="${SF_SHM_SIZE:-64m}"            `# GoLang needs /tmp to be executeable ` \
+	--tmpfs /dev/shm:exec,size="${SF_SHM_SIZE:-64m}"        `# UML needs /dev/shm to be executeable` \
+	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs) ` \
+	--sysctl net.ipv4.tcp_tw_reuse=1                        `# Immediately reuse TIME_WAIT sockets ` \
 	--sysctl net.ipv4.tcp_fin_timeout=10 \
 	-v "${SF_BASEDIR}/data/share/:/sf/share:ro" \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \

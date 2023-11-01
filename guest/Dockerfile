@@ -149,6 +149,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		thc-ipv6 \
 		tnscmd10g \
 		tshark \
+		tsocks \
 		upx \
 		webshells \
 		weevely
@@ -230,17 +231,27 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \
+		python3-bitcoinlib \
 		python3-cheroot \
+		python3-confuse \
+		python3-decouple \
+		python3-dotenv \
+		python3-dotenv-cli \
 		python3-full \
 		python3-scapy \
 		python3-poetry \
 		python3-pwntools \
+		python3-pyaudio \
 		python3-pygments \
+		python3-pyte \
+		python3-python-telegram-bot \
 		python3-venv \
 		python3-virtualenv \
 		python3-ipython \
 		python3-all-dev \
+		python3-schedule \
 		python3-setuptools \
+		python3-telethon \
 		python-all-dev \
 		radare2 \
 		recon-ng \
@@ -306,9 +317,12 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		seclists
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+		cloud-image-utils \
 		debootstrap \
+		libguestfs-tools \
 		qemu-efi \
 		qemu-efi-arm \
+		qemu-system \
 		qemu-user \
 		qemu-utils \
 		u-boot-qemu
@@ -530,10 +544,12 @@ RUN /pkg-install.sh    HACK pipx install aort \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret `### 2023-03-07 pipx repo fails on aiohttp/longintrepr.h` \
 	&& /pkg-install.sh HACK pipx install raccoon-scanner \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/EntySec/Shreder \
+	&& /pkg-install.sh HACK pipx install trevorspray \
 	&& /pkg-install.sh HACK pipx install userefuzz \
 	&& /pkg-install.sh HACK pipx install webtech \
 	&& /pkg-install.sh DEVEL pipx install dulwich \
-	&& /pkg-install.sh DEVEL pipx install names
+	&& /pkg-install.sh DEVEL pipx install names \
+	&& /pkg-install.sh DEVEL pipx install Red-DiscordBot
 RUN /pkg-install.sh WEB bash -c '{ apt-get remove -y pelican; true; }' \
 	&& /pkg-install.sh WEB pipx install 'grip' \
 	&& /pkg-install.sh WEB pipx install 'pelican[Markdown]' `### apt/pelican causes missing /onion/theme directory` \
@@ -545,7 +561,24 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		pyTelegramBotAPI \
 		tgcrypto \
 		uploadserver \
-		wsgidav
+		wsgidav \
+	&& /pkg-install.sh DEVEL pip install \
+		aiogram \
+		aospdtgen \
+		booru \
+		discum \
+		disnake \
+		donna25519 \
+		heroku3 \
+		jishaku \
+		lastversion \
+		libgen_api \
+		openai \
+		pyrogram \
+		python-json-logger \
+		python-nmap \
+		telegram \
+		timer
 RUN /pkg-install.sh    LARGE pipx install gdown \
 	&& /pkg-install.sh LARGE pipx install udocker
 RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.3/geonet_0.4.3_%arch:x86_64=amd64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
@@ -569,6 +602,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		krb5-user \
 		krb5-config \	
 		parallel \
+		ranger \
 		sshuttle
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gopls \
@@ -610,7 +644,7 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_%arch:x86_64=amd64:aarch64
 	&& /pkg-install.sh HACK ghbin projectdiscovery/alterx     '_linux_%arch:x86_64=amd64:aarch64=arm64%'   alterx \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/notify     'linux_%arch:x86_64=amd64:aarch64=arm64%'    notify \
 	&& /pkg-install.sh HACK ghbin projectdiscovery/interactsh 'linux_%arch:x86_64=amd64:aarch64=arm64%'    interactsh-client \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/mapcidr    'linux_%arch:x86_64=amd64:aarch64=arm64%'    mapcidr \
+	&& /pkg-install.sh HACK bin 'https://github.com/projectdiscovery/mapcidr/releases/download/v1.1.9/mapcidr_1.1.9_linux_%arch1%.zip' mapcidr   `# often missing binary assets.` \
 	&& /pkg-install.sh HACK ghbin glebarez/cero               'linux-amd64'                                cero      `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin dwisiswant0/crlfuzz         'inux_%arch:x86_64=amd64:aarch64=arm64%'     crlfuzz \
 	&& /pkg-install.sh HACK ghbin hahwul/dalfox               'inux_%arch:x86_64=amd64:aarch64=arm64%'     dalfox \
@@ -714,11 +748,11 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		gcc-multilib \
 		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                                                       fq \
-	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh hardcidr \
+	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr \
 	&& /pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch1%'                                                 dalfox
-RUN /pkg-install.sh NET bin https://github.com/hackerschoice/binary/raw/main/gsocket/latest/gsocket_latest_all.deb   `# x86_64 only` \
+RUN /pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
 	&& /pkg-install.sh NET ghbin ginuerzh/gost                     'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost                          \
-	&& /pkg-install.sh NET ghbin tulir/gomuks                      'linux-%arch%'                                 gomuks                        \
+	&& /pkg-install.sh NET ghbin tulir/gomuks                      'linux-%arch1%'                                gomuks                        \
 	&& /pkg-install.sh NET ghbin Snawoot/hola-proxy                'linux-%arch1%'                                hola-proxy                    \
 	&& /pkg-install.sh NET ghbin maxmind/mmdbinspect               'linux_amd64.tar.gz$'                          mmdbinspect   `# x86_64 only` \
 	&& /pkg-install.sh NET ghbin shadowsocks/shadowsocks-rust      '%arch%-unknown-linux-musl.tar'                                              \
@@ -748,7 +782,9 @@ RUN /pkg-install.sh HUGE bash -c 'mkdir -p /usr/share/wordlists; curl -fsSL http
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		bpytop \
 		btop \
-		ncdu
+		db-util \
+		ncdu \
+		pass
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		alsa-utils \
 		alsamixergui \
@@ -756,13 +792,15 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		php8.2-fpm \
 		php8.2-xml
-RUN /pkg-install.sh HACK pipx install git+https://github.com/bluet/proxybroker2.git \
+RUN /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
+	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& /pkg-install.sh HACK pipx install pwncat-cs \
 	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparker \
 	&& /pkg-install.sh HACK bin 'https://gitlab.com/api/v4/projects/33695681/packages/generic/nrich/latest/nrich_latest_amd64.deb' `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
-RUN /pkg-install.sh LARGE ghbin PaddiM8/kalker                       'linux'                                     kalker
+RUN /pkg-install.sh LARGE ghbin PaddiM8/kalker                       'linux'                                     kalker \
+	&& /pkg-install.sh LARGE ghbin PowerShell/PowerShell  'deb_%arch1%.deb'
 RUN	/pkg-install.sh HACK bash -c '{  wget -O "/usr/bin/favfreak.py" https://raw.githubusercontent.com/devanshbatham/FavFreak/master/favfreak.py \
 		&& chmod 755 /usr/bin/favfreak.py \
 		&& ln -s favfreak.py /usr/bin/FavFreak; }' \

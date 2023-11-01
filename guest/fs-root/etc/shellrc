@@ -62,25 +62,43 @@ Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 	command -v puredns    >/dev/null && puredns(){    _nokiddie_warning "puredns"    "$@"; }
 	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan"    "$@"; }
 	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" "$@"; }
-	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei" "$@"; }
-	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf" "$@"; }
-	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu" "$@"; }
+	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei"     "$@"; }
+	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf"       "$@"; }
+	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu"      "$@"; }
+	command -v zmap       >/dev/null && zmap(){       _nokiddie_warning "zmap"       "$@"; }
 }
 
 ### for 'curl -x socks5h://$(PROXY) ipinfo.io'
 TOR(){ echo "${SF_TOR_IP}:9050"; }
 PROXY(){
-	local IFS
+	local IFS=" "
+	local fmt="$*"
 	local arr
 	local n
+	local h
+	local p
+	local str
+	[[ -z $fmt ]] && fmt="%h:%p"
 
-	[[ ! -f /sf/share/proxies.txt ]] && { TOR; return; }
-	IFS=$'\n'
-	arr=($(<"/sf/share/proxies.txt"))
-	n=${#arr[@]}
-	RANDOM=$(date '+%N')
-	[[ ! $n -gt 0 ]] && { TOR; return; }
-	echo "${arr[$((RANDOM % n))]}"
+	if [[ -f /sf/share/proxies.txt ]]; then
+		IFS=$'\n' arr=($(<"/sf/share/proxies.txt"))
+		n=${#arr[@]}
+		RANDOM=$(date '+%N')
+		[[ ! $n -gt 0 ]] && { TOR; return; }
+		str="${arr[$((RANDOM % n))]}"
+		h="${str%:*}"
+		p="${str#*:}"
+	else
+		h="${SF_TOR_IP}"
+		p="9050"
+	fi
+	# Store in global variable
+	_PROXY_HOST="$h"
+	_PROXY_PORT="$p"
+	# format
+	fmt="${fmt//\%h/$h}"
+	fmt="${fmt//\%p/$p}"
+	echo "$fmt"
 }
 
 docker(){

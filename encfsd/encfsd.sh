@@ -138,7 +138,7 @@ load_limits()
 	# Then Token
 	[[ -f "/config/db/user/lg-${lid}/token" ]] && {
 		token=$(<"/config/db/user/lg-${lid}/token")
-		source "/config/db/token/token-${token}.conf" 2>/dev/null
+		source "/config/db/token/token-${token,,}.conf" 2>/dev/null
 	}
 	# Then source user specific limits
 	[[ -f "/config/db/user/lg-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/user/lg-${lid}/limits.conf")"

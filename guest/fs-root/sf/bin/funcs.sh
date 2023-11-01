@@ -25,4 +25,4 @@ CUL="\e[4m"
 CRY="\e[0;33;41m"  # YELLOW on RED (warning)
 }
 # BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
-
+:

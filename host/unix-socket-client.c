@@ -7,7 +7,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#define SOCKET_PATH "/dev/shm/sf/run/logpipe/logPipe.sock"
+#define SOCKET_PATH "/sf/run/logpipe/logPipe.sock"
 
 int main(int argc, char *argv[]) {
     int sockfd;

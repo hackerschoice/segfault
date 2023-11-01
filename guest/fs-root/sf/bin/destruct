@@ -32,11 +32,15 @@ This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds."
     exit 0; }
 
 echo -e "${CDR}***DESTRUCT***${CN}"
-
+# SF_HOSTNAME might be empty if bash was started from gs-netcat.
+[[ -z $SF_HOSTNAME ]] && {
+    str=$(hostname)
+    SF_HOSTNAME="${str##*-}"
+}
 curl -s sf/net/del -dname=all -dnocolor=1 >/dev/null
 shopt -s dotglob
 rm -rf /onion/*
-rm -rf "/everyone/${SF_HOSTNAME,,}/"*
+[[ -d "/everyone/${SF_HOSTNAME,,}" ]] && rm -rf "/everyone/${SF_HOSTNAME,,}/"* 2>/dev/null
 # Bloody at-spi-bu re-creates a fuse-hidden file when the parent directory is deleted.
 # Force kill it.
 rm -rf /sec/* 2>/dev/null

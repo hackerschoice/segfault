@@ -105,11 +105,9 @@ services:
     container_name: sf-logpipe
     restart: ${SF_RESTART:-on-failure}
     cgroup_parent: sf.slice
-    pid: "host"
-    network_mode: host
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/logpipe/config.yaml:/app/config.yaml:ro"    
-      - /dev/shm/sf/run/logpipe/:/app/sock/:rw
+      - "/dev/shm/sf/run/logpipe/:/app/sock/:rw"
       
   sf-portd:
     build: encfsd

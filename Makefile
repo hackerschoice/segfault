@@ -1,8 +1,9 @@
-VER := 0.4.9p3
+VER := 0.5.0a
 
 all:
 	make -C router
 	make -C tools/cg
+	make -C tools/logpipe
 	make -C master
 	make -C host
 	make -C tor
@@ -84,6 +85,7 @@ FILES_MASTER += "segfault-$(VER)/master/cgi-bin/rpc"
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
 FILES_HOST += "segfault-$(VER)/host/Makefile"
 FILES_HOST += "segfault-$(VER)/host/docker-exec-sigproxy.c"
+FILES_HOST += "segfault-$(VER)/host/unix-socket-client.c"
 FILES_HOST += "segfault-$(VER)/host/mk_sshd.sh"
 FILES_HOST += "segfault-$(VER)/host/sf-sshd.patch"
 FILES_HOST += "segfault-$(VER)/host/setup.sh"
@@ -137,6 +139,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/resolv.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-new.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-all.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/logoutmsg-all.sh-example"
+FILES_CONFIG += "segfault-$(VER)/config/etc/logpipe/config.yaml"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/ChangeLog"
@@ -156,6 +159,12 @@ FILES_CLEANER += "segfault-$(VER)/tools/cg/go.sum"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/main.go"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/Makefile"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/sysinfo_linux.go"
+FILES_CLEANER += "segfault-$(VER)/tools/logpipe/Makefile"
+FILES_CLEANER += "segfault-$(VER)/tools/logpipe/Dockerfile"
+FILES_CLEANER += "segfault-$(VER)/tools/logpipe/go.sum"
+FILES_CLEANER += "segfault-$(VER)/tools/logpipe/go.mod"
+FILES_CLEANER += "segfault-$(VER)/tools/logpipe/main.go"
+FILES_CLEANER += "segfault-$(VER)/tools/logpipe/metrics.go"
 
 FILES_CONTRIB += "segfault-$(VER)/contrib/sfwg"
 FILES_CONTRIB += "segfault-$(VER)/contrib/cronjob"

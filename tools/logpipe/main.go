@@ -47,6 +47,8 @@ func listenOnSocket(socketFile string) {
 		return
 	}
 
+	os.Chmod(socketFile, 0777)
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

@@ -84,6 +84,7 @@ xmkdir()
 
 xln()
 {
+	[[ -L "$2" ]] && return
 	[[ -e "$2" ]] && return
 	ln -s "$1" "$2"
 }

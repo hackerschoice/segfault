@@ -81,7 +81,8 @@ loc="${loc:0:15}"
 	IPPORT="${CDY}$(</config/self/reverse_ip):$(</config/self/reverse_port)"
 	[[ -f /config/self/reverse_geoip ]] && IPPORT+=" ${CF}($(<config/self/reverse_geoip))"
 }
-[[ -z $IPPORT ]] && IPPORT="${CDR}N/A${CN}"
+token_str="${CDC}${CF}Type ${CN}${CDC}curl sf/port${CN}"
+[[ -z $IPPORT ]] && IPPORT="${CDC}Type ${CC}curl sf/port${CDC} for reverse port."
 
 ### Always show when a Token is being used but obfuscate unless server creation
 ### or info is typed.

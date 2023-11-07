@@ -31,6 +31,7 @@ stop_lg()
 	rm -f "/sf/run/pids/lg-${lid}.pid"
 	rm -f "/sf/run/ips/lg-${lid}.ip"
 	rm -rf "/config/self-for-guest/lg-${lid}"
+	rm -rf "/sf/run/users/lg-${lid}"
 
 	# Tear down container
 	[[ -n $is_container ]] && docker stop "lg-$lid" &>/dev/nuill

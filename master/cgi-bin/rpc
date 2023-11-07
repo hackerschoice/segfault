@@ -63,6 +63,7 @@ GetFormVars()
 		[[ ${key} == "privatekey" ]] && key="private"
 		[[ ${key} == "private" ]] && R_WG_PRIVATE="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:13}"; }
+		[[ ${key} == "token" ]] && { val="${val//[^a-zA-Z0-9@]}"; val="${val##*@}"; TOKEN_NAME="${val:0:64}"; }
 		### wgOUT
 		[[ ${key} == "psk" ]] && R_OUT_PSK="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "public"    ]] && key="peer"  # Alias
@@ -612,15 +613,22 @@ CheckGoodKey()
 	BAIL "${R}ERROR${N}: Bad Key for ${opt}="
 }
 
-wg_net_init()
-{
-	local arr
-	local IFS
-
+# Load LG specific configuration (by source IP)
+load_lg() {
+	local arr;
 	# Retrieve (LID CID PID)
 	arr=($(redr GET "ip:${REMOTE_ADDR}")) || BAIL "Bad Value" "Bad Value: " "ret=$?, ${#arr[@]}"
 	[[ ${#arr[@]} -ne 3 ]] && BAIL "Value != 3" "Value != 3: " "${#arr[@]}"
 	LID="${arr[0]}"
+	# CID="${arr[1]}"
+	PID="${arr[2]}"
+}
+
+wg_net_init()
+{
+	local IFS
+
+	load_lg
 	LID_WGDIR="/config/db/user/lg-${LID}/wg"
 	[[ ! -d "${LID_WGDIR}" ]] && mkdir "${LID_WGDIR}"
 	LID_PROMPT_FN="/dev/shm/sf/self-for-guest/lg-${LID}/prompt"
@@ -631,14 +639,8 @@ wg_net_init()
 	USER_DB_WGNAME_UP_FN="/config/db/user/lg-${LID}/wg/name_up"
 	# USER_DB_WGCLIENT_FN="/config/db/user/lg-${LID}/wg/client"
 
-	# CID="${arr[1]}"
-	PID="${arr[2]}"
-
 	# Split into arguments
 	IFS=/ read -r -a ARGS <<< "${REQUEST_URI:1}"  # Ignore first '/'. Split into arguements.
-
-	# Load CLIENT config
-	# source "${USER_DB_WGCLIENT_FN}" 2>/dev/null
 }
 
 ERR_wg_help_exit()
@@ -649,13 +651,50 @@ ERR_wg_help_exit()
 	exit
 }
 
+cmd_port() {
+	local ipport
+
+	load_lg
+	source "/dev/shm/sf/run/users/lg-${LID}/limits.txt"
+	[[ -z $SF_RPORT ]] && BAIL "💥 ${CR}ERROR${CN}: ${CDM}Please contact a SysCop to enable this feature for you.${CN}"
+
+	red RPUSH portd:cmd "remport ${lid}" >/dev/null
+	sleep 1  # Stop DoS attack: flood-requesting reverse ports
+	ipport=$(echo -e "DEL portd:response-${LID}\"\n\
+RPUSH portd:blcmd \"getport ${LID}\"\n\
+BLPOP portd:response-${LID} 5" | redr) || return
+	# DEBUGF "ipport='$ipport'"
+	ipport="${ipport##*$'\n'}"
+	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to get Reverse Port Forward (ipport='$ipport')"; return; }
+
+	# The PortD add's a /sf/run/self/reverse_forward.
+	echo -en "\
+${CDM}Tip${CN}: ${CDC}${CF}Type ${CDC}cat /config/self/reverse_*${CN}.
+${CDG}👾 New reverse Port is ${CDY}${ipport}${CN}"
+
+	# portd.sh automaticaly adds this to /config/self/reverse_*
+	exit
+}
+
+cmd_token() {
+	local token_fn="/config/db/token/token-${TOKEN_NAME,,}.conf"
+	load_lg
+	source "/dev/shm/sf/run/users/lg-${LID}/limits.txt"
+
+	[[ -n $SF_TOKEN_PROHIBITED ]] && BAIL "💥 ${CR}ERROR${CN}: ${CDM}Please contact a SysCop to enable this feature for you.${CN}"
+	[[ ! -f "${token_fn}" ]] && { sleep 1; BAIL "💥 ${CR}ERROR${CN}: ${CDM}Token '${TOKEN_NAME}' does not exist.${CN}"; }
+
+	echo "${TOKEN_NAME}" >"/config/db/user/lg-${LID}/token"
+
+	exit
+}
+
 # CLIENT
 cmd_wg_up()
 {
 	local epip
 	local args
 	local err
-	local epport
 
 	[[ ${R_OUT_ENDPOINT} != *:* ]] && R_OUT_ENDPOINT+=":51820"
 	epip="${R_OUT_ENDPOINT%%:*}"
@@ -684,7 +723,7 @@ cmd_wg_up()
 	echo "$R_WG_PRIVATE" >"/dev/shm/private.$$"
 	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
 	rm -f "/dev/shm/private.$$" "/dev/shm/psk.$$"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((1500 - 80 - 80)) up dev "${WG_DEV}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80 - 80)) up dev "${WG_DEV}"
 
 	# Route to WG endpoint:
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
@@ -765,6 +804,12 @@ GetFormVars
 	# dmesg --color=always -f kern --level err,warn -e | tail -n100
 	dmesg --color="${COLOR:-never}" -f kern --level err -e | tail -n20
 	exit
+}
+
+[[ "${FCGI_CMD}" == "port" ]] && cmd_port
+[[ "${FCGI_CMD}" == "set" ]] && {
+	[[ -n $TOKEN_NAME ]] && cmd_token
+	BAIL "💥 ${CR}ERROR${CN}: ${CDM}Setting not found.${CN}"	
 }
 
 [[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
@@ -883,7 +928,7 @@ wg_net_init
 	# Configure interface after moving
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -4 address add "${WG_IP}" dev "${WG_DEV}"
 	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu 1420 up dev "${WG_DEV}"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80)) up dev "${WG_DEV}"
 
 	set_route
 

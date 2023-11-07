@@ -15,7 +15,8 @@ while [[ $i -gt 0 ]]; do
     rsync -ral "${h}":/sf/config/db/banned "${h}":/sf/config/db/token "${h}":/sf/config/db/limits .
 done
 
-echo "===================================================="
+echo "==[DOWN done. Press Enter to start UP]=================================================="
+read 
 i=0
 for h in "${HOSTS[@]}"; do
     echo "#$i Syncing ${h} UP"

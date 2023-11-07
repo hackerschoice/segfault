@@ -102,6 +102,7 @@ mk_userdir()
 
 mk_userdir "${SF_RUN_DIR}/pids"
 mk_userdir "${SF_RUN_DIR}/ips"
+mk_userdir "${SF_RUN_DIR}/users"
 
 [[ ! -d "${SF_RUN_DIR}/logs" ]] && mkdir -p "${SF_RUN_DIR}/logs"
 chown 1000 "${SF_RUN_DIR}/logs"

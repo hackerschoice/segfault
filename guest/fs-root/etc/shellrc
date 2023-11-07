@@ -253,6 +253,9 @@ lsg() {
 	ls -Alh --color=always | grep -i -E "$*" 
 }
 
+noansi() { sed -e 's/\x1b\[[0-9;]*m//g'; }
+alias nocol=noansi
+
 [[ -f /usr/bin/fdfind ]] && alias fd=fdfind
 
 [[ -z $LANG ]] && export LANG=en_US.UTF-8

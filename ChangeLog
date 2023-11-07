@@ -1,5 +1,8 @@
-0.5.0 - 2023-10-00
-    * Access to /dev/kvm (for token users).
+0.5.0 - 2023-11-00
+    * Configurable access to /dev/kvm
+    * Reverse Port via curl sf/port
+    * Token via curl sf/set -dtoken=<NAME>
+    * per LG traffic shaping
 
 0.4.9p3 - 2023-09-20
     * Helix (hx)

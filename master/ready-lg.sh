@@ -14,6 +14,8 @@ source /dev/shm/config-lg.txt || exit 255
 LID="$1"
 C_IP="$2"
 LG_PID="$3"
+USER_DL_RATE="$4"
+USER_UL_RATE="$5"
 LID_PROMPT_FN="/dev/shm/sf/self-for-guest/lg-${LID}/prompt"
 
 # Create 'empty' for ZSH's prompt to show WG EXIT
@@ -30,7 +32,12 @@ nsenter.u1000 -t "${LG_PID:?}" --setuid 0 --setgid 0 -n arp -s "${SF_RPC_IP}"   
 
 # 255.0.0.1 always points to guest's localhost: user can now set up a ssh -D1080 and connect with browser to
 # 255.0.0.1 and reach guest's 127.0.0.1.
+# iptables is u+s and does not need --setuid
 nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp --dst 255.0.0.1 -j DNAT --to-destination 127.0.0.1
+
+# Set egress limits per LG
+[[ -n $USER_UL_RATE ]] && nsenter.u1000 -t "${LG_PID:?}" --setuid 0 --setgid 0 -n tc qdisc add dev eth0 root cake bandwidth "${USER_UL_RATE}" dsthost
+
 set +e
 
 exit 0

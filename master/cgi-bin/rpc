@@ -6,6 +6,7 @@ WG_PORT_MIN=32768
 WG_PORT_MAX=65535
 WT_VER=1
 COLOR="always"
+ICON_ERROR=""
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_redis.sh
 
@@ -22,7 +23,7 @@ echo -en "Content-Type: text/plain\r\n\r\n"
 # STDERR is logged.
 BAIL()
 {
-	echo -e "$1"
+	echo -e "${ICON_ERROR}${RR}ERROR${N}: $1"
 	[[ -n $2 ]] && echo -e >&2 "[${CB}${LID:-$REMOTE_ADDR}${CN}] ${CR}$2${CN}$3"
 
 	exit 255
@@ -103,7 +104,7 @@ load_config()
 {
 	source /dev/shm/config.txt && return
 
-	BAIL "${R}ERROR${N}: Not ready. SF is still booting up..." "Failed to load: " "/dev/shm/config.txt"
+	BAIL "Not ready. SF is still booting up..." "Failed to load: " "/dev/shm/config.txt"
 }
 
 GenSecret()
@@ -310,10 +311,10 @@ net_init()
 	local arr
 
 	arr=($(echo "${LID_WGDIR}/wg-"*))
-	[[ ${#arr[@]} -gt 16 ]] && BAIL "${R}ERROR${N}: To many Peers. You must delete some first.
+	[[ ${#arr[@]} -gt 16 ]] && BAIL "To many Peers. You must delete some first.
 Use ${C}curl sf/net/list${N} to see them all.
 Use ${C}curl sf/net/del -d name=<NAME>${N} to delete <NAME>.
-Use ${C}curl sf/net/del -d name=all${N} to delete them all." "${R}PEERS-MAX${N} " "Limit: ${#arr[@]}"
+Use ${C}curl sf/net/del -d name=all${N} to delete them all." "${RR}PEERS-MAX${N} " "Limit: ${#arr[@]}"
 
 	[[ -n ${R_PORTSECRET} ]] && cmd_net_init_move "${R_PORTSECRET}"
 
@@ -346,10 +347,7 @@ Port ${R_PORT} is already in use. You can assign it to this server like so:\
 		write_portfile
 	}
 
-	[[ -e "/config/db/wg/wg-${R_WT_NAME}" ]] && {
-		echo -e "${R}ERROR${N}: '$R_WT_NAME' already exists. Delete it first with ${C}curl sf/net/del -d name=${R_WT_NAME}${N}"
-		exit
-	}
+	[[ -e "/config/db/wg/wg-${R_WT_NAME}" ]] && BAIL "'$R_WT_NAME' already exists. Delete it first with ${C}curl sf/net/del -d name=${R_WT_NAME}${N}"
 
 	# We do not need the peer's private key but it is more convenient
 	# to the user to show him one complete ./wiretap command line.
@@ -495,7 +493,7 @@ cmd_net_del()
 		exit
 	fi
 
-	[[ ! -f "${LID_WGDIR}/wg-${R_WT_NAME}" ]] && BAIL "${R}Not found${N}: ${R_WT_NAME}"
+	[[ ! -f "${LID_WGDIR}/wg-${R_WT_NAME}" ]] && BAIL "${RR}Not found${N}: ${R_WT_NAME}"
 	xrm "/config/db/wg/wg-${R_WT_NAME}" "${LID_WGDIR}/wg-${R_WT_NAME}"
 
 	echo -en "\
@@ -553,7 +551,7 @@ Use ${C}curl sf/net/up${N} to enable a new Exit Node."
 	[[ -e "${LID_WGNAME_FN}" ]] && {
 		name=$(<"${LID_WGNAME_FN}")
 		str="${F}[${G}connected${N}${F}]${N}"
-		[[ -n $is_not_connected ]] && str="${F}[${N}${R}EXIT Node is not connected${N}${F}]${N}"
+		[[ -n $is_not_connected ]] && str="${F}[${N}${RR}EXIT Node is not connected${N}${F}]${N}"
 		echo -e "\n${YY}Name${N}: ${Y}${name:-UNKNOWN}${N} ${str}"
 		### gvisor's DNAT used by WT is BROKEN
 		### https://github.com/sandialabs/wiretap/issues/18#issuecomment-1583106554
@@ -610,7 +608,7 @@ CheckGoodKey()
 
 	[[ -z $key ]] && return
 	[[ ${#key} -eq 44 ]] && return
-	BAIL "${R}ERROR${N}: Bad Key for ${opt}="
+	BAIL "Bad Key for ${opt}="
 }
 
 # Load LG specific configuration (by source IP)
@@ -645,7 +643,7 @@ wg_net_init()
 
 ERR_wg_help_exit()
 {
-	echo -e "${R}ERROR${N}: $1"
+	echo -e "${RR}ERROR${N}: $1"
 
 	cmd_wg_help
 	exit
@@ -656,7 +654,7 @@ cmd_port() {
 
 	load_lg
 	source "/dev/shm/sf/run/users/lg-${LID}/limits.txt"
-	[[ -z $SF_RPORT ]] && BAIL "💥 ${CR}ERROR${CN}: ${CDM}Please contact a SysCop to enable this feature for you.${CN}"
+	[[ -z $SF_RPORT ]] && BAIL "💥 ${RR}ERROR${CN}: ${M}Please contact a SysCop to enable this feature for you.${N}"
 
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
 	sleep 1  # Stop DoS attack: flood-requesting reverse ports
@@ -669,8 +667,8 @@ BLPOP portd:response-${LID} 5" | redr) || return
 
 	# The PortD add's a /sf/run/self/reverse_forward.
 	echo -en "\
-${CDM}Tip${CN}: ${CDC}${CF}Type ${CDC}cat /config/self/reverse_*${CN}.
-${CDG}👾 New reverse Port is ${CDY}${ipport}${CN}"
+${M}Tip${N}: Type ${C}cat /config/self/reverse_*${N}
+${G}👾 New reverse Port is ${Y}${ipport}${CN}"
 
 	# portd.sh automaticaly adds this to /config/self/reverse_*
 	exit
@@ -681,10 +679,12 @@ cmd_token() {
 	load_lg
 	source "/dev/shm/sf/run/users/lg-${LID}/limits.txt"
 
-	[[ -n $SF_TOKEN_PROHIBITED ]] && BAIL "💥 ${CR}ERROR${CN}: ${CDM}Please contact a SysCop to enable this feature for you.${CN}"
-	[[ ! -f "${token_fn}" ]] && { sleep 1; BAIL "💥 ${CR}ERROR${CN}: ${CDM}Token '${TOKEN_NAME}' does not exist.${CN}"; }
+	[[ -n $SF_TOKEN_PROHIBITED ]] && BAIL "${M}Please contact a SysCop to enable this feature for you.${N}"
+	[[ ! -f "${token_fn}" ]] && { sleep 1; BAIL "${M}Token '${R}${TOKEN_NAME}${M}' does not exist.${N}"; }
 
 	echo "${TOKEN_NAME}" >"/config/db/user/lg-${LID}/token"
+
+	echo -en "${G}🦋 Token set. ${N}Type ${C}halt${N} and log back in."
 
 	exit
 }
@@ -710,10 +710,10 @@ cmd_wg_up()
 	# Delete any EXIT or OUT 
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
 
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add '${WG_DEV}' (${err:0:64})." "Failed ${WG_DEV}" ": $err"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
-	[[ -n $R_OUT_IP4 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip address add dev "${WG_DEV}" "${R_OUT_IP4}" || BAIL "${R}ERROR${N}: Failed to assign IPv4 address '${R_OUT_IP4}'."; }
-	[[ -n $R_OUT_IP6 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add dev "${WG_DEV}" "${R_OUT_IP6}" || BAIL "${R}ERROR${N}: Failed to assign IPv6 address '${R_OUT_IP6}'."; }
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "Failed: ip link add '${WG_DEV}' (${err:0:64})." "Failed ${WG_DEV}" ": $err"
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "ip link set FAILED."
+	[[ -n $R_OUT_IP4 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip address add dev "${WG_DEV}" "${R_OUT_IP4}" || BAIL "Failed to assign IPv4 address '${R_OUT_IP4}'."; }
+	[[ -n $R_OUT_IP6 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add dev "${WG_DEV}" "${R_OUT_IP6}" || BAIL "Failed to assign IPv6 address '${R_OUT_IP6}'."; }
 
 	args=()
 	[[ -n $R_OUT_PSK ]] && {
@@ -721,7 +721,7 @@ cmd_wg_up()
 		echo "$R_OUT_PSK" >"/dev/shm/psk.$$"
 	}
 	echo "$R_WG_PRIVATE" >"/dev/shm/private.$$"
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "Failed: wg set (${err:0:128})"
 	rm -f "/dev/shm/private.$$" "/dev/shm/psk.$$"
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80 - 80)) up dev "${WG_DEV}"
 
@@ -789,7 +789,8 @@ GetFormVars
 	# COLOR is set (to 'always')
 	Y=$CDY
 	C=$CDC
-	R=$CR
+	R=$CDR
+	RR=$CR
 	G=$CDG
 	B=$CB
 	M=$CDM
@@ -797,6 +798,7 @@ GetFormVars
 	W=$CW
 	N=$CN
 	F=$CF
+	ICON_ERROR="💥 "
 }
 
 
@@ -809,7 +811,7 @@ GetFormVars
 [[ "${FCGI_CMD}" == "port" ]] && cmd_port
 [[ "${FCGI_CMD}" == "set" ]] && {
 	[[ -n $TOKEN_NAME ]] && cmd_token
-	BAIL "💥 ${CR}ERROR${CN}: ${CDM}Setting not found.${CN}"	
+	BAIL "${M}Setting not found.${N}"	
 }
 
 [[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
@@ -843,7 +845,7 @@ wg_net_init
 	CheckGoodKey "$R_WT_PRIVATE" "--exit_private"
 	CheckGoodKey "$R_WT_PUBLIC"  "--exit_public"
 
-	[[ -n $R_WT_PRIVATE ]] && [[ -n $R_WT_PUBLIC ]] && BAIL "${R}ERROR${N}: Set either PRIVATE or PUBLIC but not both."
+	[[ -n $R_WT_PRIVATE ]] && [[ -n $R_WT_PUBLIC ]] && BAIL "Set either PRIVATE or PUBLIC but not both."
 
 	# Sanitize 0.4.8rc1 bug where '172...' was '"172...' in .env
 	WG_IPS="${WG_IPS//[^a-fx0-9\/,:.]}"
@@ -871,14 +873,11 @@ wg_net_init
 	[[ ${ARGS[1]} == 'list' ]] && cmd_net_list
 
 	# NOT 'up' -> EXIT
-	[[ ${ARGS[1]} != 'up' ]] && { echo -e "${R}ERROR${N}: Unknown command."; cmd_net_help; }
+	[[ ${ARGS[1]} != 'up' ]] && { echo -e "${RR}ERROR${N}: Unknown command."; cmd_net_help; }
 
 	WT_NAME="$R_WT_NAME"
 
-	[[ -n $IS_NOCREAT ]] && [[ -n $WT_NAME ]] && [[ ! -f "${LID_WGDIR}/wg-${WT_NAME}" ]] && {
-		echo -e "${R}ERROR${N}: EXIT '${WT_NAME}' does not exist."
-		exit
-	}
+	[[ -n $IS_NOCREAT ]] && [[ -n $WT_NAME ]] && [[ ! -f "${LID_WGDIR}/wg-${WT_NAME}" ]] && BAIL "EXIT '${WT_NAME}' does not exist."
 
 	if [[ -z $WT_NAME ]] && [[ -f "${LID_WGNAME_FN}" ]]; then
 		is_already_up=1
@@ -896,7 +895,7 @@ wg_net_init
 		# HERE: No name supplied. Another WG is already UP. 
 		# nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip l sh "${WG_DEV}" &>/dev/null && {
 		name=$(<"${LID_WGNAME_FN}")
-		echo -e "${R}ERROR${N}: Exit Node ${G}${name}${N} is already UP."
+		echo -e "${RR}ERROR${N}: Exit Node ${G}${name}${N} is already UP."
 		net_print_example  "${name}"
 		net_print_commands "${name}"
 		exit 255
@@ -917,17 +916,17 @@ wg_net_init
 	# _far_ more efficient.)
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
 
-	err=$(nsenter -t "${WG_PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "${R}ERROR${N}: Failed: ip link add ${WG_DEV} (${err:0:32})." "Failed ${WG_DEV}" ": $err"
-	nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "${R}ERROR${N}: ip link set FAILED."
+	err=$(nsenter -t "${WG_PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "Failed: ip link add ${WG_DEV} (${err:0:32})." "Failed ${WG_DEV}" ": $err"
+	nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "ip link set FAILED."
 	echo "$WG_PRIVATE" >"/dev/shm/private.$$"
-	err=$(nsenter -t "${WG_PID}" -n wg set "${WG_DEV}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "${R}ERROR${N}: Failed: wg set (${err:0:128})"
+	err=$(nsenter -t "${WG_PID}" -n wg set "${WG_DEV}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "Failed: wg set (${err:0:128})"
 	rm -f "/dev/shm/private.$$"
 	# Move Interface to user's container:
-	err=$(nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" netns "${PID}" 2>&1) || BAIL "${R}ERROR${N}: Failed to move ${WG_DEV}." "Failed ${WG_DEV} netns $PID" ": $err"
+	err=$(nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" netns "${PID}" 2>&1) || BAIL "Failed to move ${WG_DEV}." "Failed ${WG_DEV} netns $PID" ": $err"
 
 	# Configure interface after moving
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -4 address add "${WG_IP}" dev "${WG_DEV}"
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${CR}ERROR${CN}: ip -6: $err"
+	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${RR}ERROR${N}: ip -6: $err"
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80)) up dev "${WG_DEV}"
 
 	set_route

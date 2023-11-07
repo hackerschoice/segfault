@@ -181,6 +181,7 @@ export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 ==> Generate your own list (see THC's Tips & Tricks).
 ==> Use ${CDC}touch ${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt${CN} to stop this warning."
 }
+chmod 644 "${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt" 2>/dev/null
 
 [[ -z $SF_OVERLAYDIR ]] && [[ -d "${SF_BASEDIR}/docker/overlay2" ]] && export SF_OVERLAYDIR="${SF_BASEDIR}/docker/overlay2"
 

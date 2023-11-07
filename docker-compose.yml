@@ -107,7 +107,7 @@ services:
     restart: ${SF_RESTART:-on-failure}
     cgroup_parent: sf.slice
     volumes:
-      - "${SF_BASEDIR:-.}/config/etc/logpipe/config.yaml:/app/config.yaml:ro"    
+      - "${SF_BASEDIR:-.}/config/etc/logpipe/:/app/config/:ro"    
       - "/dev/shm/sf/run/logpipe/:/app/sock/:rw"
       
   sf-portd:

@@ -21,7 +21,7 @@ type LogPipe struct {
 func main() {
 	lp := LogPipe{}
 
-	fbytes, ferr := os.ReadFile("config.yaml")
+	fbytes, ferr := os.ReadFile("./config/config.yaml")
 	if ferr == nil {
 		err := yaml.Unmarshal(fbytes, &lp)
 		if err != nil {
@@ -46,6 +46,8 @@ func listenOnSocket(socketFile string) {
 		fmt.Println("Error creating listener:", err)
 		return
 	}
+
+	os.Chmod(socketFile, 0777)
 
 	for {
 		conn, err := listener.Accept()

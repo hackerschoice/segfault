@@ -56,7 +56,7 @@ _log()
 	# Replace ' with '"'"'
 	str="${*//\'/\'\"\'\"\'}"
 	# NOTE: segfault.log must be owned 1000:1000
-	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${CDM}${LID}${CN}] $str';} 2>/dev/null >>'/sf/run/logs/segfault.log'"
+	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${CDM}${LID}${CN}] $str';} 2>/dev/null >>'${SF_RUN_DIR}/logs/segfault.log'"
 }
 
 LOG(){ _log "" "$@"; }
@@ -197,6 +197,12 @@ exec_errnull()
 	fi
 }
 
+logpipe() {
+	[[ ! -e "${SF_RUN_DIR}/logpipe/logPipe.sock" ]] && return
+
+	echo "$*" | exec_devnull unix-socket-client 
+}
+
 # Overcoming a restricted shell. Write $1 to file in $2
 # tofile "foobar \$HOME \"|';id;" world.txt
 tofile()
@@ -319,7 +325,7 @@ init_vars()
 	init_defaults
 	init_emu
 
-	[[ -f "/sf/run/logs/segfault.log" ]] && IS_LOGGING=1
+	[[ -f "${SF_RUN_DIR}/logs/segfault.log" ]] && IS_LOGGING=1
 
 	NOW="$(date +%s)"
 	[[ -z $YOUR_IP ]] && {
@@ -341,11 +347,13 @@ init_vars()
 	SF_USER_DB_DIR="${db_dir}/user/lg-${LID}"
 	SF_BLACKLIST_DIR="${db_dir}/banned"
 	SF_TOKEN_DIR="${db_dir}/token"
+	SF_LIMITS_DIR="${db_dir}/limits"
 	HNLID_DIR="${db_dir}/hn"
 
-	SF_RUN_DIR="/sf/run/"
+	SF_RUN_DIR="/sf/run"
 	LG_PID_DIR="${SF_RUN_DIR}/pids"
 	LG_PID_FILE="${LG_PID_DIR}/pid-${LID}.$$"
+	LG_RUN_DIR="${SF_RUN_DIR}/users/lg-${LID}"
 	TS_LOGOUT_FILE="${SF_USER_DB_DIR}/ts_logout"
 	TS_LOGIN_FILE="${SF_USER_DB_DIR}/ts_login"
 	TS_RUN_FILE="${SF_USER_DB_DIR}/ts_run"
@@ -365,6 +373,7 @@ init_vars()
 		fi
 	fi
 
+	xmkdir "${LG_RUN_DIR}"
 	# Check if we are still in sshd's Network Namespace
 	IS_SSHD_NS_NET=1
 	[[ ${SF_NS_NET:?} != "$(readlink /proc/self/ns/net)" ]] && unset IS_SSHD_NS_NET # Already inside LG's Network Namespace
@@ -372,21 +381,6 @@ init_vars()
 	trap cb_sighup SIGHUP
 	trap cb_sigterm SIGTERM
 	trap cb_sighup SIGPIPE
-}
-
-mk_portforward()
-{
-	local ipport
-
-	ipport=$(echo -e "DEL portd:response-${LID}\"\n\
-RPUSH portd:blcmd \"getport ${LID}\"\n\
-BLPOP portd:response-${LID} 5" | redr) || return
-	# DEBUGF "ipport='$ipport'"
-	ipport="${ipport##*$'\n'}"
-	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to get Reverse Port Forward (ipport='$ipport')"; return; }
-
-	# The PortD add's a /sf/run/self/reverse_forward.
-	DEBUGF "Reverse Port Forward: $ipport"
 }
 
 # Called when a new server is created.
@@ -514,7 +508,7 @@ sshd_to_ns()
 
 	# Load PID of container's init process (uid=1000)
 	[[ -z $LG_PID ]] && {
-		LG_PID=$(<"/sf/run/pids/lg-${LID}.pid")
+		LG_PID=$(<"${LG_PID_DIR}/lg-${LID}.pid")
 		[[ -z $LG_PID ]] && ERREXIT 222 "Init PID not found."
 	}
 	ln -sf "/proc/${LG_PID}/ns/net" "/dev/shm/ns-net-${PPID}"
@@ -532,12 +526,16 @@ spawn_shell_exit()
 
 	sem_release
 
+	# Add a log entry into elastisearch using logpipe
+	logpipe "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}||C_ISO:${YOUR_COUNTRY_ISO}|CONTINENT=${YOUR_CONTINENT_CODE}|"
+
 	# Update current IP:
 	tofile "${YOUR_IP_DISPLAY:?}" "/config/self-for-guest/lg-${LID}/ip"
-	tofile "${YOUR_IP:?}" "/sf/run/ips/lg-${LID}.ip"
+	tofile "${YOUR_IP:?}" "${SF_RUN_DIR}/ips/lg-${LID}.ip"
 	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
 	# Request a reverse Port Forward
-	[[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && mk_portforward "${LID}"
+	[[ -n $SF_RPORT_ON_LOGIN ]] && [[ -n $SF_RPORT ]] && [[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && exec_devnull docker exec --user 0:0 "lg-${LID}" curl -s sf/port
+
 
 	# Warn user if this is the last server by IP (after semaphore has been released)
 	[[ -n $IS_SHOW_LAST_SERVER ]] && show_last_server "$IS_SHOW_LAST_SERVER"
@@ -606,13 +604,22 @@ BLPOP \"encfs-$$-${LID}-X\" 10" | red) || return 255
 	return 0
 }
 
+load_limits_fn() {
+	local fn=$1
+	[[ ! -f "$fn" ]] && return
+
+	eval "$(<"${fn}")"
+}
+
 load_limits()
 {
 	# Set the default values.
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
 	# then root is mounted read-only
-	#SF_USER_ROOT_FS_SIZE=2GB
-	SF_USER_ROOT_FS_INODE=65536
+	# SF_USER_ROOT_FS_SIZE=8g
+	# SF_USER_ROOT_FS_INODE=65536
+	# SF_USER_FS_SIZE=16g
+	# SF_USER_FS_INODE=65536
 	SF_USER_MEMORY_LIMIT=256m
 	SF_USER_PIDS_LIMIT=128
 	SF_USER_CPU_SHARE=8
@@ -620,11 +627,12 @@ load_limits()
 	SF_USER_NICE_SCORE=10
 	SF_LIMIT_SERVER_BY_IP=8
 	SF_USER_BLKIO_WEIGHT=100
-	SF_ULIMIT_NOFILE="1024:8192"
+	SF_ULIMIT_NOFILE="8192"
 	SF_USER_SYN_BURST=8196
 	SF_USER_SYN_LIMIT=1
 	SF_USER_DL_BURST=8gb
 	SF_USER_UL_BURST=8gb
+	SF_RPORT=1
 
 	# No new shells until load goes below STRAIN*NPROC.
 	# Should be larger than ContainerGuard's strain when CG starts killing
@@ -634,7 +642,13 @@ load_limits()
 	# dd bs=1M count=10024 if=/dev/zero of=/dump.dat oflag=direct status=progress
 
 	# Source system wide limits
-	[[ -f "${SF_ETCSF_DIR}/sf.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf.conf")"
+	load_limits_fn "${SF_ETCSF_DIR}/sf.conf"
+
+	# Source continent specific limits
+	load_limits_fn "${SF_LIMITS_DIR}/limits-continent-${YOUR_CONTINENT_CODE}.conf"
+
+	# Source country specific limits
+	load_limits_fn "${SF_LIMITS_DIR}/limits-country-${YOUR_COUNTRY_ISO}.conf"
 
 	# Then source token specific limits (and write TOKEN information)
 	if [[ -z $SF_TOKEN ]]; then
@@ -666,10 +680,17 @@ load_limits()
 	}
 
 	# Then source user specific limits
-	[[ -f "${SF_USER_DB_DIR}/limits.conf" ]] && eval "$(<"${SF_USER_DB_DIR}/limits.conf")"
+	load_limits_fn "${SF_USER_DB_DIR}/limits.conf"
 
 	# Then source IP specific limits
-	[[ -f "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf" ]] && eval "$(<"${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf")"
+	load_limits_fn "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf"
+
+	# Add SF docker args to LG container.
+	# DISABLED: otherwise, an attacker with write access to token/limits (e.g. through a web user-management interface) could own the PHY.
+	# [[ ${#SF_USER_DOCKER_ARGS[@]} -gt 0 ]] && DOCKER_ARGS+=("${SF_USER_DOCKER_ARGS[@]}")
+
+	# User gets a reverse port on login
+	[[ -n $SF_RPORT_ON_LOGIN ]] && SF_RPORT=1
 
 	# Set swap limit if not set in sf.conf
 	[[ -z $SF_USER_MEMORY_AND_SWAP_LIMIT ]] && SF_USER_MEMORY_AND_SWAP_LIMIT="$SF_USER_MEMORY_LIMIT"
@@ -692,7 +713,7 @@ load_limits()
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
 	DOCKER_ARGS+=("--blkio-weight=${SF_USER_BLKIO_WEIGHT}")
 
-	[[ -n $SF_USER_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
+	[[ -n $SF_USER_DEV_KVM ]] && [[ -e /dev/kvm ]] && DOCKER_ARGS+=("--device=/dev/kvm")
 
 	if [[ -z $SF_USER_ROOT_FS_SIZE ]]; then
 		DOCKER_ARGS+=("--read-only")
@@ -708,6 +729,8 @@ load_limits()
 		}
 	fi
 
+	write_lg_limits
+
 	# NOTE: This is no longer used because /dev/shm is now mounted as tmpfs to make UML work
 	# [[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
@@ -716,11 +739,15 @@ load_limits()
 	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
 }
 
-# Publish user limits to self/limits
+# Publish user limits to self/limits, human readable.
 write_guest_limits()
 {
 	local is_token
 	local is_ro
+	local tx;
+
+	tx="${SF_USER_UL_RATE}"
+	[[ -z $SF_USER_UL_RATE ]] && tx="${SF_MAXOUT}"
 
 	is_token="no"
 	[[ -n $SF_TOKEN ]] && is_token="yes"
@@ -737,12 +764,24 @@ SHM_SIZE=${SF_SHM_SIZE}
 PIDS=${SF_USER_PIDS_LIMIT}
 MEMORY=${SF_USER_MEMORY_LIMIT}
 NOFILE=${SF_ULIMIT_NOFILE}
-TX=${SF_MAXOUT}
+TX=${tx:-unlimited}
 RX=${SF_MAXIN:-unlimited}
 SYN_BURST=${SF_USER_SYN_BURST}
 SYN_RATE=${SF_USER_SYN_LIMIT}/sec
 SERVERS=${SF_LIMIT_SERVER_BY_IP}
 GREETINGS='${SF_SYSCOP_MSG}'" "/config/self-for-guest/lg-${LID}/limits"
+}
+
+# Write limits to file that can be loaded by other processes (like rpc and encfsd)
+write_lg_limits() {
+	tofile "\
+SF_USER_ROOT_FS_SIZE=\"$SF_USER_ROOT_FS_SIZE\"
+SF_USER_ROOT_FS_INODE=\"$SF_USER_ROOT_FS_INODE\"
+SF_USER_FS_SIZE=\"$SF_USER_FS_SIZE\"
+SF_USER_FS_INODE=\"$SF_USER_FS_INODE\"
+SF_USER_UL_RATE=\"$SF_USER_UL_RATE\"
+SF_RPORT=\"$SF_RPORT\"
+SF_USER_IMMUNE=\"$SF_USER_IMMUNE\"" "${LG_RUN_DIR}/limits.txt"
 }
 
 check_banned()
@@ -975,6 +1014,9 @@ check_limit_server_by_ip()
 mk_geoip()
 {
 	local ip
+	local country
+	local country_iso
+	local continent_code
 	ip="${1}"
 	[[ ! -f /sf/share/GeoLite2-City.mmdb ]] && return
 	[[ -z ${ip} ]] && return
@@ -984,6 +1026,16 @@ mk_geoip()
 	res=$(mmdbinspect --db /sf/share/GeoLite2-City.mmdb "${ip}")
 	[[ -z $SF_HIDEIP ]] && city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
 	country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
+	country_iso=$(echo "$res" | jq -r '.[0].Records[0].Record.country.iso_code | select(. != null)')
+	continent_code=$(echo "$res" | jq -r '.[0].Records[0].Record.country.iso_code | select(. != null)')
+
+	country_iso="${country_iso,,}"
+	country_iso="${country_iso//[^a-z]}"
+	YOUR_COUNTRY_ISO="${country_iso:0:2}"
+
+	continent_code="${continent_code,,}"
+	continent_code="${continent_code//[^a-z]}"
+	YOUR_CONTINENT_CODE="${continent_code:0:6}"
 
 	unset YOUR_GEOIP
 	if [[ -n $city ]] && [[ -n $country ]]; then
@@ -1091,9 +1143,6 @@ export LID
 
 [[ -z $SF_SEED ]] && ERREXIT 244 "SF_SEED= is not set."
 
-# Show system messages
-sysmsg "/config/host/etc/loginmsg-all.sh"
-
 # Call init_vars() after LID is set
 init_vars
 # Load CPU/PID/OOM limits (systemwide or user specific)
@@ -1102,6 +1151,10 @@ load_limits
 check_banned
 
 mk_hostname
+
+# Show system messages
+sysmsg "/config/host/etc/loginmsg-all.sh"
+
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
 LG_SEM="sema:lg-$(( (SF_NUM + SF_RAND_OFS) % SF_HM_SIZE_LG ))"
 
@@ -1153,6 +1206,8 @@ else
 	tofile "$SF_HOSTNAME" "${SF_USER_DB_DIR}/hostname"
 	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}" || ERREXIT 231 "tofile: Failed to create hnlid_file"
+	# Add a log entry into elastisearch using logpipe
+	logpipe "Type:Create|LID:${LID}|Hostname:${SF_HOSTNAME}|C_ISO:${YOUR_COUNTRY_ISO}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
@@ -1295,7 +1350,7 @@ CID=${arr[0]}
 LG_PID=${arr[1]}
 C_IP=${arr[2]}
 [[ -z $C_IP ]] && ERREXIT 249 "Could not get container's IP address."
-tofile "${LG_PID:?}" "/sf/run/pids/lg-${LID}.pid"
+tofile "${LG_PID:?}" "${LG_PID_DIR}/lg-${LID}.pid"
 
 # Set up Root FS / inode limits and move encfsd to lg's cgroup
 setup_encfsd || STOPEXIT "${LID}" 244 "Could not set FS quota."
@@ -1308,7 +1363,7 @@ res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || STOPEXIT "$LID" 252 "Fa
 exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" "$SF_USER_DL_RATE" "$SF_USER_DL_BURST" "$SF_USER_UL_RATE" "$SF_USER_UL_BURST" || STOPEXIT "${LID}" 251 "Faild to set syn-limit...";
 
 # Ready container
-exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."
+exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" "${SF_USER_DL_RATE}" "${SF_USER_UL_RATE}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."
 
 # Setup container (within container's namespace)
 unset WGNAME_UP
@@ -1318,9 +1373,6 @@ touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 
 echo_pty -e "....[${CG}OK${CN}]"
-
-# Add a log entry into elastisearch using logpipe
-echo "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}|" | unix-socket-client &> /dev/null
 
 # Spawn shell
 spawn_shell_exit "$@"

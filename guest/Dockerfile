@@ -49,6 +49,7 @@ RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
 		jq \
 		less \
 		openssh-sftp-server \
+		pipx \
 		python3-pip \
 		screen \
 		sharutils \
@@ -227,7 +228,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		p7zip-full \
 		peass \
 		pip \
-		pipx \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \

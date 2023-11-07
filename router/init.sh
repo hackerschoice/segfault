@@ -246,9 +246,10 @@ ipt_set()
 	#
 	# The only way around this is to advertise a smaller MSS for TCP and hope for the best
 	# for all other protocols. Ultimately we need bad routers on the Internet to disappear.
-	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1380
+	# 1500 - 80 - 40
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss $((SF_GUEST_MTU - 40))
 	# Mode when TOR goes via VPN (rarely used)
-	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s "${TOR_IP}" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1380
+	iptables -A FORWARD -i "${DEV_GW}" -o "${DEV_GW}" -s "${TOR_IP}" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss $((SF_GUEST_MTU - 40))
 
 	# -----BEGIN DIRECT SSH-----
 	# Note: The IP addresses are FLIPPED because we use DNAT/SNAT/MASQ in PREROUTING

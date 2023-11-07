@@ -44,6 +44,7 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/etc/sf:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/encfsd/user:/sf/run/encfsd/user"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_OVERLAYDIR:-/var/lib/docker/overlay2}:/var/lib/docker/overlay2:ro"
@@ -253,7 +254,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
-    # entrypoint: sleep infinity  # FIXME-2022
+    # entrypoint: sleep infinity  # FIXME-TESTING
 
 
   mullvad:
@@ -421,6 +422,7 @@ services:
       - SF_NORDVPN_IP=${SF_NORDVPN_IP:?}
       - SF_CRYPTOSTORM_IP=${SF_CRYPTOSTORM_IP:?}
       - SF_MULLVAD_IP=${SF_MULLVAD_IP:?}
+      - SF_GUEST_MTU=${SF_GUEST_MTU:-1420}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
@@ -458,6 +460,7 @@ services:
       - SF_MULLVAD_ROUTE=${SF_MULLVAD_ROUTE:?}
       - SF_DNS=${SF_NET_VPN_DNS_IP}
       - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
+      - SF_HOST_MTU=${SF_HOST_MTU:-1500}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}:/dev/shm/sf"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
@@ -638,7 +641,7 @@ services:
       - SF_DIRECT
       - SF_DEBUG
       - SF_BACKING_FS
-      # - SF_DEBUG_SSHD=1  # FIXME-2022 sshd debug
+      # - SF_DEBUG_SSHD=1  # FIXME-TESTING sshd debug
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"
@@ -650,8 +653,8 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
-    # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-2022
-      # - /research/segfault/host:/host:ro # FIXME-2022 sshd debug
+    # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-TESTING
+      # - /research/segfault/host:/host:ro # FIXME-TESTING sshd debug
 
   nginx:
     image: nginx
@@ -671,9 +674,17 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
 networks:
+  # Force docker0 
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
+
   vpn-net:
     name: sf-vpn
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
     ipam:
       config:
       - subnet: ${SF_NET_VPN:?}
@@ -684,6 +695,8 @@ networks:
     # expects all host traffic to arrive at SF_NET_DIRECT_ROUTE_IP.
     name: A-sf-direct
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
     ipam:
       config:
       - subnet: ${SF_NET_DIRECT:?}
@@ -692,6 +705,8 @@ networks:
     # sf-host and gsnc
     name: sf-access
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
     ipam:
       config:
       - subnet: ${SF_NET_ACCESS:?}
@@ -699,6 +714,8 @@ networks:
   dmz-net:
     name: sf-dmz
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
     ipam:
       config:
         - subnet: ${SF_NET_DMZ:?}
@@ -706,6 +723,8 @@ networks:
   dns-doh-net:
     name: sf-dns-doh
     driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
     ipam:
       config:
         - subnet: ${SF_NET_DOH:?}
@@ -715,7 +734,7 @@ networks:
     name: sf-guest
     driver: bridge
     driver_opts:
-      com.docker.network.driver.mtu: 1420
+      com.docker.network.driver.mtu: ${SF_GUEST_MTU:-1420}
     # Can not use 'internal'. This will only remvoe the host's bridge
     # but this also means we can not route via 10.11.0.* even if we can
     # ping the router.

@@ -154,6 +154,8 @@ warn_outdated()
 load_env
 [[ -z $SF_DATADIR ]] && SF_DATADIR="${SF_BASEDIR}/data"
 [[ -z $SF_SHMDIR ]] && SF_SHMDIR="/dev/shm/sf"
+[[ -z $SF_HOST_MTU ]] && SF_HOST_MTU=1500
+export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 
 [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
 [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"

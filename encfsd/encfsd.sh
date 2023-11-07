@@ -124,7 +124,6 @@ encfs_mount_server()
 load_limits()
 {
 	local lid
-	local token
 	lid="$1"
 
 	unset SF_USER_FS_SIZE
@@ -132,16 +131,7 @@ load_limits()
 	unset SF_USER_ROOT_FS_SIZE
 	unset SF_USER_ROOT_FS_INODE
 	
-	# First source global	
-	[[ -f "/config/etc/sf/sf.conf" ]] && eval "$(grep ^SF_ "/config/etc/sf/sf.conf")"
-
-	# Then Token
-	[[ -f "/config/db/user/lg-${lid}/token" ]] && {
-		token=$(<"/config/db/user/lg-${lid}/token")
-		source "/config/db/token/token-${token,,}.conf" 2>/dev/null
-	}
-	# Then source user specific limits
-	[[ -f "/config/db/user/lg-${lid}/limits.conf" ]] && eval "$(grep ^SF_ "/config/db/user/lg-${lid}/limits.conf")"
+	source "/sf/run/users/lg-${lid}/limits.txt"
 }
 
 dir2prjid()

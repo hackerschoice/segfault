@@ -120,7 +120,7 @@ ERREXIT()
 
 	LOG_E "$@"
 	shift 1
-	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
+	[[ -n $1 ]] && echo -e >&2 "💥 ${CR}ERROR:${CN} $*"
 
 	sem_release
 	logout
@@ -297,6 +297,7 @@ init_defaults()
 	# SF_WWW_ROOT_DIR="/sec/www-root"
 	SF_CONFIG_DIR="/config/host"
 	SF_ETCSF_DIR="/config/host/etc/sf"
+	SF_ETCMSG_DIR="/config/host/etc/msg"
 	SF_CFG_GUEST_DIR="${SF_SHMDIR}/config-for-guest" # Mounted to /config/guest
 	SF_GUEST_SELFDIR="${SF_SHMDIR}/self-for-guest"    # Mounted to /config/self
 	SF_ENCFS_SEC_DIR="${SF_SHMDIR}/encfs-sec"
@@ -613,6 +614,9 @@ load_limits_fn() {
 
 load_limits()
 {
+	local prefix
+	local is_need_update_token
+	local is_token_loaded
 	# Set the default values.
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
 	# then root is mounted read-only
@@ -650,33 +654,34 @@ load_limits()
 	# Source country specific limits
 	load_limits_fn "${SF_LIMITS_DIR}/limits-country-${YOUR_COUNTRY_ISO}.conf"
 
-	# Then source token specific limits (and write TOKEN information)
+	prefix="${SF_TOKEN_PREFIX//[^a-z]}-"
 	if [[ -z $SF_TOKEN ]]; then
+		# HERE: SF_TOKEN _not_ supplied
 		[[ -f "${SF_USER_DB_DIR}/token" ]] && {
 			SF_TOKEN="$(<"${SF_USER_DB_DIR}/token")"
-			# Delete user token if token no longer exists
-			# [[ ! -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]] && {
-				# rm -f "${SF_USER_DB_DIR}/token"
-				# unset SF_TOKEN
-			# }
+			is_token_loaded=1
 		}
 	else
 		# HERE: SF_TOKEN is user supplied.
-		if [[ ! -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]]; then
-			# HERE: Token is INVALID
-			unset SF_TOKEN
-		else
-			# Update TOKEN
-			tofile "${SF_TOKEN}" "${SF_USER_DB_DIR}/token"
-		fi
+		[[ ! -f "${SF_TOKEN_DIR}/token-${prefix}${SF_TOKEN,,}.conf" ]] && ERREXIT 255 "The TOKEN '${CDY}${SF_TOKEN}${CN}' is not valid."
+
+		is_need_update_token=1
 	fi
+
 	[[ -n $SF_TOKEN ]] && {
-		if [[ -f "${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf" ]]; then
-			eval "$(<"${SF_TOKEN_DIR}/token-${SF_TOKEN,,}.conf")"
+		# HERE: Got a TOKEN (user supplied or loaded from {lgdir}/token)
+		if [[ -f "${SF_TOKEN_DIR}/token-${prefix}${SF_TOKEN,,}.conf" ]]; then
+			eval "$(<"${SF_TOKEN_DIR}/token-${prefix}${SF_TOKEN,,}.conf")"
+			unset SF_NEED_TOKEN
 		else
 			# token-<TOKEN>.conf does not exist.
 			unset SF_TOKEN
 		fi
+	}
+
+	[[ -n $SF_TOKEN ]] && [[ -n $SF_TOKEN_IMMUTABLE ]] && [[ -n $is_need_update_token ]] && {
+		# Update TOKEN
+		tofile "${SF_TOKEN}" "${SF_USER_DB_DIR}/token"
 	}
 
 	# Then source user specific limits
@@ -684,6 +689,15 @@ load_limits()
 
 	# Then source IP specific limits
 	load_limits_fn "${SF_ETCSF_DIR}/sf-${YOUR_IP}.conf"
+
+	# Check if TOKEN is needed.
+	[[ -n $SF_NEED_TOKEN ]] && {
+		fn="${SF_ETCMSG_DIR}/token-needed-${SF_NEED_TOKEN//[^a-z._]}"
+		# Display a message if TOKEN is needed
+		echo -e "💥 ${$CR}ERROR${CN}: A TOKEN is needed to use the system. Please contact a SysCop to get one."
+		[[ -e "${fn} " ]] && source "${fn}"
+		exit 255
+	}
 
 	# Add SF docker args to LG container.
 	# DISABLED: otherwise, an attacker with write access to token/limits (e.g. through a web user-management interface) could own the PHY.
@@ -781,6 +795,7 @@ SF_USER_FS_SIZE=\"$SF_USER_FS_SIZE\"
 SF_USER_FS_INODE=\"$SF_USER_FS_INODE\"
 SF_USER_UL_RATE=\"$SF_USER_UL_RATE\"
 SF_RPORT=\"$SF_RPORT\"
+SF_TOKEN_IMMUTABLE=\"$SF_TOKEN_IMMUTABLE\"
 SF_USER_IMMUNE=\"$SF_USER_IMMUNE\"" "${LG_RUN_DIR}/limits.txt"
 }
 
@@ -1145,6 +1160,9 @@ export LID
 
 # Call init_vars() after LID is set
 init_vars
+
+# Get GeoIP, Country and Continent
+mk_geoip "${YOUR_IP}"
 # Load CPU/PID/OOM limits (systemwide or user specific)
 load_limits
 # Check if IP is banned
@@ -1170,7 +1188,6 @@ check_limit_server_by_ip
 # Check if share got unmounted (e.g. EncFS died)
 [[ ! -f "${SF_SEC_DIR}/.IS-ENCRYPTED" ]] && ERREXIT 243 "System not ready yet (wrong EncFS password. Please inform the admin to set correct SF_SEED)"
 
-mk_geoip "${YOUR_IP}"
 
 # Execute under "root" (uid=1001) context:
 [[ ! -d "${HNLID_DIR}" ]] && { mkdir -p "${HNLID_DIR}" || ERREXIT; }

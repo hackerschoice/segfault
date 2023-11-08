@@ -402,7 +402,7 @@ wt_up()
 Alternatively use ${CDM}WireGuard:${CDC}
     ${CMD_PKILL} '${killname}'
     export TYPE=wireguard
-    X=\"\$X\" bash -c \"\$(curl -fsSL thc.org/sfwg)\"${CN}"
+    X=\"\$X\" bash -c \"\$(curl -fsSL https://thc.org/sfwg)\"${CN}"
     }
 
     echo -e "\
@@ -411,7 +411,7 @@ ${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}[updated]${CN}${pidstr}
 }
 
 [[ -z $X ]] && ERREXIT 255 "The variable ${CDY}X=${CN} is not set. Try
-    ${CDC}X=<YourConfigurationString> bash -c \"\$(curl -fsSL thc.org/sfwg)\"${CN}"
+    ${CDC}X=<YourConfigurationString> bash -c \"\$(curl -fsSL https://thc.org/sfwg)\"${CN}"
 
 x2data
 

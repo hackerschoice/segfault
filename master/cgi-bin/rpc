@@ -129,7 +129,7 @@ To connect ${G}${name}${N} use this command on the LINUX Exit Node:
 ${C}X='${WT_VER}-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
 X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
-DL='curl -fsSL thc.org/sfwg || wget --no-verbose -qO- thc.org/sfwg'
+DL='curl -fsSL https://thc.org/sfwg || wget --no-verbose -qO- https://thc.org/sfwg'
 X=\"\$X\" bash -c \"\$(sh -c \"\$DL\")\"${N}
 or this command on the WINDOWS Exit Node:
 ${CY}${F}\$env:X='${WT_VER}-${WT_PRIVATE}'
@@ -679,7 +679,7 @@ cmd_token() {
 	load_lg
 	source "/dev/shm/sf/run/users/lg-${LID}/limits.txt"
 
-	[[ -n $SF_TOKEN_PROHIBITED ]] && BAIL "${M}Please contact a SysCop to enable this feature for you.${N}"
+	[[ -n $SF_TOKEN_IMMUTABLE ]] && BAIL "${M}Please contact a SysCop to enable this feature for you.${N}"
 	[[ ! -f "${token_fn}" ]] && { sleep 1; BAIL "${M}Token '${R}${TOKEN_NAME}${M}' does not exist.${N}"; }
 
 	echo "${TOKEN_NAME}" >"/config/db/user/lg-${LID}/token"

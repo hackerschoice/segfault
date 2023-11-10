@@ -528,7 +528,7 @@ spawn_shell_exit()
 	sem_release
 
 	# Add a log entry into elastisearch using logpipe
-	logpipe "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}||C_ISO:${YOUR_COUNTRY_ISO}|CONTINENT=${YOUR_CONTINENT_CODE}|"
+	logpipe "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}||C_ISO:${YOUR_COUNTRY_ISO^^}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 
 	# Update current IP:
 	tofile "${YOUR_IP_DISPLAY:?}" "/config/self-for-guest/lg-${LID}/ip"
@@ -1224,7 +1224,7 @@ else
 	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}" || ERREXIT 231 "tofile: Failed to create hnlid_file"
 	# Add a log entry into elastisearch using logpipe
-	logpipe "Type:Create|LID:${LID}|Hostname:${SF_HOSTNAME}|C_ISO:${YOUR_COUNTRY_ISO}|CONTINENT=${YOUR_CONTINENT_CODE}|"
+	logpipe "Type:Create|LID:${LID}|Hostname:${SF_HOSTNAME}|C_ISO:${YOUR_COUNTRY_ISO^^}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"

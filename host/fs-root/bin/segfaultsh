@@ -326,7 +326,6 @@ init_vars()
 	init_defaults
 	init_emu
 
-	[[ -f "${SF_RUN_DIR}/logs/segfault.log" ]] && IS_LOGGING=1
 
 	NOW="$(date +%s)"
 	[[ -z $YOUR_IP ]] && {
@@ -373,6 +372,8 @@ init_vars()
 			SF_CPUS=4
 		fi
 	fi
+
+	[[ -f "${SF_RUN_DIR}/logs/segfault.log" ]] && IS_LOGGING=1
 
 	xmkdir "${LG_RUN_DIR}"
 	# Check if we are still in sshd's Network Namespace
@@ -455,8 +456,8 @@ ${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 	sysmsg "/config/host/etc/logoutmsg-all.sh"
 
 	echo -e "\
-RTFM             : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
-GOODBYE          : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
+📖 RTFM           : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
+🤗 GOODBYE        : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
 	[[ -z $SF_IS_NEW_SERVER ]] && return
 
 	prompt_wait_yN 10 "Would you like to see your ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}?" || return
@@ -528,7 +529,7 @@ spawn_shell_exit()
 	sem_release
 
 	# Add a log entry into elastisearch using logpipe
-	logpipe "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}||C_ISO:${YOUR_COUNTRY_ISO}|CONTINENT=${YOUR_CONTINENT_CODE}|"
+	logpipe "Type:Login|LID:${LID}|Hostname:${SF_HOSTNAME}|IPHASH:${YOUR_IP_HASH}|C_ISO:${YOUR_COUNTRY_ISO^^}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 
 	# Update current IP:
 	tofile "${YOUR_IP_DISPLAY:?}" "/config/self-for-guest/lg-${LID}/ip"
@@ -616,7 +617,6 @@ load_limits()
 {
 	local prefix
 	local is_need_update_token
-	local is_token_loaded
 	# Set the default values.
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
 	# then root is mounted read-only
@@ -634,8 +634,6 @@ load_limits()
 	SF_ULIMIT_NOFILE="8192"
 	SF_USER_SYN_BURST=8196
 	SF_USER_SYN_LIMIT=1
-	SF_USER_DL_BURST=8gb
-	SF_USER_UL_BURST=8gb
 	SF_RPORT=1
 
 	# No new shells until load goes below STRAIN*NPROC.
@@ -652,18 +650,19 @@ load_limits()
 	load_limits_fn "${SF_LIMITS_DIR}/limits-continent-${YOUR_CONTINENT_CODE}.conf"
 
 	# Source country specific limits
-	load_limits_fn "${SF_LIMITS_DIR}/limits-country-${YOUR_COUNTRY_ISO}.conf"
+	load_limits_fn "${SF_LIMITS_DIR}/limits-country-${YOUR_COUNTRY_ISO,,}.conf"
 
-	prefix="${SF_TOKEN_PREFIX//[^a-z]}-"
+	unset prefix
+	[[ -n $SF_TOKEN_PREFIX ]] && prefix="${SF_TOKEN_PREFIX//[^a-z]}-"
 	if [[ -z $SF_TOKEN ]]; then
 		# HERE: SF_TOKEN _not_ supplied
 		[[ -f "${SF_USER_DB_DIR}/token" ]] && {
 			SF_TOKEN="$(<"${SF_USER_DB_DIR}/token")"
-			is_token_loaded=1
 		}
 	else
 		# HERE: SF_TOKEN is user supplied.
 		[[ ! -f "${SF_TOKEN_DIR}/token-${prefix}${SF_TOKEN,,}.conf" ]] && ERREXIT 255 "The TOKEN '${CDY}${SF_TOKEN}${CN}' is not valid."
+		logpipe "Type:Token|TOKEN:${SF_TOKEN_NAME}|LID:${LID}|HOSTNAME:${SF_HOSTNAME}|IPHASH:${YOUR_IP_HASH}|C_ISO:${YOUR_COUNTRY_ISO^^}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 
 		is_need_update_token=1
 	fi
@@ -782,6 +781,7 @@ TX=${tx:-unlimited}
 RX=${SF_MAXIN:-unlimited}
 SYN_BURST=${SF_USER_SYN_BURST}
 SYN_RATE=${SF_USER_SYN_LIMIT}/sec
+FW=${SF_USER_FW}
 SERVERS=${SF_LIMIT_SERVER_BY_IP}
 GREETINGS='${SF_SYSCOP_MSG}'" "/config/self-for-guest/lg-${LID}/limits"
 }
@@ -794,7 +794,12 @@ SF_USER_ROOT_FS_INODE=\"$SF_USER_ROOT_FS_INODE\"
 SF_USER_FS_SIZE=\"$SF_USER_FS_SIZE\"
 SF_USER_FS_INODE=\"$SF_USER_FS_INODE\"
 SF_USER_UL_RATE=\"$SF_USER_UL_RATE\"
+SF_HOSTNAME=\"$SF_HOSTNAME\"
+YOUR_COUNTRY_ISO=\"$YOUR_COUNTRY_ISO\"
+YOUR_CONTINENT_CODE=\"$YOUR_CONTINENT_CODE\"
+YOUR_IP_HASH=\"$YOUR_IP_HASH\"
 SF_RPORT=\"$SF_RPORT\"
+SF_USER_FW=\"$SF_USER_FW\"
 SF_TOKEN_IMMUTABLE=\"$SF_TOKEN_IMMUTABLE\"
 SF_USER_IMMUNE=\"$SF_USER_IMMUNE\"" "${LG_RUN_DIR}/limits.txt"
 }
@@ -1042,7 +1047,7 @@ mk_geoip()
 	[[ -z $SF_HIDEIP ]] && city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
 	country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
 	country_iso=$(echo "$res" | jq -r '.[0].Records[0].Record.country.iso_code | select(. != null)')
-	continent_code=$(echo "$res" | jq -r '.[0].Records[0].Record.country.iso_code | select(. != null)')
+	continent_code=$(echo "$res" | jq -r '.[0].Records[0].Record.continent.code | select(. != null)')
 
 	country_iso="${country_iso,,}"
 	country_iso="${country_iso//[^a-z]}"
@@ -1224,7 +1229,7 @@ else
 	[[ -d "${HNLID_DIR}" ]] || exec_devnull mkdir "${HNLID_DIR}"
 	tofile "$LID" "${HNLID_FILE}" || ERREXIT 231 "tofile: Failed to create hnlid_file"
 	# Add a log entry into elastisearch using logpipe
-	logpipe "Type:Create|LID:${LID}|Hostname:${SF_HOSTNAME}|C_ISO:${YOUR_COUNTRY_ISO}|CONTINENT=${YOUR_CONTINENT_CODE}|"
+	logpipe "Type:Create|LID:${LID}|Hostname:${SF_HOSTNAME}|IPHASH:${YOUR_IP_HASH}|C_ISO:${YOUR_COUNTRY_ISO^^}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
@@ -1232,7 +1237,7 @@ unset str
 [[ -n $SF_LOG_IP ]] && str="[${CDY}${YOUR_IP}${CN}] "
 str+="${CDG}${SF_HOSTNAME}"
 [[ -n $SF_PRJ ]] && str+="/${CW}${SF_PRJ}"
-LOG "${str}${CN} ${CDC}$*${CN}"
+LOG "${str}${CN} [${CF}${YOUR_IP_HASH}${CN}/${CDY}${YOUR_COUNTRY_ISO}${CN}/${CDM}${YOUR_CONTINENT_CODE}${CN}] ${CDC}$*${CN}"
 
 # Record which SSHD process is connect to guest LG.
 tofile "SSHD_PID=$PPID
@@ -1261,7 +1266,7 @@ sem_wait
 		[[ $str == "running" ]] && {
 			echo_pty -e "..........[${CG}Ok${CN}]"
 			DEBUGF "Attaching to existing container lg-${LID}..."
-			LOG "Attaching to existing container"
+			# LOG "Attaching to existing container"
 			spawn_shell_exit "$@"
 			# NOT REACHED
 		}
@@ -1377,7 +1382,7 @@ echo_pty -n ".."
 res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || STOPEXIT "$LID" 252 "Failed to set LID in Redis"
 
 # Set FW rules for this container
-exec_devnull docker exec sf-router /user-limit.sh "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" "$SF_USER_DL_RATE" "$SF_USER_DL_BURST" "$SF_USER_UL_RATE" "$SF_USER_UL_BURST" || STOPEXIT "${LID}" 251 "Faild to set syn-limit...";
+exec_devnull docker exec sf-router /user-limit.sh "${LID}" "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || STOPEXIT "${LID}" 251 "Faild to set syn-limit...";
 
 # Ready container
 exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" "${SF_USER_DL_RATE}" "${SF_USER_UL_RATE}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."

@@ -2,13 +2,14 @@
 
 { [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
 
+[[ $# -lt 2 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexec SECRET 'command'"; exit 255; }
+
 # cut & paste this into your shell on your workstation or add to ~/.bashrc
 gsexec() {
     local sec
     sec="$1"
     shift 1
-    echo "$*; exit; __START"|gs-netcat -s "$sec" 2>/dev/null|sed -n '/__START/,$p'|tail +2
+    echo "$*; kill -9 \$\$; __START"|gs-netcat -I -s "$sec"|sed -un '/__START/,$p'|tail +2
 }
 
-[[ $# -lt 2 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexec SECRET 'command'"; exit 255; }
 gsexec "$@"

@@ -162,7 +162,7 @@ export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 
 [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
 	WARN "Not found: data/share/GeoLite2-City.mmdb"
-	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
+	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:?}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
 }
 
 [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && {

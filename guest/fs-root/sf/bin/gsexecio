@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+
+{ [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
+
+[[ $# -lt 1 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexecio SECRET <shell-script.sh"; exit 255; }
+
+gsexecio() {
+    { echo -e "stty raw -echo\nexec cat | exec bash; stty +echo"; sleep 3; cat; echo -e "\n:;kill -9 \$PPID";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/stty raw -echo/,$p'|tail +3
+}
+
+gsexecio "$1"

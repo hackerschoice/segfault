@@ -7,6 +7,7 @@ WG_PORT_MAX=65535
 WT_VER=1
 COLOR="always"
 ICON_ERROR=""
+SF_RUN_DIR="/dev/shm/sf/run"
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_redis.sh
 
@@ -17,6 +18,12 @@ WG_EP_HOST=${WG_EP_IP}
 [[ -z $WG_EP_HOST ]] && WG_EP_HOST="$SF_FQDN"
 
 echo -en "Content-Type: text/plain\r\n\r\n"
+
+logpipe() {
+	[[ ! -e "${SF_RUN_DIR}/logpipe/logPipe.sock" ]] && return
+
+	echo "$*" | nc -U unix-socket-client 
+}
 
 # BAIL <STDOUT-MSG> <STDERR-MSG> <INFO MSG>
 # STDOUT goes to user.
@@ -683,6 +690,7 @@ cmd_token() {
 	[[ ! -f "${token_fn}" ]] && { sleep 1; BAIL "${M}Token '${R}${TOKEN_NAME}${M}' does not exist.${N}"; }
 
 	echo "${TOKEN_NAME}" >"/config/db/user/lg-${LID}/token"
+	logpipe "Type:Token|TOKEN:${TOKEN_NAME,,}|LID:${LID}|HOSTNAME:${SF_HOSTNAME}|IPHASH:${YOUR_IP_HASH}|C_ISO:${YOUR_COUNTRY_ISO^^}|CONTINENT=${YOUR_CONTINENT_CODE}|"
 
 	echo -en "${G}🦋 Token set. ${N}Type ${C}halt${N} and log back in."
 

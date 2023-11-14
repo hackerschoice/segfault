@@ -15,13 +15,23 @@
 # ZSH specific
 function cnf_preexec() {
     local cmd
+    local is_nospace
+
+    [ -n "$cnf_once" ] && return
+    typeset -g cnf_once="1"
 
     cmd="$1"
     # Remove any variable like in `FOO=blah duf`
-    # Test: X="FOO BAR" Y="hello world" Z=mememe whoami
+    # Test:
+    # X="FOO BAR" Y="hello world" Z=mememe id
+    # X=FOO
+    # X=FOO id
+    # X=FOO Y=BAR
+    # 'X=FOO Y="BAAR"   '
+    # X=FOO ~/foo.sh
     while :; do
         cmd="${cmd#"${cmd%%[^[:space:]]*}"}" # remove leading whitespace characters
-        [[ $cmd != *" "* ]] && break
+        [[ $cmd != *" "* ]] && { is_nospace=1; break; }
         # Check if first string before \s is a variable (contains '=')
         [[ ${cmd%% *} != *"="* ]] && break
 
@@ -33,14 +43,16 @@ function cnf_preexec() {
         }
         # HERE: X="foo" or X="foo bar"
         cmd=${cmd#*=\"}
-        cmd=${cmd#*\" }
+        cmd=${cmd#*\"}
     done
+    [[ ${cmd:0:1} == "~" ]] && return
+    [[ -z $cmd ]] && return
+    [[ -n $is_nospace ]] && [[ $cmd == *"="* ]] && return
+
     typeset -g cnf_command="${cmd%% *}"
 
     whence -- "${cnf_command}" >& /dev/null && return
     # HERE: command not found
-    [ -n "$cnf_once" ] && return
-    typeset -g cnf_once="1"
     echo -en "💥 \e[0;31m"
 }
 

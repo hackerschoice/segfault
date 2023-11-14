@@ -34,6 +34,8 @@ init_vars()
 
   # export DEBIAN_FRONTEND=noninteractive # Must e interactive so that we get warning if kernel got updated (needs reboot)
   [[ -z $SF_SEED ]] && ERREXIT 255 "SF_SEED= not set. Try \`export SF_SEED=\"\$(head -c 1024 /dev/urandom |base64| tr -dc '[:alpha:]' | head -c 32)\"\`"
+  [[ -z $MAXMIND_KEY ]] && ERREXIT 255 "MAXMIND_KEY= not set. Try ${CDC}export MAXMIND_KEY=skip${CN} to disable. See https://support.maxmind.com/hc/en-us/articles/4407111582235-Generate-a-License-Key"
+  [[ $MAXMIND_KEY == "skip" ]] && unset MAXMIND_KEY
 }
 
 
@@ -160,7 +162,7 @@ init_config_run()
   mergedir "config/etc/redis"
   mergedir "config/etc/resolv.conf"
 
-  [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=zNACjsJrHnGPBxgI&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
+  [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ -n "${MAXMIND_KEY}" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='"${MAXMIND_KEY}"'&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
   [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
 
   # Setup /dev/shm/sf/run/log (in-memory /var/run...)

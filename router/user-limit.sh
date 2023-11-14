@@ -1,23 +1,36 @@
 #! /bin/bash
 
+# Executed on router
 # Set User's TCP SYN limit and others
 # [YOUR_IP] [Container IP] [SYN_LIMIT 1/sec] [SYN_BURST]
 
-YOUR_IP_HASH="$1"
-YOUR_IP="$2"
-C_IP="$3"
-SYN_LIMIT="$4"
-SYN_BURST="$5"
-USER_DL_RATE="$6"
-USER_DL_BURST="$6"
-USER_UL_RATE="$7"
-USER_UL_BURST="$8"
+LID="$1"
+YOUR_IP_HASH="$2"
+YOUR_IP="$3"
+C_IP="$4"
+SYN_LIMIT="$5"
+SYN_BURST="$6"
+
+set -e  # Exit immediately on error
+source "/dev/shm/net-devs.txt"
+source "/sf/run/users/lg-${LID}/limits.txt"
+
+fn="/config/db/token/netns-${SF_USER_FW}.sh"
+FORWARD_USER="FW-${C_IP:?}"
+set +e
+iptables -F "${FORWARD_USER}" 2>/dev/null || iptables -N "${FORWARD_USER}"
+[[ -n $SF_USER_FW ]] && [[ -f "$fn" ]] && {
+    iptables -C FORWARD -i "${DEV_LG:?}" -s "${C_IP}" -j "${FORWARD_USER}" &>/dev/null || iptables -I FORWARD 1 -i "${DEV_LG}" -s "${C_IP}" -j "${FORWARD_USER}"
+    set -e
+    source "$fn"
+    set +e
+}
+
 
 # Create our own 'hashmap' so that SYN is limited by user's source IP (e.g. user can spawn two
 # servers and both servers have a total limit of SYN_LIMIT)
 IDX=$((0x${YOUR_IP_HASH} % 1024))
 [[ $IDX -lt 0 ]] && IDX=$((IDX * -1))
-source /dev/shm/net-devs.txt || exit
 
 [[ -n $SYN_LIMIT ]] && {
     CHAIN="SYN-${SYN_LIMIT}-${SYN_BURST}-${IDX}"

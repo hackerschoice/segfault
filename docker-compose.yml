@@ -108,7 +108,7 @@ services:
     cgroup_parent: sf.slice
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/logpipe/:/app/config/:ro"    
-      - "/dev/shm/sf/run/logpipe/:/app/sock/:rw"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/logpipe/:/app/sock/:rw"
       
   sf-portd:
     build: encfsd
@@ -424,7 +424,8 @@ services:
       - SF_MULLVAD_IP=${SF_MULLVAD_IP:?}
       - SF_GUEST_MTU=${SF_GUEST_MTU:-1420}
     volumes:
-      - "${SF_SHMDIR:-/dev/shm/sf}/run/vpn:/sf/run/vpn"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run"
+      - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest" # vpn_status to guest
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
@@ -653,7 +654,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
-    # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-TESTING
+      #- /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-TESTING
       # - /research/segfault/host:/host:ro # FIXME-TESTING sshd debug
 
   nginx:

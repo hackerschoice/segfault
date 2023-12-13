@@ -1,0 +1,16 @@
+#! /usr/bin/env bash
+
+{ [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
+
+[[ $# -ne 2 ]] && { echo -e >&2 "${CY}ERROR${CN}: d <file1> <file2>"; exit 255; }
+
+# cut & paste this into your shell on your workstation or add to ~/.bashrc
+d() {
+    [[ -n "${DELTA_OPTS}" ]] && {
+        diff -u "$@" | delta ${DELTA_OPTS}
+        return
+    }
+    diff -u "$@" | delta --color-only
+}
+
+d "$@"

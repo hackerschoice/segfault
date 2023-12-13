@@ -731,7 +731,7 @@ load_limits()
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
 	DOCKER_ARGS+=("--blkio-weight=${SF_USER_BLKIO_WEIGHT}")
 
-	[[ -n $SF_USER_DEV_KVM ]] && [[ -n $SF_HAS_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
+	[[ -n $SF_USER_DEV_KVM ]] && [[ -z $SF_HAS_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
 
 	# Mount external filesystem into LG (for android builders who dont need encryption but high IO)
 	[[ -n $SF_USER_FS_EXT ]] && {

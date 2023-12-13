@@ -1,4 +1,4 @@
-VER := 0.5.0rc1
+VER := 0.5.2a1
 
 all:
 	make -C router
@@ -49,6 +49,8 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/geoiphn"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/gssec"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/gsexec"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/gsexecio"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/d"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/str2mnemonic"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/thcssh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/transfer"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/asn"
@@ -141,6 +143,7 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-new.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-all.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/logoutmsg-all.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/logpipe/config.yaml"
+FILES_CONFIG += "segfault-$(VER)/config/etc/ssh/banner_example"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/ChangeLog"
@@ -153,6 +156,7 @@ FILES_ROOT += "segfault-$(VER)/sfbin/funcs_redis.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_admin.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_net.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
+FILES_ROOT += "segfault-$(VER)/sfbin/banhammer.sh"
 
 FILES_CLEANER += "segfault-$(VER)/tools/cg/Dockerfile"
 FILES_CLEANER += "segfault-$(VER)/tools/cg/go.mod"

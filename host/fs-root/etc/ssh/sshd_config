@@ -126,7 +126,7 @@ MaxStartups 128:10:1024
 #VersionAddendum none
 
 # no default banner path
-#Banner none
+Banner /config/host/etc/ssh/banner
 
 # override default of no subsystems
 Subsystem	sftp	/usr/lib/ssh/sftp-server

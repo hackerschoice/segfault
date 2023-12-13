@@ -288,6 +288,10 @@ journalctl --vacuum-time=10d
 sed 's/rotate 4/rotate 2/' -i /etc/logrotate.conf
 sed 's/rotate 4/rotate 2\n\tsize 64M\n\tminsize 128k/' -i /etc/logrotate.d/rsyslog
 
+sed 's|.*-/var/log/syslog$|\$outchannel mysyslog,/var/log/syslog,1048576\n*.*;kern.none,auth,authpriv.none  :omfile:$mysyslog|'  -i /etc/rsyslog.d/50-default.conf
+sed 's|.*-/var/log/kern.log$|\$outchannel mykern,/var/log/kern.log,1048576\n*.*;kern.none,auth,authpriv.none  :omfile:$mykern|'  -i /etc/rsyslog.d/50-default.conf
+systemctl restart  rsyslog.service
+
 # NOTE: Only needed if source is mounted into vmbox (for testing)
 [[ "$(stat -c %G /research/segfault 2>/dev/null)" == "vboxsf" ]] && usermod -a -G vboxsf "${SF_HOST_USER}"
 

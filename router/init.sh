@@ -325,7 +325,6 @@ ipt_direct()
 	ipset_add_domain http.kali.org
 
 	# SF is direct (otherwise a user can inflate root-server-per-IP-limit)
-	ipset_add_domain teso.segfault.net
 	ipset_add_domain lsd.segfault.net
 	ipset_add_domain 8lgm.segfault.net
 	ipset_add_domain adm.segfault.net

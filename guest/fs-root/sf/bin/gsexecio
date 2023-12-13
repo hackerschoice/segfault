@@ -1,11 +1,42 @@
 #! /usr/bin/env bash
 
+# Known problems:
+# - OpenWRT's broken? kill -9 $PPID but the parent's parent only detects EOF on STDOUT after 10 second timeout. 
+
 { [[ -n $SF_BINDIR ]] && source "${SF_BINDIR}/funcs.sh"; } || source "/sf/bin/funcs.sh"
 
 [[ $# -lt 1 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexecio SECRET <shell-script.sh"; exit 255; }
 
 gsexecio() {
-    { echo -e "stty raw -echo\nexec cat | exec bash; stty +echo"; sleep 3; cat; echo -e "\n:;kill -9 \$PPID";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/stty raw -echo/,$p'|tail +3
+    # local IFS=""
+    # - stty is not always available. This poses a problem because we can not disable echo on the TTY and the entire
+    #   script with be replied back to us. Solution is to add an ENDMARKER and use 'sed -un' to ignore all output until
+    #   ENDMARKER (end of script) is reached.
+    #   Old: { echo -e "stty raw -echo\nexec cat | exec bash; stty +echo"; sleep 3; cat; echo -e "\n:;kill -9 \$PPID";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/stty raw -echo/,$p'|tail +3
+    # - The "echo sleep 2; cat;" triggers the remote bash to first wait 2 seconds before executing whatserver.sh
+    #   and thus allowing the bash to read all the script into its input buffer (because when stty does not exist we
+    #   must wait for bash to reply the entire script back to us before creating output or the output will
+    #   get mangled.
+    #   Old: { echo "sleep 2"; cat; } | { echo -e "exec cat | exec bash"; cat; echo -e '\n:;kill -9 $PPID;';} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/:;kill -9 $PPID/,$p' | tail +2
+    # - We can not pipe the commands into bash because that would cause output mangling (bash starts execting before EOF.)
+    #   Old: { echo -e 'dd bs=1 count='"${#s}" 2>/dev/null' | bash; kill -9 $$'; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null 
+    # - Expand diretly into bash -c will make our script show in remote's process list
+    #  Old: { echo -e 'exec bash -c "$(dd bs=1 count='"${#s} 2>/dev/null)"'"'; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
+
+    # Right deep into the bash tool kit:
+    # - we dont want that the entire script shows in 'ps' output. Thus read into variable 's' and then
+    #   double eval
+    #   bash -c 'IFS="" s="$(<x.sh)" eval eval "\$s"'
+    # - Escaping quotes the correct way makes it unreadable. Sorry.
+    unset s
+    s+=$(cat)
+    s+=$'\n'"####ENDMARKER"
+    { echo 'exec bash -c '"'"'IFS="" s=$(dd bs=1 count='"${#s}"' 2>/dev/null) eval eval "\$s"'"'"; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
+    # Understanding the quote-escape, turn ' into '"'"'
+    # { echo 'exec bash -c '"'"'IFS="" s=$(dd bs=1 count='"${#s}"' 2>/dev/null) eval eval "\$s"'"'"; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
+    # { echo 'exec bash -c '    IFS="" s=$(dd bs=1 count="${#s}"   2>/dev/null) eval eval "\$s"';     echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
 }
 
+
 gsexecio "$1"
+

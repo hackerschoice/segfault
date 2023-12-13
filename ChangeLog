@@ -1,4 +1,9 @@
-0.5.0 - 2023-11-00
+0.5.2 - 2023-12-00
+    * Kali 2023.4
+    * SSHD Banner
+
+0.5.0 - 2023-11-29
+    * Configurable access to external storage (SF_USER_FS_EXT=)
     * Configurable access to /dev/kvm
     * Reverse Port via curl sf/port
     * Token via curl sf/set -dtoken=<NAME>

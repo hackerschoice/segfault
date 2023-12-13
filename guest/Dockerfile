@@ -216,7 +216,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		mono-mcs \
 		mono-devel \
 		most \
-		mycli \
+		`### mycli ### yanked from Kali.2023.4` \
 		mypager \
 		nfs-common \
 		neofetch \
@@ -320,7 +320,7 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		cloud-image-utils \
 		debootstrap \
 		libguestfs-tools \
-		qemu-efi \
+		`qemu-efi ### yanked from Kali2023.4` \
 		qemu-efi-arm \
 		qemu-system \
 		qemu-user \
@@ -362,7 +362,7 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		&& echo "deb https://packages.microsoft.com/repos/vscode stable main" | tee /etc/apt/sources.list.d/microsoft.list \
 		&& apt-get update; }' \
 	&& /pkg-install.sh GUI apt-get install -y --no-install-recommends \
-		`###alacritty - Not available in stable release` \
+		alacritty \
 		aqemu \
 		awesome \
 		brave-browser \
@@ -402,14 +402,14 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		code || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`### xpra ### Using Xpra repo instead` \
-		libavformat59 \
-		libavif15 \
+		libavformat60 \
+		libavif16 \
 		libjs-jquery-ui \
 		`###libprocps8 ### yanked from Kali` \
 		libqrencode4 \
 		libxres1 \
 		libxtst6 \
-		libswscale6 \
+		libswscale7 \
 		libturbojpeg0 \
 		gir1.2-gtk-3.0 \
 		python3-cairo \
@@ -442,13 +442,13 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 # 		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### 2023-07: beta is badly synced
 ### E: Failed to fetch https://xpra.org/beta/bookworm/main/binary-amd64/Packages.gz  File has unexpected size (41831 != 39348). Mirror sync in progress? [IP: 78.129.163.65 443]
-RUN	/pkg-install.sh GUI bash -c '{ : \
-		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra-2023.asc \
-		&& wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra.sources \
-		&& apt-get update \
-		&& pkg=("xpra" "xpra-x11" "xpra-html5") \
-		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
-		&& rm -f /var/lib/apt/lists/xpra*; }'
+# RUN	/pkg-install.sh GUI bash -c '{ : \
+# 		&& wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra-2023.asc \
+# 		&& wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/bookworm/xpra.sources \
+# 		&& apt-get update \
+# 		&& pkg=("xpra" "xpra-x11" "xpra-html5") \
+# 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
+# 		&& rm -f /var/lib/apt/lists/xpra*; }'
 ### x86_64 only
 RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
@@ -795,7 +795,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
 	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& /pkg-install.sh HACK pipx install pwncat-cs \
-	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparker \
+	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparkerπpkt \
 	&& /pkg-install.sh HACK bin 'https://gitlab.com/api/v4/projects/33695681/packages/generic/nrich/latest/nrich_latest_amd64.deb' `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
@@ -808,7 +808,8 @@ RUN	/pkg-install.sh HACK bash -c '{  wget -O "/usr/bin/favfreak.py" https://raw.
 		&& wget -O /usr/share/wordlists/meg/openredirects "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/openredirects" \
 		&& wget -O /usr/share/wordlists/meg/configfiles   "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/configfiles" \
 		&& wget -O /usr/share/wordlists/meg/crlfinjection "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/crlfinjection"; }'
-RUN /pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx
+RUN /pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx \
+	&& /pkg-install.sh DEV ghbin dandavison/delta '_%arch1%.deb'
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

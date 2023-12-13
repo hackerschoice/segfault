@@ -617,6 +617,11 @@ load_limits()
 {
 	local prefix
 	local is_need_update_token
+	local str
+	local name
+	local dst
+	local arr
+	local IFS
 	# Set the default values.
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
 	# then root is mounted read-only
@@ -726,7 +731,18 @@ load_limits()
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
 	DOCKER_ARGS+=("--blkio-weight=${SF_USER_BLKIO_WEIGHT}")
 
-	[[ -n $SF_USER_DEV_KVM ]] && [[ -e /dev/kvm ]] && DOCKER_ARGS+=("--device=/dev/kvm")
+	[[ -n $SF_USER_DEV_KVM ]] && [[ -n $SF_HAS_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
+
+	# Mount external filesystem into LG (for android builders who dont need encryption but high IO)
+	[[ -n $SF_USER_FS_EXT ]] && {
+		IFS=: read -ra arr <<<"$SF_USER_FS_EXT"
+
+		name=${arr[0]//[^a-z0-9A-Z]}
+		dst=${arr[1]//[^a-z0-9A-Z\/]}
+		str=${arr[2]//[^a-z,]}
+		[[ -n $str ]] && str=":${str}"
+		[[ -n $name ]] && [[ -n $dst ]] && [[ -e "/sf/ext/${name}" ]] && DOCKER_ARGS+=("-v${SF_BASEDIR}/data/ext/${name}:${dst}${str}")
+	}
 
 	if [[ -z $SF_USER_ROOT_FS_SIZE ]]; then
 		DOCKER_ARGS+=("--read-only")

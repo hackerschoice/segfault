@@ -646,6 +646,7 @@ services:
     volumes:
       - "${SF_BASEDIR:-.}/config:/config/host"
       - "${SF_BASEDIR:-.}/data/share:/sf/share:ro"
+      - "${SF_BASEDIR:-.}/data/ext:/sf/ext:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec/www-root:slave"
@@ -654,7 +655,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
-      #- /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-TESTING
+      # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-TESTING
       # - /research/segfault/host:/host:ro # FIXME-TESTING sshd debug
 
   nginx:

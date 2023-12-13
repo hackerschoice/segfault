@@ -114,7 +114,7 @@ _sfcg_forall()
 	skip_token="$1"
 
 	set -o noglob
-	IFS=$'\n' arr=($(docker ps --format "{{.Names}}"  --filter 'name=^lg-'))
+	IFS=$'\n' arr=($(docker ps --format "{{.Names}}"  --filter 'name=^lg-' 2>/dev/null))
 
 	for l in "${arr[@]}"; do
 		ts=2147483647
@@ -139,7 +139,7 @@ _sfcg_psarr()
 	found=0
 	[[ -z $match ]] && found=1 # empty string => Show all
 
-	IFS= str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd)
+	IFS= str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd 2>/dev/null)
 	[[ -n $str ]] && [[ -n $match ]] && [[ "$str" =~ $match ]] && found=1
 
 	echo "$str"
@@ -221,6 +221,7 @@ lgwall()
 	# This 
 	local pid
 	local cid
+	local fn
 	[[ -z $2 ]] && { echo >&2 "lgwall LID [message]"; return; }
 	cid=$(docker inspect --format='{{.Id}}' "$1") || return
 	pid=$(<"/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/init.pid") || return
@@ -436,6 +437,8 @@ lgdf()
 	local dst
 	local IFS
 	local blocks
+	local fn
+	local info
 
 	_sf_init
 
@@ -460,7 +463,12 @@ lgdf()
 		perctt=${_sfquota["${l}-inode-perctt"]}
 		pin=$(printf '% 3u.%02u\n' $((perctt / 100)) $((perctt % 100)))
 		str="${psz}    "
-		echo "${blocks} ${str:0:5}% ${pin}% ${l}"
+		info="${l}"
+		fn="${_sf_dbdir}/user/${l}/hostname"
+		[[ -f "$fn" ]] && info+=" $(<"$fn")"
+		fn="${_sf_dbdir}/user/${l}/token"
+		[[ -f "$fn" ]] && info+=" [$(<"$fn")]"
+		echo "${blocks} ${str:0:5}% ${pin}% ${info}"
 	done
 
 	_sf_deinit

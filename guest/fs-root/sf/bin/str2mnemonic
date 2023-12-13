@@ -1,0 +1,49 @@
+# /usr/bin/env bash
+
+BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
+
+ERREXIT() {
+    local code=$1
+    shift 1
+    echo -e >&2 "[ERROR] $*"
+    exit "$code"
+}
+
+usage() {
+    echo -e "Create a Mnemonic from 'string'"
+    echo -e "Usage: ${0%/*} [number of words in mnemonic] string ..."
+    exit 255
+}
+
+findfn() {
+    local fn
+    for fn in "$@"; do
+        [[ ! -f "$fn" ]] && continue
+        echo "$fn"
+        return
+    done
+    return 1 # ERROR
+}
+
+[[ $# -lt 2 ]] && usage
+
+amount=$1
+shift 1
+NUM=$(echo "$*" | md5sum)
+NUM=${NUM%% *}
+NUM=$((16#${NUM:0:15}))
+
+fn=$(findfn "${BINDIR}/english.txt" "/sf/share/english.txt" "/usr/share/english.txt" "/etc/english.txt") || ERREXIT 255 "List of 2000 words (english.txt) not found."
+readarray -t english <"$fn"
+unset fn
+
+# Create a amount number of words from NUM:
+
+while [[ $amount -gt 0 ]]; do
+    ((amount--))
+    m=$((NUM % ${#english[@]}))
+    fn+="${english[$m]}"
+    NUM=$((NUM / ${#english[@]}))
+done
+
+echo "$fn"

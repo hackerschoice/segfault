@@ -23,6 +23,7 @@ SRCDIR="/tmp/openssh-9.2p1"
 }
 cd "$SRCDIR"
 ./configure --prefix=/usr --sysconfdir=/etc/ssh --with-libs=-lcap \
+		--without-zlib-version-check \
 		--disable-utmp \
 		--disable-wtmp \
 		--disable-utmpx \

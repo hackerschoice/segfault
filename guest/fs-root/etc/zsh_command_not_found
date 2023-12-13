@@ -16,11 +16,22 @@
 function cnf_preexec() {
     local cmd
     local is_nospace
-
-    [ -n "$cnf_once" ] && return
-    typeset -g cnf_once="1"
+    local s
 
     cmd="$1"
+    # Dont deal with ultra long commands 
+    [[ ${#cmd} -gt 1024 ]] && return
+    # Dont deal with multi-lines
+    [[ "$cmd" == *$'\n'* ]] && return
+    # Check if we are tracking this command already
+    [[ $cnf_last == $cmd ]] && return
+    typeset -g cnf_last="$cmd"
+
+    cmd="${cmd#"${cmd%%[^[:space:]]*}"}" # remove leading whitespace characters
+    # Dont deal with function definitions: contains "()" and no " " before
+    s="${cmd%%\(\)*}"
+    [[ $s != $cmd ]] && [[ "$s" != *" "* ]] && return
+
     # Remove any variable like in `FOO=blah duf`
     # Test:
     # X="FOO BAR" Y="hello world" Z=mememe id
@@ -59,7 +70,7 @@ function cnf_preexec() {
 function cnf_precmd() {
     cnf_ret=$?
 
-    unset cnf_once
+    unset cnf_last
     echo -en "\e[0m"
     (($cnf_ret)) && [ -n "$cnf_command" ] && {
         whence -- "${cnf_command}" >& /dev/null ||

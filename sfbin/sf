@@ -160,9 +160,10 @@ export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
 [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
 
-[[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && {
+[[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ "${MAXMIND_KEY,,}" != "skip" ]] && {
 	WARN "Not found: data/share/GeoLite2-City.mmdb"
-	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:?}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
+	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
+	echo -e "Try ${CDC}MAXMIND_KEY=skip${CN} to disable. This will also disable limits by GEOIP and disable user tools like geoip and geoiphn."
 }
 
 [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && {

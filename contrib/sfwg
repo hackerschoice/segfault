@@ -209,7 +209,7 @@ wg_up()
     [[ $(sysctl -n net.ipv4.ip_forward) -eq 0 ]] && sysctl -q -w net.ipv4.ip_forward=1
     [[ $(sysctl -n net.ipv6.conf.all.forwarding) -eq 0 ]] && sysctl -q -w net.ipv6.conf.all.forwarding=1
 
-    ip link del "${WG_DEV}" &>/dev/null
+    ip link del "${WG_DEV:?}" &>/dev/null
     ip link add "${WG_DEV}" type wireguard || return 255
 
     fn="/dev/shm/private.$$"

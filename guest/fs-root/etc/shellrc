@@ -36,18 +36,18 @@ alias brave="brave-browser"
 [[ -t 0 ]] && [[ ! -e "${HOME}/.nokiddie" ]] && {
 	_nokiddie_warning()
 	{
-		local cmd
-		cmd="$1"
-		shift 1
+		local cmd="$1"
+		local sargs="$2"
+		shift 2
 		local is_show
 		is_show=1
 
-		[[ -s "/config/self/wgname" ]] && unset is_show
+		[[ -s "/config/self/wgname" ]] && { unset is_show; unset _XARGS; }
 		[[ -e "${HOME}/.nokiddie" ]] && unset is_show
 		[[ -n $is_show ]] && {
 			echo -e >&2 "\
-${CDC}Massdns${CN}, ${CDC}Masscan${CN} et.al. do not work well via VPN providers. The uplink VPN providers
-and Google's 8.8.8.8 / 8.8.4.4 will ${CRY}block the requests${CN} when done to rapidly.
+${CDC}${cmd}${CN} does not work well via VPN providers. The uplink VPN providers
+will ${CRY}block the requests${CN} when done to rapidly.
 Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 
 			if [[ -t 0 ]]; then
@@ -55,17 +55,28 @@ Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 				read -r -t10
 			fi
 		}
-		command "$cmd" "$@"  # Might not exist and fail nicely here
+
+		if [[ -z $sargs ]]; then
+			command "$cmd" "$@"  # Might not exist and fail nicely here
+		else
+			[[ -z $is_show ]] && {
+				echo -e "Adding ${CDC}${sargs}${CN} to your command. To override type:"
+				echo -e "    ${CC}command ${CDC}${cmd} $*${CN}\n"
+				sleep 2 
+			}
+			command "$cmd" "$@"  $(echo "$sargs") # allow word splitting
+		fi
+
 	}
 
-	command -v massdns    >/dev/null && massdns(){    _nokiddie_warning "massdns"    "$@"; }
-	command -v puredns    >/dev/null && puredns(){    _nokiddie_warning "puredns"    "$@"; }
-	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan"    "$@"; }
-	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" "$@"; }
-	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei"     "$@"; }
-	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf"       "$@"; }
-	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu"      "$@"; }
-	command -v zmap       >/dev/null && zmap(){       _nokiddie_warning "zmap"       "$@"; }
+	command -v massdns    >/dev/null && massdns(){    _nokiddie_warning "massdns" ""                                    "$@"; }
+	command -v puredns    >/dev/null && puredns(){    _nokiddie_warning "puredns" ""                                    "$@"; }
+	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan" ""                                    "$@"; }
+	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" ""                                 "$@"; }
+	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei" "-rl 15 -c 4 -bs 4 -hbs 2 -headc 2"    "$@"; }
+	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf"    ""                                    "$@"; }
+	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu"   ""                                    "$@"; }
+	command -v zmap       >/dev/null && zmap(){       _nokiddie_warning "zmap"    ""                                    "$@"; }
 }
 
 ### for 'curl -x socks5h://$(PROXY) ipinfo.io'

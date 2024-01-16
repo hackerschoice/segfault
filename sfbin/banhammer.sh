@@ -37,4 +37,4 @@ run_ban rx_exhaust.txt banmsg_exhaust.txt &
 
 # CTRL-c here will also send a SIGINTR to all child processes (and kill them)
 echo "Banhammer started. Press CTRL-c to stop."
-read
+read -r -d '' _ </dev/tty

@@ -130,6 +130,7 @@ load_limits()
 	unset SF_USER_FS_INODE
 	unset SF_USER_ROOT_FS_SIZE
 	unset SF_USER_ROOT_FS_INODE
+	unset SF_HOSTNAME
 	
 	source "/sf/run/users/lg-${lid}/limits.txt"
 }
@@ -208,9 +209,9 @@ cmd_user_mount()
 	# HERE: Not yet mounted.
 	# Set XFS limits
 	load_limits "${lid}"
-	[[ -n $SF_USER_FS_INODE ]] || [[ -n $SF_USER_FS_SIZE ]] && {
+	[[ -z $SF_HOSTNAME ]] && { SF_HOSTNAME=$(<"/config/db/user/lg-${lid}/hostname") || return 255; }
+	[[ -n $SF_USER_FS_SIZE ]] && {
 		SF_NUM=$(<"/config/db/user/lg-${lid}/num") || return 255
-		SF_HOSTNAME=$(<"/config/db/user/lg-${lid}/hostname") || return 255
 		prjid=$((SF_NUM + 10000000))
 		DEBUGF "SF_NUM=${SF_NUM}, prjid=${prjid}, SF_HOSTNAME=${SF_HOSTNAME}, INODE=${SF_USER_FS_INODE}, SIZE=${SF_USER_FS_SIZE}"
 		err=$(xfs_quota -x -c "limit -p ihard=${SF_USER_FS_INODE:-16384} bhard=${SF_USER_FS_SIZE:-128m} ${prjid}" 2>&1) || { ERR "XFS-QUOTA: \n'$err'"; return 255; }
@@ -228,8 +229,8 @@ cmd_user_mount()
 
 	# Extend same project quota to /onion and /everyone/SF_HOSTNAME
 	[[ -n $prjid ]] && {
+		xfs_quota_sub "${prjid}" "${BASE_RAWDIR_EVR}" "/encfs/sec/everyone-root/everyone/${SF_HOSTNAME:?}" 
 		xfs_quota_sub "${prjid}" "${BASE_RAWDIR_WWW}" "/encfs/sec/www-root/www/${SF_HOSTNAME,,}" 
-		xfs_quota_sub "${prjid}" "${BASE_RAWDIR_EVR}" "/encfs/sec/everyone-root/everyone/${SF_HOSTNAME}" 
 	}
 
 	# Mark as mounted (for destructor to track)

@@ -748,6 +748,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		gcc-multilib \
 		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                                                       fq \
+	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/nitefood/asn/master/asn                         asn2 \
 	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr \
 	&& /pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch1%'                                                 dalfox
 RUN /pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
@@ -764,6 +765,7 @@ RUN /pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
 	&& /pkg-install.sh NET ghbin ViRb3/wgcf                        'linux_%arch1%$'                               wgcf                          \
 	&& /pkg-install.sh NET ghbin poscat0x04/wgcf-teams             '-linux'                                       wgcf-teams                    \
 	&& /pkg-install.sh NET apt-get install -y --no-install-recommends \
+		grepcidr \
 		hping3 \
 		ipcalc ipcalc-ng \
 		microsocks \
@@ -795,7 +797,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
 	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& /pkg-install.sh HACK pipx install pwncat-cs \
-	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparkerπpkt \
+	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparker \
 	&& /pkg-install.sh HACK bin 'https://gitlab.com/api/v4/projects/33695681/packages/generic/nrich/latest/nrich_latest_amd64.deb' `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r

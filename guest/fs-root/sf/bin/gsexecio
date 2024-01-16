@@ -22,19 +22,17 @@ gsexecio() {
     #   Old: { echo -e 'dd bs=1 count='"${#s}" 2>/dev/null' | bash; kill -9 $$'; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null 
     # - Expand diretly into bash -c will make our script show in remote's process list
     #  Old: { echo -e 'exec bash -c "$(dd bs=1 count='"${#s} 2>/dev/null)"'"'; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
+    # - The 'sleep 1' is there to give the remote site time to execute 'bash' without the calling shell to read the payload.
 
     # Right deep into the bash tool kit:
     # - we dont want that the entire script shows in 'ps' output. Thus read into variable 's' and then
     #   double eval
     #   bash -c 'IFS="" s="$(<x.sh)" eval eval "\$s"'
     # - Escaping quotes the correct way makes it unreadable. Sorry.
-    unset s
-    s+=$(cat)
-    s+=$'\n'"####ENDMARKER"
-    { echo 'exec bash -c '"'"'IFS="" s=$(dd bs=1 count='"${#s}"' 2>/dev/null) eval eval "\$s"'"'"; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
-    # Understanding the quote-escape, turn ' into '"'"'
-    # { echo 'exec bash -c '"'"'IFS="" s=$(dd bs=1 count='"${#s}"' 2>/dev/null) eval eval "\$s"'"'"; echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
-    # { echo 'exec bash -c '    IFS="" s=$(dd bs=1 count="${#s}"   2>/dev/null) eval eval "\$s"';     echo "$s";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/####ENDMARKER/,$p' | tail +2
+    unset pl
+    pl="echo '#####STARTMARKER'"$'\n'
+    pl+=$(cat)
+    { echo 'exec bash -c '"'"'IFS="" s=$(dd bs=1 count='"${#pl}"' 2>/dev/null) eval eval "\$s"'"'"; sleep 1; echo "$pl";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/^#####STARTMARKER/,$p' | tail +2
 }
 
 

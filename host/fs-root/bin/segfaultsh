@@ -17,14 +17,6 @@
 # Load/restore environment variables from file
 # SF_DEBUG can be set by ssh-client with -o SetEnv SF_DEBUG=1 or by
 # docker compose '.env' file.
-SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
-[[ -f /dev/shm/env.txt ]] && eval "$(</dev/shm/env.txt)"
-[[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
-unset SSH_SF_DEBUG
-eval "$(</sf/bin/funcs_redis.sh)" || exit
-# Debug Trace. see sf_trace-DISABLED
-[[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
-
 [[ -t 1 ]] && {
 CY="\e[1;33m" # yellow
 CDY="\e[0;33m" # yellow
@@ -42,6 +34,14 @@ CF="\e[2m"    # faint
 CUL="\e[4m"
 CRY="\e[0;33;41m"  # YELLOW on RED (warning)
 }
+
+SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
+eval "$(cat /dev/shm/env.txt || echo false)" || exit
+[[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
+unset SSH_SF_DEBUG
+eval "$(cat /sf/bin/funcs_redis.sh || echo false)" || exit
+# Debug Trace. see sf_trace-DISABLED
+[[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
 
 # [PREFIX] [MSG]
 _log()
@@ -573,18 +573,6 @@ mk_hostname()
 	unset english
 }
 
-setup_fs_limit()
-{
-	# Return if 0 or not set
-	[[ ! "${SF_USER_ROOT_FS_SIZE_NUM}" -gt 0 ]] && return 0 # true
-
-	# Backing FS must be of type XFS
-	[[ "${SF_BACKING_FS}" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_SIZE is set"
-
-	DOCKER_ARGS+=("--storage-opt")
-	DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_SIZE:?}")
-}
-
 # 1. Set INODE limit per container. Docker does not support this via any
 # --storage-opt. Instead we start the container and add ourself to the
 # xfs quota group that docker set up. Yeahaaa..
@@ -626,8 +614,8 @@ load_limits()
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
 	# then root is mounted read-only
 	# SF_USER_ROOT_FS_SIZE=8g
-	# SF_USER_ROOT_FS_INODE=65536
 	# SF_USER_FS_SIZE=16g
+	# SF_USER_ROOT_FS_INODE=65536
 	# SF_USER_FS_INODE=65536
 	SF_USER_MEMORY_LIMIT=256m
 	SF_USER_PIDS_LIMIT=128
@@ -731,7 +719,7 @@ load_limits()
 	DOCKER_ARGS+=("--oom-score-adj=${SF_USER_OOM_SCORE}")
 	DOCKER_ARGS+=("--blkio-weight=${SF_USER_BLKIO_WEIGHT}")
 
-	[[ -n $SF_USER_DEV_KVM ]] && [[ -z $SF_HAS_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
+	[[ -n $SF_USER_DEV_KVM ]] && [[ -n $SF_HAS_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
 
 	# Mount external filesystem into LG (for android builders who dont need encryption but high IO)
 	[[ -n $SF_USER_FS_EXT ]] && {
@@ -752,20 +740,20 @@ load_limits()
 			# HERE: Root-Fs is LIMITED in size
 			# These files must be mounted read-only as these are special files
 			# for docker and ingored by --opt storage-size= limitations.
+			# Backing FS must be of type XFS
+			[[ "${SF_BACKING_FS}" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_SIZE is set"
+			DOCKER_ARGS+=("--storage-opt")
+			DOCKER_ARGS+=("size=${SF_USER_ROOT_FS_SIZE:?}")
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/hosts:/etc/hosts:ro")
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/db/user/lg-${LID}/hostname:/etc/hostname:ro")
 			DOCKER_ARGS+=("-v${SF_BASEDIR}/config/etc/resolv.conf:/etc/resolv.conf:ro")
 		}
 	fi
 
-	write_lg_limits
-
 	# NOTE: This is no longer used because /dev/shm is now mounted as tmpfs to make UML work
 	# [[ -n $SF_SHM_SIZE ]] && DOCKER_ARGS+=("--shm-size=$SF_SHM_SIZE")
 
 	[[ -n $SF_SYSBOX ]] && SYSBOX_ARGS+=("--runtime=sysbox-runc")
-
-	setup_fs_limit || ERREXIT 202 "Can't configure XFS limit"
 }
 
 # Publish user limits to self/limits, human readable.
@@ -824,6 +812,7 @@ check_banned()
 {
 	local blfn
 
+	[[ ${SF_USER_ALLOW_IP,,} == "any" ]] && return
 	[[ -e "${SF_BLACKLIST_DIR}/ip-${YOUR_IP}" ]] && blfn="${SF_BLACKLIST_DIR}/ip-${YOUR_IP}"
 	[[ -z $blfn ]] && [[ -e "${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}" ]] && blfn="${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}"
 	[[ -z $blfn ]] && return
@@ -1000,46 +989,49 @@ check_limit_server_by_ip()
 
 	fn="/dev/shm/ip-${YOUR_IP_HASH}.conf"
 
-	[[ -f "$fn" ]] && {
-		eval "$(grep ^ARR "$fn")"
+	[[ ! -f "$fn" ]] && {
+		tofile "ARR=($LID)" "$fn"
+		return
+	}
 
-		local n
-		local lid
-		n=0
-		for lid in "${ARR[@]}"; do
-			[[ -z $lid ]] && break
-			### Check if any of the shells are still alive
-			str="$(exec_errnull docker container inspect "lg-${lid}" -f '{{.State.Status}}')" || continue
+	eval "$(grep ^ARR "$fn")"
 
-			# Container can be in "Created" state (reason is unknown)
-			[[ "$str" != "running" ]] && {
-				# FIXME: A rare race condition (which in worst case terminates the shell)
-				# when a container was recently created and a user creates another server
-				# before the old container entered RUNNING state. Disregard this scenario.
-				exec_devnull docker stop "lg-${lid}"
-				continue
-			}
-			((n++))
-			arr_new+=("$lid")
-		done
+	local n
+	local lid
+	n=0
+	for lid in "${ARR[@]}"; do
+		[[ -z $lid ]] && break
+		### Check if any of the shells are still alive
+		str="$(exec_errnull docker container inspect "lg-${lid}" -f '{{.State.Status}}')" || continue
 
-		## Eyy, good idea to check if they are idle?
-		[[ "$n" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && {
-			print_to_many_servers
-			LOG_W "TO MANY SERVERS FOR ${YOUR_IP}"
-			ERREXIT 254
+		# Container can be in "Created" state (reason is unknown)
+		[[ "$str" != "running" ]] && {
+			# FIXME: A rare race condition (which in worst case terminates the shell)
+			# when a container was recently created and a user creates another server
+			# before the old container entered RUNNING state. Disregard this scenario.
+			exec_devnull docker stop "lg-${lid}"
+			continue
 		}
+		((n++))
+		arr_new+=("$lid")
+	done
 
-		[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && IS_SHOW_LAST_SERVER="$((n+1))"
+	## Eyy, good idea to check if they are idle?
+	[[ "$n" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && {
+		print_to_many_servers
+		LOG_W "TO MANY SERVERS FOR ${YOUR_IP}"
+		ERREXIT 254
+	}
 
-		[[ "$n" -ge 1 ]] && {
-			# The 3rd and more servers from same IP get less CPU share
-			SF_USER_CPU_SHARE=2
-			SF_USER_OOM_SCORE=1000
-			SF_USER_NICE_SCORE=19
-			SF_USER_BLKIO_WEIGHT=10
-			# DEBUGF "${n}. server from ${YOUR_IP}. CPU_SHARE=${SF_USER_CPU_SHARE}, OOM=${SF_USER_OOM_SCORE}."
-		}
+	[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && IS_SHOW_LAST_SERVER="$((n+1))"
+
+	[[ "$n" -ge 1 ]] && {
+		# The 2nd and further servers from the same IP get less CPU share
+		SF_USER_CPU_SHARE=2
+		SF_USER_OOM_SCORE=1000
+		SF_USER_NICE_SCORE=19
+		SF_USER_BLKIO_WEIGHT=10
+		# DEBUGF "${n}. server from ${YOUR_IP}. CPU_SHARE=${SF_USER_CPU_SHARE}, OOM=${SF_USER_OOM_SCORE}."
 	}
 
 	tofile "ARR=(${arr_new[*]} $LID)" "$fn"
@@ -1190,6 +1182,8 @@ load_limits
 check_banned
 
 mk_hostname
+
+write_lg_limits
 
 # Show system messages
 sysmsg "/config/host/etc/loginmsg-all.sh"

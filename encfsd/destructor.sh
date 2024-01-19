@@ -33,6 +33,10 @@ stop_lg()
 	rm -rf "/config/self-for-guest/lg-${lid}"
 	rm -rf "/sf/run/users/lg-${lid}"
 
+	# Kill the OpenVPN process (if running)
+	docker exec sf-master killall "openvpn-$lid" 2>/dev/null
+	docker exec sf-master rm -rf "/tmp/lg-$lid" 2>/dev/null 
+
 	# Tear down container
 	[[ -n $is_container ]] && docker stop "lg-$lid" &>/dev/nuill
 

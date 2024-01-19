@@ -32,11 +32,10 @@ export SHELL=/bin/bash
 export TERM=xterm-256color
 reset -I
 PS1='"'\[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\\h:\[\\033[33;1m\]\\w\[\\033[m\]\\$ '"'
-eval \$(resize)
+"'stty -echo;printf "\\033[18t";read -rdt R;stty sane $(echo "$R"|awk -F";" '"'"'{ printf "rows "$3" cols "$2; }'"'"')'"
 ${CN}To force-exit this shell, type ${CDY}kill \"\$(pgrep -P $$)\"${CN}
 -----------------------------------"
 # PS1='USERS=$(who | wc -l) LOAD=$(cut -f1 -d" " /proc/loadavg) PS=$(ps -e --no-headers|wc -l) \[\e[36m\]\u\[\e[m\]@\[\e[32m\]\h:\[\e[33;1m\]\w \[\e[0;31m\]\$\[\e[m\] '
-
 
 cfg=$(stty --save)
 stty raw  -echo opost

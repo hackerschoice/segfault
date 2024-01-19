@@ -157,7 +157,7 @@ vpn_read_config() {
 
         [[ "${key}" == "route" ]] && [[ ${#R_ROUTE_ARR[@]} -le 0 ]] && {
             #FIXME: Auto-convert route from netmask to cidr and add to R_ROUTE_ARR+=(...)
-            echo -e "${R}WARN:${N} Ignoring ${Y}${l}${N}. Used ${C}-d network/cidr${N} instead."
+            echo -e "${ICON_WARN}${R}WARN:${N} Ignoring ${Y}${l}${N}. Used ${C}-d network/cidr${N} instead."
             continue
         }
 
@@ -266,17 +266,6 @@ cmd_vpn_up() {
     # Set default route so that we can reach the remote (in case another VPN was up):
     set_normal_route
 
-    # link-mtu applies to final packets (after encryption and encapsulation) while
-    # tun-mtu applies to the unencrypted packets which are about to enter the tun/tap device.
-    # link_mtu is bigger than tun_mtu
-    # SF_GUEST_MTU is the MTU of the container's eth0 (1420).
-    # link_mtu=$((SF_GUEST_MTU - 20 - VPN_CFG_PROTO_SIZE))
-    # The documentation says only valid for UDP but if not set and TCP is
-    # used then OpenVPN fails handshake (in some cases) with bad/unexpected
-    # packet length....
-    link_mtu="$SF_GUEST_MTU"
-    link_mtu=$((SF_GUEST_MTU - VPN_CFG_PROTO_SIZE))
-
     unset VPN_CFG
     VPN_CFG+="client"$'\n'
     VPN_CFG+="dev $WG_DEV"$'\n'
@@ -290,15 +279,32 @@ cmd_vpn_up() {
     VPN_CFG+="persist-key"$'\n'
     VPN_CFG+="persist-tun"$'\n'
     VPN_CFG+="pull-filter ignore route"$'\n'
-    VPN_CFG+="link-mtu $link_mtu"$'\n'
     VPN_CFG+="user nobody"$'\n'
     VPN_CFG+="group nogroup"$'\n'
-    # X - IPv4 - TCP
-    VPN_CFG+="mssfix $((link_mtu - 20 - 20))"$'\n'
 
     vpn_read_config || BAIL "Failed to read config file"
 
-    [[ "$VPN_CFG_PROTO" != "tcp" ]] && VPN_CFG+="fast-io"$'\n'
+    [[ "$VPN_CFG_PROTO" == "udp" ]] && {
+        # link-mtu applies to final packets (after encryption and encapsulation) while
+        # tun-mtu applies to the unencrypted packets which are about to enter the tun/tap device.
+        # link_mtu is bigger than tun_mtu
+        # SF_GUEST_MTU is the MTU of the container's eth0 (1420).
+        # link_mtu=$((SF_GUEST_MTU - 20 - VPN_CFG_PROTO_SIZE))
+        # The documentation says only valid for UDP but if not set and TCP is
+        # used then OpenVPN fails handshake (in some cases) with bad/unexpected
+        # packet length....
+        # Default is 1500 which indicates it's IP + UDP + PAYLOAD (and not what the OpenVPN docs say).
+        link_mtu=$((SF_GUEST_MTU))
+        VPN_CFG+="link-mtu $link_mtu"$'\n'
+        VPN_CFG+="fast-io"$'\n'
+        # X - IPv4 - TCP
+        # OpenVPN is badly documented. Is this the MSS that is advertised in the TCP header:
+        # VPN_CFG+="mssfix $((SF_GUEST_MTU - 20 - 8 - 20 - 20))"$'\n'
+        # or does OpenVPN subtract its own size from it and then advertises it?
+        # It has to be, right? Because there is no way of us knowing how much header/padding
+        # OpenVPN adds (it's not like WireGuard, where things just make sense)
+        VPN_CFG+="mssfix $((SF_GUEST_MTU - 20 - 20))"$'\n'
+    }
     [[ -n "$VPN_CFG_CA" ]] && VPN_CFG+="<ca>"$'\n'"$VPN_CFG_CA"$'\n'"</ca>"$'\n'
     [[ -n "$VPN_CFG_KEY" ]] && VPN_CFG+="<key>"$'\n'"$VPN_CFG_KEY"$'\n'"</key>"$'\n'
     [[ -n "$VPN_CFG_CERT" ]] && VPN_CFG+="<cert>"$'\n'"$VPN_CFG_CERT"$'\n'"</cert>"$'\n'

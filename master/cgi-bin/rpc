@@ -9,7 +9,10 @@ COLOR="always"
 ICON_ERROR=""
 SF_RUN_DIR="/dev/shm/sf/run"
 source /sf/bin/funcs.sh
+source /sf/bin/funcs_net.sh
 source /sf/bin/funcs_redis.sh
+# backward compat bug fix. If this is past >=2025 then this line can be removed.
+[[ -n ${SF_NET_ONION} ]] && { SF_NET_ONION="10.111.0.0/16"; SF_OVPN_HACK=1; }
 
 [[ ! -d "/config/db" ]] && ERREXIT 255 "Not found: /config/db"
 [[ ! -d "/config/db/wg" ]] && mkdir -p "/config/db/wg"
@@ -47,12 +50,16 @@ Sanitize()
 GetFormVars()
 {
 	local IFS
+	local LC_ALL=C  #make [:print:] ASCII safe
+	local arr
 
 	IFS=\& read -r -a arr <<< "${REQUEST_BODY}"
 	unset IFS
 
 	local i
 	local str
+	local a
+	local b
 	while [[ $i -lt ${#arr[@]} ]]; do
 		str="${arr[$i]}"
 		((i++))
@@ -60,6 +67,23 @@ GetFormVars()
 		[[ ${#key} -le 0 ]] && BAIL "Bad Request" "ERROR: " "Body contains bad variable: '$str'"
 		key=${key,,}
 		val=${str#*=}
+
+		[[ ${key} == "config" ]] && {
+			R_CONFIG="${val//[^[:alnum:]-_+\/.]}"
+			[[ ${R_CONFIG:0:1} == "-" ]] && unset R_CONFIG
+			[[ "${R_CONFIG:0:1}" != "/" ]] && BAIL "Path not absolute. Try ${C}curl ... -d config=\"\$(pwd)/${R_CONFIG}\"${N}"
+		}
+		[[ ${key} == "pass"* ]] && R_PASS="${val//[^[:print:]]}"
+		[[ ${key} == "user"* ]] && R_USER="${val//[^[:print:]]}"
+		[[ ${key} == "keypass"* ]] && R_KEYPASS="${val//[^[:print:]]}"
+		[[ ${key} == "route" ]] && [[ ${#R_ROUTE_ARR[@]} -lt 10 ]] && {
+			local arr2
+            IFS="/" read -r -a arr2 <<<"$val"
+			a=${arr2[0]//[^0-9.]}
+			[[ -z $a ]] && continue
+			b=${arr2[1]//[^0-9]}
+			R_ROUTE_ARR+=("${a}/${b:-32}")
+		}
 
 		[[ ${key} == "nocolor" ]] && unset COLOR
 		[[ ${key} == "nocreat" ]] && IS_NOCREAT=1
@@ -413,24 +437,6 @@ xrm()
 	return $err
 }
 
-set_route()
-{
-	# Add static routes for RPC
-	# nsenter -t "${PID}" -n ip route add "${SF_PC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${WG_DEV}"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${WG_DEV}"
-
-	# Packets to 172.16.0.3 should not be forwarded back to 172.16.0.3
-	# Can not use 'sysctl net.ipv4.conf.wgExit.forwarding=1' because /proc is mounted ro
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables  -I FORWARD -i "${WG_DEV}" -j DROP
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
-}
-
 set_normal_route()
 {
 	# Delete static routes
@@ -442,17 +448,21 @@ set_normal_route()
 	# Should not exist anyway:
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
 
-	# WG OUT specific
-	epip=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route show | grep -F "via ${SF_NET_LG_ROUTER_IP} dev" | grep -v ^default)
+	# EndPoint
+	epip=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route show | grep -F "via ${SF_NET_LG_ROUTER_IP} dev" | grep -v ^default | tail -n1)
 	epip="${epip%% *}"
 	epip=${epip//[^0-9.]}
 	[[ -n $epip ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 
 	# Restore default routing
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
-	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
 	# Zero the file
 	:>"${LID_PROMPT_FN}"
+}
+
+mk_normal_route() {
+	set_normal_route
+	echo -e "${Y}WARNING${N}: All traffic exits via the DEFAULT ROUTE now."
 }
 
 net_down()
@@ -472,7 +482,7 @@ net_down()
 	echo -e "${G}SUCCESS${N}"
 	echo -e "Use ${C}curl sf/net/up -d name=${name:-<NAME>}${N} to connect again."
 
-	set_normal_route
+	mk_normal_route
 
 	# Delete WG NAME
 	rm -f "${LID_WGNAME_FN:?}" "${USER_DB_WGNAME_UP_FN:?}"
@@ -627,6 +637,7 @@ load_lg() {
 	LID="${arr[0]}"
 	# CID="${arr[1]}"
 	PID="${arr[2]}"
+	[[ -z "$LID" ]] && BAIL "LID is empty."
 }
 
 wg_net_init()
@@ -674,7 +685,8 @@ BLPOP portd:response-${LID} 5" | redr) || return
 
 	# The PortD add's a /sf/run/self/reverse_forward.
 	echo -en "\
-${M}Tip${N}: Type ${C}cat /config/self/reverse_*${N}
+${M}🌎 Tip${N}: Type ${C}cat /config/self/reverse_*${N}
+${M}🤭 Tip${N}: Type ${C}rshell${N}
 ${G}👾 New reverse Port is ${Y}${ipport}${CN}"
 
 	# portd.sh automaticaly adds this to /config/self/reverse_*
@@ -731,6 +743,8 @@ cmd_wg_up()
 	echo "$R_WG_PRIVATE" >"/dev/shm/private.$$"
 	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "Failed: wg set (${err:0:128})"
 	rm -f "/dev/shm/private.$$" "/dev/shm/psk.$$"
+	# WG IPv4: HOST_MTU - 60 (20 + 40)
+    # WG IPv6: HOST_MTU - 80 (40 + 40)
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80 - 80)) up dev "${WG_DEV}"
 
 	# Route to WG endpoint:
@@ -772,7 +786,7 @@ cmd_wg_del()
 	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
 	# [[ -f "${USER_DB_WGCLIENT_FN}" ]] && rm -f "${USER_DB_WGCLIENT_FN}"
 	echo -e "${G}SUCCESS${N}"
-	set_normal_route
+	mk_normal_route
 	exit
 }
 
@@ -807,6 +821,7 @@ GetFormVars
 	N=$CN
 	F=$CF
 	ICON_ERROR="💥 "
+	ICON_WARN="💥 "
 }
 
 
@@ -818,6 +833,19 @@ GetFormVars
 
 [[ "${FCGI_CMD}" == "port" ]] && cmd_port
 [[ "${FCGI_CMD}" == "set" ]] && {
+	# If it is >=2025 then you can remove this block (it's now served via curl sf/vpn/*)
+	[[ -n $SF_OVPN_HACK ]] && {
+		wg_net_init
+		[[ ${ARGS[1]} == 'vpn' ]] && {
+			source "/sf/bin/funcs_vpn.sh"
+			[[ ${ARGS[2]} == 'up'   ]] && cmd_vpn_up
+			[[ ${ARGS[2]} == 'show'   ]] && cmd_vpn_show
+			[[ ${ARGS[2]} == 'del'  ]] && cmd_vpn_del
+			[[ ${ARGS[2]} == 'down' ]] && cmd_vpn_del
+			cmd_vpn_help
+			exit
+		} 
+	}
 	[[ -n $TOKEN_NAME ]] && cmd_token
 	BAIL "${M}Setting not found.${N}"	
 }
@@ -837,6 +865,18 @@ wg_net_init
 	[[ ${ARGS[1]} == 'down' ]] && cmd_wg_del
 	[[ ${ARGS[1]} == 'show' ]] && cmd_wg_show
 	cmd_wg_help
+
+	exit
+}
+
+[[ "${FCGI_CMD}" == "vpn" ]] && {
+	source "/sf/bin/funcs_vpn.sh"
+	[[ ${ARGS[1]} == 'up'   ]] && cmd_vpn_up
+	[[ ${ARGS[1]} == 'show'   ]] && cmd_vpn_show
+	[[ ${ARGS[1]} == 'del'  ]] && cmd_vpn_del
+	[[ ${ARGS[1]} == 'down' ]] && cmd_vpn_del
+	# [[ ${ARGS[1]} == 'show' ]] && cmd_wg_show
+	cmd_vpn_help
 
 	exit
 }

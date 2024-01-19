@@ -445,11 +445,14 @@ services:
     depends_on:
       - sf-redis
     network_mode: none
+    dns: ${SF_NET_VPN_DNS_IP}
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN   # For nsenter
       - SYSLOG      # For dmesg
     pid: "host"     # For nsenter
+    devices:
+      - "/dev/net/tun:/dev/net/tun"
     environment:
       - SF_DEBUG
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
@@ -457,17 +460,20 @@ services:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_RPC_IP=${SF_RPC_IP:?}
       - SF_TOR_IP=${SF_TOR_IP:?}
+      - SF_NET_ONION=${SF_NET_ONION:?}
       - WG_IPS=${SF_WG_IPS:-172.16.0.x/16,fd:16::x/104}
       - SF_MULLVAD_ROUTE=${SF_MULLVAD_ROUTE:?}
       - SF_DNS=${SF_NET_VPN_DNS_IP}
       - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
       - SF_HOST_MTU=${SF_HOST_MTU:-1500}
+      - SF_GUEST_MTU=${SF_GUEST_MTU:-1420}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}:/dev/shm/sf"
       - "${SF_BASEDIR:-.}/config/db:/config/db"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+      # - "/research/segfault/sfbin:/sf/bin:ro"  # FIXME-2022
       - "/var/run/docker.sock:/var/run/docker.sock"
       # - /research/segfault/master/cgi-bin:/cgi-bin:ro # FIXME-2022
     entrypoint: ["/init-master.sh"]

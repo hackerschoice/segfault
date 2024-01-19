@@ -1,4 +1,4 @@
-VER := 0.5.2a1
+VER := 0.5.4a1
 
 all:
 	make -C router
@@ -156,6 +156,8 @@ FILES_ROOT += "segfault-$(VER)/sfbin/funcs.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_redis.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_admin.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/funcs_net.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/funcs_vpn.sh"
+FILES_ROOT += "segfault-$(VER)/sfbin/ovpn_up.sh"
 FILES_ROOT += "segfault-$(VER)/sfbin/sf"
 FILES_ROOT += "segfault-$(VER)/sfbin/banhammer.sh"
 

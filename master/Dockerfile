@@ -3,6 +3,7 @@
 FROM ubuntu:22.04
 RUN    apt-get update \
        && apt-get install -y --no-install-recommends \
+              binutils \
               ca-certificates \
               curl \
               fcgiwrap \
@@ -16,6 +17,7 @@ RUN    apt-get update \
               net-tools \
               netcat \
               nginx \
+              openvpn \
               psmisc \
               redis-tools \
               tcpdump \

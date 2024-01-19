@@ -311,7 +311,7 @@ ipset_add_domain()
 	local domain
 	domain="$1"
 	# Remove CNAME. Only output IP
-	for ip in $(dig +short "$domain" | grep -v '\.$'); do
+	for ip in $(dig +short "$domain" | grep -v '\.$' | grep -v '^;;'); do
 		ipset_add_ip "$ip" || ERR "DOMAIN='$domain', IP='$ip'"
 	done
 }

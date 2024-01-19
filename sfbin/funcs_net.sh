@@ -65,3 +65,44 @@ tc_set()
 	tc filter add dev "${dev}" parent 11: handle 11 flow hash keys "${key}" divisor 1024
 	set +e
 }
+
+set_route_pre_up() {
+	# Add static routes for Segfault Services (RPC, DNS, ...)
+	# nsenter -t "${PID}" -n ip route add "${SF_PC_IP}/32" dev eth0 # NOT NEEDED: RPC is on same network
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" dev eth0 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" dev eth0 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" dev eth0 2>/dev/null
+	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" dev eth0 2>/dev/null
+}
+
+set_route_post_up() {
+	local str
+
+	# If there is a EXTRA ROUTE then route ALL traffic. Otherwise keep default route
+	# but add EXTRA ROUTE.
+	[[ ${#R_ROUTE_ARR[@]} -le 0 ]] && {
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
+        nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default dev "${WG_DEV}"
+	}
+	# All IPv6 to WG_DEV. FIXME: One day we shall support IPv6
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route del default 2>/dev/null
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 route add default dev "${WG_DEV}" 2>/dev/null
+
+	# Add EXTRA ROUTE
+    for str in "${R_ROUTE_ARR[@]}"; do
+		echo "Setting route $str"
+        nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n ip route add "${str}" dev "${WG_DEV}"
+    done
+
+	# Packets to 172.16.0.3 should not be forwarded back to 172.16.0.3
+	# Can not use 'sysctl net.ipv4.conf.wgExit.forwarding=1' because /proc is mounted ro
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables  -I FORWARD -i "${WG_DEV}" -j DROP
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
+}
+
+# sf-master, wg/vpn
+set_route()
+{
+	set_route_pre_up
+	set_route_post_up
+}

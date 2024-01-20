@@ -424,7 +424,7 @@ print_goodbye()
 
 	# Restricted shell (-r) wont let us redirect stderr - use a bash-exec trick
 	# Note: pgrep is executed in user's context. Treat the output with care and do not trust it.
-	n=$(bash -c "exec docker exec --user 0:0 \"lg-${LID}\" pgrep -c . 2>/dev/null" | head -n1)
+	n=$(timeout 2 bash -c "exec docker exec --user 0:0 \"lg-${LID}\" pgrep -c . 2>/dev/null" | head -n1)
 	[[ -z "$n" ]] && n=0
 	[[ ${#n} -gt 5 ]] && n=0
 	[[ ! $n -eq $n ]] && n=0
@@ -435,7 +435,7 @@ print_goodbye()
 		str="process is"
 		[[ "$n" -gt 1 ]] && str="processes are"
 		echo -e "${CY}WARNING: ${CR}${n}${CY} ${str} still running:${CN}"
-		exec_errnull docker exec --user 0:0 "lg-${LID}" pgrep . -al | tail -n+3 | while read -r x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
+		exec_errnull timeout 2 docker exec --user 0:0 "lg-${LID}" pgrep . -al | tail -n+3 | while read -r x; do p="${x%% *}        "; n="${x#* }"; echo -e "${CDY}--> ${CDR}${p:0:8}${CDG}${n:0:68}${CN}"; done
 		echo -e "\
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
@@ -443,16 +443,6 @@ print_goodbye()
 -------> This will also make /sec unavailabe until your next log in."
 	fi
 	echo -en "\r"
-	[[ -z $SF_IS_PAYING ]] && {
-		echo -e "\
-${CDY}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@   ${CDG}** GET MORE MEMORY, SPEED, STORAGE AND NO RESTRICTIONS **${CDY}   @@@
-@@@             ${CDR}${CUL}https://www.thc.org/segfault/free${CN}${CDY}                 @@@
-@@@             ${CB}${CUL}https://www.thc.org/segfault/upgrade${CN}${CDY}              @@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${CN}"
-
-	}
-
 	sysmsg "/config/host/etc/logoutmsg-all.sh"
 
 	echo -e "\
@@ -536,7 +526,7 @@ spawn_shell_exit()
 	tofile "${YOUR_IP:?}" "${SF_RUN_DIR}/ips/lg-${LID}.ip"
 	[[ -n $YOUR_GEOIP ]] && tofile "${YOUR_GEOIP}" "/config/self-for-guest/lg-${LID}/geoip"
 	# Request a reverse Port Forward
-	[[ -n $SF_RPORT_ON_LOGIN ]] && [[ -n $SF_RPORT ]] && [[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && exec_devnull docker exec --user 0:0 "lg-${LID}" curl -s sf/port
+	[[ -n $SF_RPORT_ON_LOGIN ]] && [[ -n $SF_RPORT ]] && [[ ! -f "/config/self-for-guest/lg-${LID}/reverse_ip" ]] && exec_devnull timeout 2 docker exec --user 0:0 "lg-${LID}" curl -s sf/port
 
 
 	# Warn user if this is the last server by IP (after semaphore has been released)
@@ -1400,7 +1390,7 @@ exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" "
 # Setup container (within container's namespace)
 unset WGNAME_UP
 [[ -s "${SF_USER_DB_DIR}/wg/name_up" ]] && WGNAME_UP="$(<"${SF_USER_DB_DIR}/wg/name_up")"
-exec_devnull docker exec --user 0:0 --env SF_IS_NEW_SERVER="${SF_IS_NEW_SERVER}" --env WGNAME_UP="${WGNAME_UP}" "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "Failed-#2 to set up guest container..."
+exec_devnull timeout 5 docker exec --user 0:0 --env SF_IS_NEW_SERVER="${SF_IS_NEW_SERVER}" --env WGNAME_UP="${WGNAME_UP}" "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "Failed-#2 to set up guest container..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 

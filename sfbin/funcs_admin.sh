@@ -14,6 +14,7 @@ _self_for_guest_dir="${_sf_shmdir}/self-for-guest"
 _sf_basedir="/sf"
 _sf_dbdir="${_sf_basedir}/config/db"
 unset _sf_isinit
+_sf_region="$(hostname)"
 
 _sf_deinit()
 {
@@ -507,27 +508,29 @@ lgrm()
 lgban()
 {
 	local fn
+	local hn
 	local ip
 	local msg
-	local lid
+	local lglid="${1}"
 
 	_sf_init
-	lid="${1}"
 	shift 1
 
-	fn="${_self_for_guest_dir}/${lid}/ip"
+	fn="${_self_for_guest_dir}/${lglid}/ip"
 	[[ -f "$fn" ]] && {
 		ip=$(<"$fn")
+		fn="${_self_for_guest_dir}/${lglid}/hostname"
+		[[ -f "${fn}" ]] && hn=$(<"${fn}")
 		fn="${_sf_dbdir}/banned/ip-${ip:0:18}"
 		[[ ! -e "$fn" ]] && {
 			[[ $# -gt 0 ]] && msg="$*\n"
-			echo -en "$msg" >"${fn}"
+			echo -en "# ${CY}${hn:-NAME} ${CDY}${_sf_region:-REGION} ${lglid} ${ip:0:18}${CN}\n$msg" >"${fn}"
 		}
 		echo "Banned: $ip"
 	}
 
-	lgstop "${lid}" "$@"
-	#_sf_lgrm "${lid}" # Dont lgrm here and give user chance to explain to re-instate his server.
+	lgstop "${lglid}" "$@"
+	#_sf_lgrm "${lglid}" # Dont lgrm here and give user chance to explain to re-instate his server.
 
 	_sf_deinit
 }

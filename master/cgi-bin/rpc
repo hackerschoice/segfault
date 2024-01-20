@@ -47,6 +47,23 @@ Sanitize()
 	[[ "${#REQUEST_URI}" -gt 512 ]] && BAIL "To long!" "ATTACK" ": REQUEST_URI(${#REQUEST_URI})=${REQUEST_URI:0:32}..."
 }
 
+InitColors() {
+	# COLOR is set (to 'always')
+	Y=$CDY
+	C=$CDC
+	R=$CDR
+	RR=$CR
+	G=$CDG
+	B=$CB
+	M=$CDM
+	YY=$CY
+	W=$CW
+	N=$CN
+	F=$CF
+	ICON_ERROR="💥 "
+	ICON_WARN="💥 "
+}
+
 GetFormVars()
 {
 	local IFS
@@ -71,7 +88,6 @@ GetFormVars()
 		[[ ${key} == "config" ]] && {
 			R_CONFIG="${val//[^[:alnum:]-_+\/.]}"
 			[[ ${R_CONFIG:0:1} == "-" ]] && unset R_CONFIG
-			[[ "${R_CONFIG:0:1}" != "/" ]] && BAIL "Path not absolute. Try ${C}curl ... -d config=\"\$(pwd)/${R_CONFIG}\"${N}"
 		}
 		[[ ${key} == "pass"* ]] && R_PASS="${val//[^[:print:]]}"
 		[[ ${key} == "user"* ]] && R_USER="${val//[^[:print:]]}"
@@ -128,6 +144,9 @@ GetFormVars()
 			[[ ! "${WG_DEV}" =~ ^wg ]] && WG_DEV="wg${WG_DEV}"
 		}
 	done
+
+	[[ -n $COLOR ]] && InitColors
+	[[ -n "$R_CONFIG" ]] && [[ "${R_CONFIG:0:1}" != "/" ]] && BAIL "Path not absolute. Try ${C}curl ... -d config=\"\$(pwd)/${R_CONFIG}\"${N}"
 }
 
 # Load PID of WireGuard container
@@ -685,9 +704,10 @@ BLPOP portd:response-${LID} 5" | redr) || return
 
 	# The PortD add's a /sf/run/self/reverse_forward.
 	echo -en "\
-${M}🌎 Tip${N}: Type ${C}cat /config/self/reverse_*${N}
-${M}🤭 Tip${N}: Type ${C}rshell${N}
-${G}👾 New reverse Port is ${Y}${ipport}${CN}"
+${M}🌎 Tip${N}: Type ${C}cat /config/self/reverse_*${N} for details.
+${M}🤭 Tip${N}: Type ${C}rshell${N} to start listening.
+${M}🛜 Tip${N}: Type ${C}curl sf/port${N} to assign a new port.
+${G}👾 Your reverse Port is ${Y}${ipport}${CN}"
 
 	# portd.sh automaticaly adds this to /config/self/reverse_*
 	exit
@@ -807,22 +827,7 @@ cmd_wg_show()
 0<&- # Close STDIN
 Sanitize
 GetFormVars
-[[ -n $COLOR ]] && {
-	# COLOR is set (to 'always')
-	Y=$CDY
-	C=$CDC
-	R=$CDR
-	RR=$CR
-	G=$CDG
-	B=$CB
-	M=$CDM
-	YY=$CY
-	W=$CW
-	N=$CN
-	F=$CF
-	ICON_ERROR="💥 "
-	ICON_WARN="💥 "
-}
+
 
 
 [[ "${FCGI_CMD}" == "dmesg" ]] && {
@@ -836,13 +841,13 @@ GetFormVars
 	# If it is >=2025 then you can remove this block (it's now served via curl sf/vpn/*)
 	[[ -n $SF_OVPN_HACK ]] && {
 		wg_net_init
-		[[ ${ARGS[1]} == 'vpn' ]] && {
-			source "/sf/bin/funcs_vpn.sh"
-			[[ ${ARGS[2]} == 'up'   ]] && cmd_vpn_up
-			[[ ${ARGS[2]} == 'show'   ]] && cmd_vpn_show
-			[[ ${ARGS[2]} == 'del'  ]] && cmd_vpn_del
-			[[ ${ARGS[2]} == 'down' ]] && cmd_vpn_del
-			cmd_vpn_help
+		[[ ${ARGS[1]} == 'ovpn' ]] && {
+			source "/sf/bin/funcs_ovpn.sh"
+			[[ ${ARGS[2]} == 'up'   ]] && cmd_ovpn_up
+			[[ ${ARGS[2]} == 'show'   ]] && cmd_ovpn_show
+			[[ ${ARGS[2]} == 'del'  ]] && cmd_ovpn_del
+			[[ ${ARGS[2]} == 'down' ]] && cmd_ovpn_del
+			cmd_ovpn_help
 			exit
 		} 
 	}
@@ -869,14 +874,14 @@ wg_net_init
 	exit
 }
 
-[[ "${FCGI_CMD}" == "vpn" ]] && {
-	source "/sf/bin/funcs_vpn.sh"
-	[[ ${ARGS[1]} == 'up'   ]] && cmd_vpn_up
-	[[ ${ARGS[1]} == 'show'   ]] && cmd_vpn_show
-	[[ ${ARGS[1]} == 'del'  ]] && cmd_vpn_del
-	[[ ${ARGS[1]} == 'down' ]] && cmd_vpn_del
+[[ "${FCGI_CMD}" == "ovpn" ]] && {
+	source "/sf/bin/funcs_ovpn.sh"
+	[[ ${ARGS[1]} == 'up'   ]] && cmd_ovpn_up
+	[[ ${ARGS[1]} == 'show'   ]] && cmd_ovpn_show
+	[[ ${ARGS[1]} == 'del'  ]] && cmd_ovpn_del
+	[[ ${ARGS[1]} == 'down' ]] && cmd_ovpn_del
 	# [[ ${ARGS[1]} == 'show' ]] && cmd_wg_show
-	cmd_vpn_help
+	cmd_ovpn_help
 
 	exit
 }

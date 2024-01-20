@@ -1,7 +1,7 @@
-diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/channels.c openssh-9.2p1-sf/channels.c
---- openssh-9.2p1-orig/channels.c	2023-02-02 12:21:54
-+++ openssh-9.2p1-sf/channels.c	2023-08-15 06:13:05
-@@ -3639,7 +3639,7 @@
+diff -x !*.[ch] -u openssh-9.6p1-orig/channels.c openssh-9.6p1-sf/channels.c
+--- openssh-9.6p1-orig/channels.c	2023-12-18 14:59:50
++++ openssh-9.6p1-sf/channels.c	2024-01-20 17:50:15
+@@ -3683,7 +3683,7 @@
  	ssh->chanctxt->IPv4or6 = af;
  }
  
@@ -10,7 +10,7 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/channels.c openssh-9.2p1-s
  /*
   * Determine whether or not a port forward listens to loopback, the
   * specified address or wildcard. On the client, a specified bind
-@@ -3677,6 +3677,7 @@
+@@ -3721,6 +3721,7 @@
  			 * address and it was overridden.
  			 */
  			if (*listen_addr != '\0' &&
@@ -18,10 +18,10 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/channels.c openssh-9.2p1-s
  			    strcmp(listen_addr, "0.0.0.0") != 0 &&
  			    strcmp(listen_addr, "*") != 0) {
  				ssh_packet_send_debug(ssh,
-diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1-sf/serverloop.c
---- openssh-9.2p1-orig/serverloop.c	2023-02-02 12:21:54
-+++ openssh-9.2p1-sf/serverloop.c	2023-08-15 06:18:17
-@@ -102,6 +102,12 @@
+diff -x !*.[ch] -u openssh-9.6p1-orig/serverloop.c openssh-9.6p1-sf/serverloop.c
+--- openssh-9.6p1-orig/serverloop.c	2023-12-18 14:59:50
++++ openssh-9.6p1-sf/serverloop.c	2024-01-20 17:50:15
+@@ -101,6 +101,12 @@
  /* requested tunnel forwarding interface(s), shared with session.c */
  char *tun_fwd_ifnames = NULL;
  
@@ -34,7 +34,7 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1
  /* returns 1 if bind to specified port by specified user is permitted */
  static int
  bind_permitted(int port, uid_t uid)
-@@ -391,8 +397,10 @@
+@@ -388,8 +394,10 @@
  			/* Clean up sessions, utmp, etc. */
  			cleanup_exit(255);
  		}
@@ -46,7 +46,7 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1
  		if (conn_in_ready &&
  		    process_input(ssh, connection_in) < 0)
  			break;
-@@ -637,12 +645,14 @@
+@@ -634,12 +642,14 @@
  
  	if (strcmp(ctype, "session") == 0) {
  		c = server_request_session(ssh);
@@ -67,7 +67,7 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1
  	}
  	if (c != NULL) {
  		debug_f("confirm %s", ctype);
-@@ -802,8 +812,20 @@
+@@ -799,8 +809,20 @@
  			ssh_packet_send_debug(ssh, "Server has disabled port forwarding.");
  		} else {
  			/* Start listening on the port */
@@ -90,10 +90,10 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/serverloop.c openssh-9.2p1
  		}
  		if ((resp = sshbuf_new()) == NULL)
  			fatal_f("sshbuf_new");
-diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/sshd.c
---- openssh-9.2p1-orig/sshd.c	2023-02-02 12:21:54
-+++ openssh-9.2p1-sf/sshd.c	2023-08-15 06:13:05
-@@ -536,8 +536,71 @@
+diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
+--- openssh-9.6p1-orig/sshd.c	2023-12-18 14:59:50
++++ openssh-9.6p1-sf/sshd.c	2024-01-20 17:50:15
+@@ -531,8 +531,71 @@
  		return 0;
  	}
  }
@@ -165,7 +165,7 @@ diff --color=auto -x !*.[ch] -u -r openssh-9.2p1-orig/sshd.c openssh-9.2p1-sf/ss
  privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
  {
  #ifdef DISABLE_FD_PASSING
-@@ -576,8 +639,34 @@
+@@ -571,8 +634,34 @@
  
  	reseed_prngs();
  

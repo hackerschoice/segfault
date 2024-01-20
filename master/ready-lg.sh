@@ -19,7 +19,9 @@ USER_UL_RATE="$5"
 LID_PROMPT_FN="/dev/shm/sf/self-for-guest/lg-${LID}/prompt"
 
 # Create 'empty' for ZSH's prompt to show WG EXIT
-[[ ! -f "${LID_PROMPT_FN}" ]] && touch "${LID_PROMPT_FN}"
+# [[ ! -f "${LID_PROMPT_FN}" ]] && touch "${LID_PROMPT_FN}"
+# Overwrite existing. Will be re-created by sf-setup.sh if WG-NET is up still. 
+:>"${LID_PROMPT_FN}"
 
 set -e
 LG_MAC=$(docker inspect -f '{{ (index .NetworkSettings.Networks "sf-guest").MacAddress }}' "lg-${LID:?}")

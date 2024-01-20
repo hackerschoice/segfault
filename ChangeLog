@@ -1,7 +1,10 @@
 0.5.4 - 2023-02-00
+    * OpenSSH 9.6p1
     * rshell
     * sploitscan
-    * OpenVPN (curl sf/vpn)
+    * OpenVPN (curl sf/ovpn)
+    * Different auto-shutdown timers for FREE and TOKEN users
+    * Syscop login message after auto-shutdown
 
 0.5.2 - 2023-12-00
     * Kali 2023.4

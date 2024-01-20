@@ -293,8 +293,10 @@ alias nocol=noansi
 # Make the Project name visibile in the PS1 prompt
 [[ -z $VIRTUAL_ENV ]] && VIRTUAL_ENV="${SF_PRJ}"
 
-PATH="${HOME:-/sec/root}/go/bin:${HOME:-/sec/root}/.cargo/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:$PATH"
+
+PATH="${HOME:-/sec/root}/go/bin:${HOME:-/sec/root}/.cargo/bin:/sec/root/.local/bin:/sec/usr/sbin:/sec/usr/bin:/sf/bin:/usr/local/go/bin:$PATH"
 [[ -d /usr/share/doc/python3-impacket/examples ]] && PATH="${PATH}:/usr/share/doc/python3-impacket/examples"
+export PATH
 
 _sf_info_non_perm()
 {

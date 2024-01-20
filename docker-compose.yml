@@ -40,7 +40,7 @@ services:
     devices:
       - "/dev/fuse:/dev/fuse"
     volumes:
-      - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
+      - "${SF_BASEDIR:-.}/config/db:/config/db:rw"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/etc/sf:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"
@@ -76,6 +76,7 @@ services:
       - "/dev/fuse:/dev/fuse"
     volumes:
       - "${SF_BASEDIR:-.}/config/db:/config/db:ro"
+      - "${SF_BASEDIR:-.}/config/etc/sf:/config/etc/sf:ro"
       - "${SF_BASEDIR:-.}/data:/encfs/raw"
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec:/encfs/sec:shared"

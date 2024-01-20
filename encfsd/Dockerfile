@@ -9,4 +9,4 @@ RUN apk add --no-cache --upgrade \
 		encfs \
 		redis \
 		xfsprogs-extra
-COPY destructor.sh encfsd.sh portd.sh /
+COPY destructor.sh funcs_destructor.sh encfsd.sh portd.sh /

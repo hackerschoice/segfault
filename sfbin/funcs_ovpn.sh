@@ -6,7 +6,7 @@
 
 [[ -z "$SF_GUEST_MTU" ]] && SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 
-cmd_vpn_help() {
+cmd_ovpn_help() {
     	echo -en "\
 Use ${C}curl sf/vpn/up -d config=\"\$(pwd)/openvpn.conf\"${N}
 Use ${C}curl sf/vpn/up -d config=\"\$(pwd)/openvpn.conf\" -d user=username -d pass=password${N}
@@ -241,7 +241,7 @@ vpn_stop() {
     nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables -F FORWARD 2>/dev/null
 }
 
-cmd_vpn_show() {
+cmd_ovpn_show() {
     load_lg
     [[ -f "/tmp/lg-${LID:-?}/conf/conn.ovpn" ]] && {
         echo -e "${C}"
@@ -252,12 +252,12 @@ cmd_vpn_show() {
     exit
 }
 
-cmd_vpn_up() {
+cmd_ovpn_up() {
     local str
 	load_lg
     local link_mtu
 
-    [[ -z "$R_CONFIG" ]] && cmd_vpn_help
+    [[ -z "$R_CONFIG" ]] && cmd_ovpn_help
     WG_DEV="vpnEXIT"
     # echo "PID=$PID"
 
@@ -379,7 +379,7 @@ Use ${C}curl sf/vpn/down${N} to disconnect.
     exit
 }
 
-cmd_vpn_del() {
+cmd_ovpn_del() {
     load_lg
 
     vpn_stop

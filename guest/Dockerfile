@@ -614,11 +614,11 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan%arch:x86_64=:aarch64=_arm6
 	&& /pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest \
 		&& mkdir -p /usr/share/gf \
-		&& svn export https://github.com/tomnomnom/gf/trunk /tmp/gf \
+		&& git clone --depth 1 https://github.com/tomnomnom/gf.git /tmp/gf \
 		&& mv /tmp/gf/examples/*.json /usr/share/gf \
 		&& mv /tmp/gf/gf-completion.* /usr/share/gf \
 		&& rm -rf /tmp/gf \
-		&& svn export https://github.com/1ndianl33t/Gf-Patterns/trunk/ /tmp/gf \
+		&& git clone --depth 1 https://github.com/1ndianl33t/Gf-Patterns.git /tmp/gf \
 		&& mv /tmp/gf/*.json /usr/share/gf; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/hacks/inscope@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Emoe/kxss@latest; }' \
@@ -631,7 +631,8 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan%arch:x86_64=:aarch64=_arm6
 		&& cmake . \
 		&& make \
 		&& cp urldedupe /usr/bin; }' \
-	&& /pkg-install.sh HACK bash -c '{ svn export https://github.com/urbanadventurer/username-anarchy/trunk /opt/username-anarchy; }' \
+	&& /pkg-install.sh HACK bash -c '{ git clone --depth 1 https://github.com/urbanadventurer/username-anarchy.git /opt/username-anarchy \
+		&&  rm -rf /opt/username-anarchy/.git*; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/damit5/gitdorks_go@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/dsieve@master; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/enumerepo@latest; }' \
@@ -802,8 +803,8 @@ RUN /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' 
 	&& /pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/xaitax/SploitScan/raw/main/sploitscan.py'                    sploitscan \
 	&& /pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
-RUN /pkg-install.sh LARGE ghbin PaddiM8/kalker                       'linux'                                     kalker \
-	&& /pkg-install.sh LARGE ghbin PowerShell/PowerShell  'deb_%arch1%.deb'
+RUN /pkg-install.sh LARGE ghbin PaddiM8/kalker                       'linux'                                     kalker
+ ## YANKED. Already in apt-get install powershell/pkg-install.sh LARGE ghbin PowerShell/PowerShell  'deb_%arch1%.deb'
 RUN	/pkg-install.sh HACK bash -c '{  wget -O "/usr/bin/favfreak.py" https://raw.githubusercontent.com/devanshbatham/FavFreak/master/favfreak.py \
 		&& chmod 755 /usr/bin/favfreak.py \
 		&& ln -s favfreak.py /usr/bin/FavFreak; }' \

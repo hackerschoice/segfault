@@ -1,0 +1,31 @@
+name: Auto upload sfwg[*|.ps1] to thc.org/sfwg*
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - contrib/sfwg.ps1
+      - contrib/sfwg
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Deploy to WWW
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: sfwg to https://thc.org/
+      env:
+        SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+      run: |
+        cp contrib/sfwg /contrib/sfwg.ps1 /tmp/
+        mkdir ~/.ssh && echo "$SSH_DEPLOY_KEY" >~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+        cd /tmp/
+        git clone -b gh-pages --single-branch git@github.com:hackerschoice/hackerschoice.github.io.git
+        cd hackerschoice.github.io
+        cat /tmp/sfwg >sfwg
+        cat /tmp/sfwg.ps1 >sfwg.ps1
+        git config --local user.name "GitHub Action"
+        git config --local user.email "root@proton.thc.org"
+        git add sfwg sfwg.ps1 && git commit -m "deploy sfwg" && git push
+  

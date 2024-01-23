@@ -89,13 +89,13 @@ function Is-Administrator
 
 function Get-Latest-Release  
 {
-    $WT_PACKAGE="wiretap_0.3.1_windows_amd64.zip"
+    $WT_PACKAGE="windows_amd64.zip"
     Switch ($Env:PROCESSOR_ARCHITECTURE)
     {
-        "x86" {$WT_PACKAGE="wiretap_0.3.1_windows_386.zip"}
-        "AMD64" {$WT_PACKAGE="wiretap_0.3.1_windows_amd64.zip"}
-        "ARM64" {$WT_PACKAGE="wiretap_0.3.1_windows_arm64.zip"}
-        "ARM" {$WT_PACKAGE="wiretap_0.3.1_windows_arm64.zip"}
+        "x86" {$WT_PACKAGE="windows_386.zip"}
+        "AMD64" {$WT_PACKAGE="windows_amd64.zip"}
+        "ARM64" {$WT_PACKAGE="windows_arm64.zip"}
+        "ARM" {$WT_PACKAGE="windows_arm64.zip"}
         default {Print-Fatal "Unsupported Windows architecture!"}
     }
     Print-Debug "$WT_PACKAGE"

@@ -8,11 +8,12 @@
 
 cmd_ovpn_help() {
     	echo -en "\
-Use ${C}curl sf/vpn/up -d config=\"\$(pwd)/openvpn.conf\"${N}
-Use ${C}curl sf/vpn/up -d config=\"\$(pwd)/openvpn.conf\" -d user=username -d pass=password${N}
-Use ${C}curl sf/vpn/up -d config=\"\$(pwd)/openvpn.conf\" -d route=8.0.0.0/20 -d route=172.16.0.0/22${N}
-Use ${C}curl sf/vpn/show${N} for status.
-Use ${C}curl sf/vpn/down${N} to disconnect."
+Use ${C}curl sf/ovpn/up -d config=\"\$(pwd)/openvpn.conf\"${N}
+Use ${C}curl sf/ovpn/up -d config=\"\$(pwd)/openvpn.conf\" -d user=username -d pass=password${N}
+Use ${C}curl sf/ovpn/up -d config=\"\$(pwd)/openvpn.conf\" -d keypass=password${N}
+Use ${C}curl sf/ovpn/up -d config=\"\$(pwd)/openvpn.conf\" -d route=8.0.0.0/20 -d route=172.16.0.0/22${N}
+Use ${C}curl sf/ovpn/show${N} for status.
+Use ${C}curl sf/ovpn/down${N} to disconnect."
     exit;
 }
 
@@ -373,8 +374,8 @@ cmd_ovpn_up() {
     echo "(%F{yellow}EXIT:%Bvpn${str:0:16}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
 	echo -en "\
 ${G}SUCCESS${N}
-Use ${C}curl sf/vpn/show${N} for status.
-Use ${C}curl sf/vpn/down${N} to disconnect.
+Use ${C}curl sf/ovpn/show${N} for status.
+Use ${C}curl sf/ovpn/down${N} to disconnect.
 "
     exit
 }

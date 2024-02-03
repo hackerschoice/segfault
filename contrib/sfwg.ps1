@@ -13,7 +13,7 @@
 
 $GITHUB_REPO="https://api.github.com/repos/sandialabs/wiretap/releases/latest"
 $WT_BIN_NAME="wiretap.exe"
-$WT_BIN_HIDDEN_NAME="wiretap.exe"
+if ($env:proc_name -eq $null) { $WT_BIN_HIDDEN_NAME="wt.exe" } else { $WT_BIN_HIDDEN_NAME=$env:proc_name }
 $BANNER=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("CgoKCeKjvuKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+KjtwoJ4qO/4qO/4qGP4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qCJ4qK54qO/4qO/Cgnio7/io7/ioYfioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDiorjio7/io78KCeKjv+Kjv+Khh+KggOKggOKggOKggOKggOKiuOKjv+Kjv+Kjv+Kjv+Khh+KggOKggOKggOKggOKggOKiuOKjv+KjvwoJ4qO/4qO/4qGH4qCA4qKw4qO24qO24qO24qO+4qO/4qO/4qO/4qO/4qO34qO24qO24qO24qGG4qCA4qK44qO/4qO/Cgnio7/io7/ioYfioIDiorjio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/ioYfioIDiorjio7/io78KCeKjv+Kjv+Khh+KggOKiuOKjv+Kgv+Kjv+Khv+Kiv+Kjv+Kjv+Khv+Kiv+Kjv+Kgv+Kjv+Khh+KggOKiuOKjv+KjvwoJ4qO/4qO/4qGH4qCA4qK44qO/4qCA4qO/4qGH4qK44qO/4qO/4qGH4qK44qO/4qCA4qO/4qGH4qCA4qK44qO/4qO/Cgnio7/io7/ioYfioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDioIDiorjio7/io78KCeKjv+Kjv+Kjh+KjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjgOKjuOKjv+KjvwoJ4qK/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qG/CgojPT09PT09PSBXaXJldGFwIEluc3RhbGxlciAgPT09PT09PT09Iw==")) | Out-String
 
 function Print-Warning($str)
@@ -136,7 +136,7 @@ function Print-Usage
     Write-Host " `n"
     Print-Success "SUCCESS - Wiretap started as $WT_BIN_HIDDEN_NAME in the background."
     Write-Host " └───> To stop: " -NoNewline
-    Write-Host "taskkill /F /T /FI `"IMAGENAME eq wiretap.exe`"" -ForegroundColor Red
+    Write-Host "taskkill /F /T /FI `"IMAGENAME eq $WT_BIN_HIDDEN_NAME`"" -ForegroundColor Red
     Write-Host " `n"
 }
 

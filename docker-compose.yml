@@ -51,7 +51,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "/sys/fs/cgroup:/sys/fs/cgroup"
 
-  # Note: If this one fails to start then most likelly bad ENCFS password.
+  # Note: If this one fails to start then most likely bad ENCFS password.
   # level=fatal msg="no such file or directory": unknown
   sf-destructor:
     build: encfsd

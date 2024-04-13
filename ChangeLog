@@ -1,4 +1,8 @@
-0.5.4 - 2023-02-00
+0.5.6 - 2024-03-00
+    * exfil
+    * Human captcha & new-server delay of 60 seconds
+
+0.5.4 - 2024-02-00
     * OpenSSH 9.6p1
     * rshell
     * sploitscan

@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <string.h>
 
 #define SOCKET_PATH "/sf/run/logpipe/logPipe.sock"
 

@@ -20,7 +20,7 @@ sed '/\^P toggle_oneline_prompt/d' -i /etc/skel/.zshrc
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.zshrc
 
 echo '[[ -e /etc/shellrc ]] && source /etc/shellrc' >>/etc/skel/.bashrc
-sed 's/\(\s*\)set mouse=/"\1set mouse=/g' -i /usr/share/vim/vim90/defaults.vim
+sed 's/\(\s*\)set mouse=/"\1set mouse=/g' -i /usr/share/vim/vim91/defaults.vim
 [[ -e /etc/postgresql/15/main/postgresql.conf ]] && {
 	sed 's/shared_buffers = [0-9]*\(.*\)/shared_buffers = 4\1/g' -i /etc/postgresql/15/main/postgresql.conf
 	sed 's/#maintenance_work_mem = [0-9]*\(.*\)/maintenance_work_mem = 4\1/g' -i /etc/postgresql/15/main/postgresql.conf
@@ -116,6 +116,9 @@ mk_hook /usr/share/code code
 
 # Apache needs to enable modules
 command  -v a2enmod >/dev/null && a2enmod php8.2
+
+# git diff delta and other options
+[[ -f /usr/bin/delta ]] && cat /gitconfig-stub >>/etc/gitconfig 
 
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {

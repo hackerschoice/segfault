@@ -103,7 +103,7 @@ GetFormVars()
 
 		[[ ${key} == "nocolor" ]] && unset COLOR
 		[[ ${key} == "nocreat" ]] && IS_NOCREAT=1
-		# [[ ${key} == "verbose" ]] && IS_VERBOSE=1
+		[[ ${key} == "verbose" ]] && IS_VERBOSE=1
 		[[ ${key} == "port" ]] && { val=$((${val//[^0-9]})); [[ $val -ge 32768 && $val -le 65535 ]] && R_PORT="$val"; }
 		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
 		[[ ${key} == "exit_private" ]] && R_WT_PRIVATE="${val//[^[:alnum:]+\/]}="
@@ -691,7 +691,8 @@ cmd_port() {
 
 	load_lg
 	source "/dev/shm/sf/run/users/lg-${LID}/limits.txt"
-	[[ -z $SF_RPORT ]] && BAIL "💥 ${RR}ERROR${CN}: ${M}Please contact a SysCop to enable this feature for you.${N}"
+	[[ -z $SF_RPORT ]] && BAIL "${M}You need a TOKEN to use this feature. Please read https://thc.org/sf/token.
+Alternatively, set up your own reverse port like so: https://tinyurl.com/thctips#ports${N}"
 
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
 	sleep 1  # Stop DoS attack: flood-requesting reverse ports
@@ -700,7 +701,7 @@ RPUSH portd:blcmd \"getport ${LID}\"\n\
 BLPOP portd:response-${LID} 5" | redr) || return
 	# DEBUGF "ipport='$ipport'"
 	ipport="${ipport##*$'\n'}"
-	[[ ! "${ipport##*:}" -gt 0 ]] && { DEBUGF "Failed to get Reverse Port Forward (ipport='$ipport')"; return; }
+	[[ ! "${ipport##*:}" -gt 0 ]] && BAIL "Ports not available. Please report this to a SysCop." "BAD sf/port (ipport='$ipport')"
 
 	# The PortD add's a /sf/run/self/reverse_forward.
 	echo -en "\

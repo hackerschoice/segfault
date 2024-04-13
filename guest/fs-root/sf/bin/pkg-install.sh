@@ -3,6 +3,7 @@
 export DEBIAN_FRONTEND=noninteractive
 export PIPX_HOME=/usr
 export PIPX_BIN_DIR=/usr/bin
+COPTS=("-SsfL" "--connect-timeout" "7" "-m900" "--retry" "3")
 
 [[ -n $BESTEFFORT ]] && force_exit_code=0
 
@@ -68,7 +69,13 @@ dlx()
 	asset="$2"  # May contain wildcards/Need globbing
 	dstdir="$3"
 	dass="$4"
-
+	# Cant do 'shift 4' here because that wont shift _AT ALL_
+	# if parameters are less than 4.
+	shift 1
+	shift 1
+	shift 1
+	shift 1
+	
 	[[ -z $dstdir ]] && dstdir="/usr/bin"
 	[[ -z $dass ]] && dass="$asset"
 
@@ -76,7 +83,7 @@ dlx()
 	case $url in
 		*.zip)
 			[[ -f /tmp/pkg.zip ]] && rm -f /tmp/pkg.zip
-			curl -SsfL -o /tmp/pkg.zip "$url" || return
+			curl "${COPTS[@]}" -o /tmp/pkg.zip "$url" || return
 			if [[ -z $asset ]]; then
 				# HERE: Directory
 				unzip /tmp/pkg.zip -d "${dstdir}" || return
@@ -90,38 +97,39 @@ dlx()
 			;;
 		*.deb)
 			### Need to force-architecture as we install x86_64 only packages on aarch64
-			curl -SsfL -o /tmp/pkg.deb "$url" \
-			&& dpkg -i --force-architecture --ignore-depends=sshfs /tmp/pkg.deb \
+			## Shitty packages like watchexec need --force-overwrite in $@ to overwrite watchexec.fish (which already exists)
+			curl "${COPTS[@]}" -o /tmp/pkg.deb "$url" \
+			&& dpkg -i --force-architecture "$@" --ignore-depends=sshfs /tmp/pkg.deb \
 			&& rm -rf /tmp/pkg.deb \
 			&& return 0
 			;;
 		*.tar.gz|*.tgz)
-			curl -SsfL "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
+			curl "${COPTS[@]}" "$url" | tar xfvz - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
 			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*.gz)
-			curl -SsfL "$url" | gunzip >"${dstdir}/${asset}" \
+			curl "${COPTS[@]}" "$url" | gunzip >"${dstdir}/${asset}" \
 			&& chmod 755 "${dstdir}/${dass}" \
 			&& return 0
 			;;
 		*.tar.bz2)
-			curl -SsfL "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
+			curl "${COPTS[@]}" "$url" | tar xfvj - --transform="flags=r;s|.*/||" --no-anchored  -C "${dstdir}" --wildcards "$asset" \
 			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*.bz2)
-			curl -SsfL "$url" | bunzip2 >"${dstdir}/${asset}" \
+			curl "${COPTS[@]}" "$url" | bunzip2 >"${dstdir}/${asset}" \
 			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*.xz)
-			curl -SsfL "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin --wildcards "$asset" \
+			curl "${COPTS[@]}" "$url" | tar xfvJ - --transform="flags=r;s|.*/||" --no-anchored  -C /usr/bin --wildcards "$asset" \
 			&& xmv "$asset" "$dass" "$dstdir" \
 			&& return 0
 			;;
 		*)
-			curl -SsfL "$url" >"${dstdir}/${asset}" \
+			curl "${COPTS[@]}" "$url" >"${dstdir}/${asset}" \
 			&& chmod 755 "${dstdir}/${dass}" \
 			&& return 0
 	esac
@@ -138,7 +146,7 @@ ghlatest()
 
 	[[ -n $GITHUB_TOKEN ]] && args=("-H" "Authorization: Bearer $GITHUB_TOKEN")
 	loc="https://api.github.com/repos/${loc}/releases/latest"
-	data=$(curl "${args[@]}" -SsfL "$loc") || {
+	data=$(curl "${COPTS[@]}" "${args[@]}" "$loc") || {
 		echo >&2 "Failed($?) at '$loc'"
 		[[ -z $GITHUB_TOKEN ]] && echo >&2 "Try setting GITHUB_TOKEN="
 		exit 250
@@ -163,34 +171,49 @@ ghbin()
 {
 	local url
 	local asset
-	local dst
+	local dstdir
+	local dass
     local src
     src=$(dearch "$2") || exit 0
 	asset=$(dearch "$3") || exit 0
-	dst="$5"
+	dstdir="$4"
+	dass="$5"
 
 	url=$(ghlatest "$1" "$src")
-	dlx "$url" "$asset" "" "$dst"
+
+	shift 1
+	shift 1
+	shift 1
+	shift 1
+	shift 1
+	dlx "$url" "$asset" "$dstdir" "$dass" "$@"
 }
 
 ghdir()
 {
 	local url
     local src
-	local dst
+	local dst="$3"
     src=$(dearch "$2") || exit 0
-	dst="$3"
 
 	url=$(ghlatest "$1" "$src")
-	dlx "$url" "" "$dst"
+
+	shift 1
+	shift 1
+	shift 1
+	dlx "$url" "" "$dst" '' "$@"
 }
 
 bin()
 {
-	local src
-    src=$(dearch "$1") || exit 0
+	local url
+	local asset="$2"
 
-	dlx "$src" "$2"
+    url=$(dearch "$1") || exit 0
+
+	shift 1
+	shift 1
+	dlx "$url" "$asset" '' '' "$@"
 }
 
 TAG="${1^^}"

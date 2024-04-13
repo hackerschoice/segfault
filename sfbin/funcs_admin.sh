@@ -119,7 +119,7 @@ _sfcg_forall()
 
 	for l in "${arr[@]}"; do
 		ts=2147483647
-		[[ -n $skip_token ]] && [[ -e "${_sf_dbdir}/user/${l}/token" ]] && continue
+		[[ -n "$skip_token" ]] && [[ -e "${_sf_dbdir}/user/${l}/token" ]] && continue
 		fn="${_sf_dbdir}/user/${l}/created.txt"
 		[[ -f "$fn" ]] && ts=$(date +%s -u -r "$fn")
 		a+=("$ts $l")
@@ -140,8 +140,8 @@ _sfcg_psarr()
 	found=0
 	[[ -z $match ]] && found=1 # empty string => Show all
 
-	IFS= str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd 2>/dev/null)
-	[[ -n $str ]] && [[ -n $match ]] && [[ "$str" =~ $match ]] && found=1
+	str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd 2>/dev/null)
+	[[ -n $str ]] && [[ -n $match ]] && [[ "$str"$'\n' =~ $match ]] && found=1
 
 	echo "$str"
 	return $found
@@ -237,26 +237,13 @@ lgwall()
 
 # Enter a docker network namespace
 # [container] <cmd ...>
-netns()
-{
+netns() {
 	local pid
 	local c_id
-	# local str
-	local cmd
 	c_id="$1"
 
 	shift 1
 	pid=$(docker inspect -f '{{.State.Pid}}' "${c_id:?}") || return
-	# [[ ${#} -le 0 ]] && {
-	# 	env HISTFILE=/dev/null nsenter -t "${pid}" -a bash -il
-	# 	return
-	# }
-
-	# str=$(head -n1 "/proc/${pid}/cgroup")
-	# FIXME: '*' wont work if there are more than 1 cgroup.
-	# cgexec --sticky -g "*:${str##*:}" nsenter -t "${pid}" -a "${cmd[@]}"
-	# nsenter -C doesnt seem to be sticky: Child processes run as /user.slice rather then
-	# the slice of the spawned 'bash' (/sf.slice) -> That's contrary to the man page.
 	nsenter -t "${pid}" -n "$@"
 }
 
@@ -271,8 +258,8 @@ _sf_mkp2lid()
 	local str
 	local -
 
-	echo >&2 "Loading Prj2Lid DB..."
 	[[ ${#_sf_p2lid[@]} -gt 0 ]] && return # Already loaded
+	echo >&2 "Loading Prj2Lid DB..."
 
 	dst=$1
 	[[ -z $dst ]] && dst="lg-*"
@@ -284,8 +271,12 @@ _sf_mkp2lid()
 	all=($str)
 	# Create hash-map to translate PRJID to LID name
 	for l in "${all[@]}"; do
+		# Trim whitespace from beginning.
+		[[ ${l:0:1} == " " ]] && l="${l#"${l%%[![:space:]]*}"}"
+		[[ ${l%% *} == "0" ]] && { echo "Warning: ${l##*/} with PRJ-ID==0"; sleep 10; continue; }
 		_sf_p2lid["${l%% *}"]="${l##*/}"
 	done
+	return 255
 }
 
 # Create hash-maps for BYTES and INODES by LG
@@ -327,6 +318,35 @@ _sf_load_xfs_usage()
 	done
 }
 
+# Clean old and stale files
+_lgclean() {
+    local IFS
+	local arr
+	local l
+
+    arr=($(find "${_sf_dbdir:?}/user" -maxdepth 2 -name is_logged_in))
+	IFS=$'\n'
+	for l in "${arr[@]}"; do
+		l="${l%/is_logged_in}"
+		l="${l##*/lg-}"
+		docker inspect "lg-${l}" &>/dev/null && continue
+		echo -e "[${CDM}lg-${l}${CN}] Deleting stale ${CDY}${CF}is_logged_in${CN}"
+		# We missed to set the ts_logout. Do our best to set it to NOW
+		# so that lgpurge wont delete a stale LG immediately.
+
+		# debuging:
+		# [[ ! -f "${_sf_dbdir:?}/user/lg-${l}/ts_logout" ]] && mv rm -f "${_sf_dbdir:?}/user/lg-${l}/is_logged_in" "${_sf_dbdir:?}/user/lg-${l}/ts_logout"
+		[[ ! -f "${_sf_dbdir:?}/user/lg-${l}/ts_logout" ]] && touch "${_sf_dbdir:?}/user/lg-${l}/ts_logout"
+		rm -f "${_sf_dbdir:?}/user/lg-${l}/is_logged_in"
+	done
+}
+
+lgclean() {
+	_sf_init
+	_lgclean
+	_sf_deinit
+}
+
 # [Idle-DAYS] [Naughty-Days]
 # - Delete all LID's that have not been logged in for Idle-Days
 # - Delete all LID's that have not been used for Naughty-Days and look empty (blocks <= 180)
@@ -347,12 +367,13 @@ lgpurge()
 	local str
 	
 	_sf_init
+	_lgclean
 
 	pdays=$1
-	{ [[ -z $pdays ]] || [[ $pdays -lt 10 ]]; } && pdays=180
+	{ [[ -z $pdays ]] || [[ $pdays -lt 10 ]]; } && pdays=30
 	age_purge=$((pdays * 24 * 60 * 60))
 	ndays=$2
-	{ [[ -z $ndays ]] || [[ $ndays -lt 10 ]]; } && ndays=60
+	{ [[ -z $ndays ]] || [[ $ndays -lt 1 ]]; } && ndays=10
 	age_naughty=$((ndays * 24 * 60 * 60))
 
 	## Check that data/user/lg-* and config/db/user/lg-* is syncronized
@@ -375,7 +396,7 @@ lgpurge()
 			str="${dbr[*]}"
 			for l in "${arr[@]}"; do
 				[[ "${str}" == *"$l"* ]] && continue
-				echo "[$l] Not found in config/db/user/$lg"
+				echo "[$l] Not found in config/db/user/$l"
 				_sf_lgrm "$l"
 			done
 		}
@@ -516,6 +537,10 @@ lgban()
 	_sf_init
 	shift 1
 
+	[[ -z $SF_FORCE ]] && [[ -e "${_sf_dbdir}/user/${lglid}/token" ]] && {
+		echo -e >&2 "ERROR: ${lglid} has a TOKEN and is likely a valued user. Set ${CDC}SF_FORCE=1${CN} to force-ban."
+		return
+	}
 	fn="${_self_for_guest_dir}/${lglid}/ip"
 	[[ -f "$fn" ]] && {
 		ip=$(<"$fn")
@@ -548,9 +573,12 @@ lgstop()
 	docker stop "${1}"
 }
 
+
+
 lgls()
 {
     local IFS
+	local arr
 
 	_sf_init
     IFS=$'\n' arr=($(_sfcg_forall))

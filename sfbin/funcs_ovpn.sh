@@ -41,6 +41,7 @@ vpn_read_config() {
     local is_read_key
     local is_read_cert
     local is_read_tls
+    local is_remote_cert_tls
     local err
     local LC_ALL=C
 
@@ -199,12 +200,12 @@ vpn_read_config() {
 
         [[ "${key}" == "tls-cipher" ]] && {
             str="${l#* }"
-            VPN_CFG+="tls-cipher ${str//[^[:alnum:]-:@=]}"$'\n'
+            VPN_CFG+="tls-cipher \"${str//[^[:alnum:]-:@=]}\""$'\n'
             continue
         }
 
         [[ "${key,,}" == "remote-cert-tls" ]] && {
-            VPN_CFG+="remote-cert-tls server"$'\n'
+            is_remote_cert_tls=1
             continue
         }
     done
@@ -228,6 +229,9 @@ vpn_read_config() {
     [[ -z "$VPN_CFG_DATA_CIPHERS" ]] && VPN_CFG_DATA_CIPHERS="$VPN_CFG_CIPHER"
     [[ -n "$VPN_CFG_DATA_CIPHERS" ]] && VPN_CFG+="data-ciphers ${VPN_CFG_DATA_CIPHERS}"$'\n'
     [[ -n "$VPN_CFG_CIPHER" ]] && VPN_CFG+="data-ciphers-fallback $VPN_CFG_CIPHER"$'\n'
+    [[ -z $VPN_CFG_CIPHER ]] && [[ -z $VPN_CFG_DATA_CIPERS ]] && echo -e "${ICON_WARN}${R}WARN:${N} No ${Y}cipher${N} or ${Y}data-ciphers${N}. Try ${Y}cipher AES-256-CBC${N}."
+    [[ -z $is_remote_cert_tls ]] && echo -e "${ICON_WARN}${R}WARN:${N} Adding ${Y}remote-cert-tls server${N}."
+    VPN_CFG+="remote-cert-tls server"$'\n'
 
     echo -e "Remote  : ${B}${VPN_CFG_REMOTE} ${F}${VPN_CFG_REMOTE_PORT}/${VPN_CFG_PROTO}${N}"
 
@@ -336,7 +340,7 @@ cmd_ovpn_up() {
     cd "/tmp/lg-${LID}/conf" || BAIL "Cant change directory."
 
     echo -n "$VPN_CFG" >conn.ovpn
-
+    
     # Force username and password
     [[ -z "$VPN_CFG_PASS" ]] && [[ -z "$R_PASS" ]]
     [[ -n "$R_USER" ]] && VPN_CFG_USER="$R_USER"
@@ -352,11 +356,16 @@ cmd_ovpn_up() {
 
     [[ ${#R_ROUTE_ARR[@]} -gt 0 ]] && printf "%s\n" "${R_ROUTE_ARR[@]}" >route
 
-    # echo "${OPTS[@]}"
-    # exit
+    [[ -n $IS_VERBOSE ]] && {
+        echo -en "${CDC}"
+        echo -n "$VPN_CFG"
+        echo -en "${CDY}"
+        echo -n "openvpn" "${OPTS[@]}"
+        echo -e "${N}"
+    }
+
     ln -sf /usr/sbin/openvpn "/tmp/lg-${LID}/conf/openvpn-${LID}"
 
-    # (nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n -C "./openvpn-${LID}" "${OPTS[@]}" &>/dev/null &)
     (nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n -C "./openvpn-${LID}" "${OPTS[@]}" 2>&1 | dd bs=256 count=200 of="/tmp/lg-${LID}/ovpn.log" 2>/dev/nulll &)
 
     # Block all network traffic beside the one to the OpenVPN PEER (we dont know the IP yet

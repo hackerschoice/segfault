@@ -181,7 +181,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		emailharvester \
 		enum4linux \
 		evil-winrm \
-		exa \
+		`### exa yanked from kali 2024.1` \
 		exiftool \
 		fd-find \
 		flatpak \
@@ -216,7 +216,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		mono-mcs \
 		mono-devel \
 		most \
-		`### mycli ### yanked from Kali.2023.4` \
+		mycli \
 		mypager \
 		nfs-common \
 		neofetch \
@@ -240,7 +240,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		python3-full \
 		python3-scapy \
 		python3-poetry \
-		python3-pwntools \
+		`### python3-pwntools yanked from kali2024.1` \
 		python3-pyaudio \
 		python3-pygments \
 		python3-pyte \
@@ -293,8 +293,9 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		dotnet-runtime-6.0 \
 		eyewitness || { [ $(uname -m) != x86_64 ] && true; }
-RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
-		pelican
+# yanked by kali2024.1
+# RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
+#		pelican
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		bloodhound \
 		chromium \
@@ -320,7 +321,8 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		cloud-image-utils \
 		debootstrap \
 		libguestfs-tools \
-		`qemu-efi ### yanked from Kali2023.4` \
+		`#qemu-efi ### yanked from Kali2023.4` \
+		qemu-efi-aarch64 \
 		qemu-efi-arm \
 		qemu-system \
 		qemu-user \
@@ -422,7 +424,7 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		xvfb
 # Everything below here will overwrite packages already installed by apt-get.
 #############################################################################
-### 2023-02: xpra has been janked. the non-beta is broken on kali (and also conflicts with libprocps8)
+### 2023-02: xpra has been yanked. the non-beta is broken on kali (and also conflicts with libprocps8)
 # RUN	/pkg-install.sh GUI bash -c '{ `### only Beta has no conflict with python 3.11.3 and libprocps8` \
 # 		&& wget -O "/usr/share/keyrings/xpra-2022.gpg" https://xpra.org/xpra-2022.gpg \
 # 		&& wget -O "/etc/apt/sources.list.d/xpra-beta.list" https://xpra.org/repos/bookworm/xpra-beta.list \
@@ -449,6 +451,8 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 # 		&& pkg=("xpra" "xpra-x11" "xpra-html5") \
 # 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 # 		&& rm -f /var/lib/apt/lists/xpra*; }'
+# 2024-03-15 - xpra depends on version of libopenh264 which is not available on kali2024.1
+RUN /pkg-install.sh GUI apt-get install -y xpra
 ### x86_64 only
 RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
@@ -495,20 +499,21 @@ RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
 	&& /pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \
 		&& git clone --depth 1 https://github.com/scipag/vulscan; }'
+RUN /pkg-install.sh HUGE ghbin pwndbg/pwndbg '_%arch1%.deb$'
 ### x86_64 only
-RUN /pkg-install.sh HUGE bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/share \
-		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
-		&& cd pwndbg \
-		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
-		&& ./setup.sh \
-		&& echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
-		&& mkdir -p /usr/src/glibc \
-		&& cd /usr/src/glibc \
-		&& apt-src install glibc \
-		&& echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
-		&& { dpkg --force-architecture --remove-architecture i386; \
-			rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
-		&& echo DONE; }'
+# RUN /pkg-install.sh HUGE bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/share \
+# 		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
+# 		&& cd pwndbg \
+# 		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
+# 		&& ./setup.sh \
+# 		&& echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
+# 		&& mkdir -p /usr/src/glibc \
+# 		&& cd /usr/src/glibc \
+# 		&& apt-src install glibc \
+# 		&& echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
+# 		&& { dpkg --force-architecture --remove-architecture i386; \
+# 			rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
+# 		&& echo DONE; }'
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		bloodhound.py \
 		`# python3-certipy CONFLICT with kali certipy4.0.1` \
@@ -529,7 +534,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/fullhunt/log4j-scan/master/log4j-scan.py log4j-scan
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		python3-aiohttp \
-		python3-discord \
+		`###python3-discord yanked kali2024.1` \
 		python3-irc
 RUN /pkg-install.sh    HACK pipx install aort \
 	&& /pkg-install.sh HACK pipx install arsenal-cli \
@@ -581,7 +586,7 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		timer
 RUN /pkg-install.sh    LARGE pipx install gdown \
 	&& /pkg-install.sh LARGE pipx install udocker
-RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.3/geonet_0.4.3_%arch:x86_64=amd64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
+RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.4/geonet_0.4.4_%arch:x86_64=x86_64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
 ### After 0.4.3a release
@@ -761,7 +766,7 @@ RUN /pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
 	&& /pkg-install.sh NET ghbin shadowsocks/v2ray-plugin          'linux-%arch1%'                               'v2ray-plugin_*' "" v2ray-plugin \
 	&& /pkg-install.sh NET ghbin teddysun/xray-plugin              'linux-%arch1%'                               'xray-plugin_*'  "" xray-plugin  \
 	&& /pkg-install.sh NET ghbin KaranGauswami/socks-to-http-proxy 'sthp-linux'                                   sthp          `# x86_64 only` \
-	&& /pkg-install.sh NET ghbin schollz/croc                      'Linux-%arch:x86_64=64bit:aarch64=ARM64%.deb'                                \
+	&& /pkg-install.sh NET ghbin schollz/croc                      'Linux-%arch:x86_64=64bit:aarch64=ARM64%'      croc                          \
 	&& /pkg-install.sh NET ghbin vi/websocat                       '%arch%.*linux-musl'                           websocat                      \
 	&& /pkg-install.sh NET ghbin ViRb3/wgcf                        'linux_%arch1%$'                               wgcf                          \
 	&& /pkg-install.sh NET ghbin poscat0x04/wgcf-teams             '-linux'                                       wgcf-teams                    \
@@ -786,16 +791,22 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		bpytop \
 		btop \
 		db-util \
+		haproxy \
 		ncdu \
 		pass
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		alsa-utils \
 		alsamixergui \
+		keepass2 \
+		`### libgtkglext1 # yanked kali2024, # Needed for AnyDesk` \
 		qasmixer
+RUN /pkg-install.sh GUI bin 'http://ftp.de.debian.org/debian/pool/main/g/gtkglext/libgtkglext1_1.2.0-11_%arch1%.deb'	
+RUN /pkg-install.sh GUI bin 'https://download.anydesk.com/linux/anydesk_6.3.1-1_%arch1%.deb'
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
-		php8.2-fpm \
-		php8.2-xml
-RUN /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
+		php-curl \
+		php-fpm \
+		php-xml
+RUN    /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
 	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& /pkg-install.sh HACK pipx install pwncat-cs \
 	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparker \
@@ -803,9 +814,12 @@ RUN /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' 
 	&& /pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/xaitax/SploitScan/raw/main/sploitscan.py'                    sploitscan \
 	&& /pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
-RUN /pkg-install.sh LARGE ghbin PaddiM8/kalker                       'linux'                                     kalker
+RUN    /pkg-install.sh LARGE ghbin  PaddiM8/kalker                       'linux'                                 kalker \
+	&& /pkg-install.sh LARGE ghbin  obsidianmd/obsidian-releases         '_amd64.deb' \
+	&& /pkg-install.sh LAREGE ghbin bvaisvil/zenith                      'x86_64-unknown-linux-musl.tgz'         zenith
  ## YANKED. Already in apt-get install powershell/pkg-install.sh LARGE ghbin PowerShell/PowerShell  'deb_%arch1%.deb'
-RUN	/pkg-install.sh HACK bash -c '{  wget -O "/usr/bin/favfreak.py" https://raw.githubusercontent.com/devanshbatham/FavFreak/master/favfreak.py \
+RUN /pkg-install.sh LARGE bash -c '{ curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr bash; }'
+RUN	/pkg-install.sh HACK bash -c '{ wget -O "/usr/bin/favfreak.py" https://raw.githubusercontent.com/devanshbatham/FavFreak/master/favfreak.py \
 		&& chmod 755 /usr/bin/favfreak.py \
 		&& ln -s favfreak.py /usr/bin/FavFreak; }' \
 	&& /pkg-install.sh HACK bash -c '{ mkdir /usr/share/wordlists/meg \
@@ -813,7 +827,10 @@ RUN	/pkg-install.sh HACK bash -c '{  wget -O "/usr/bin/favfreak.py" https://raw.
 		&& wget -O /usr/share/wordlists/meg/configfiles   "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/configfiles" \
 		&& wget -O /usr/share/wordlists/meg/crlfinjection "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/crlfinjection"; }'
 RUN /pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx \
-	&& /pkg-install.sh DEV ghbin dandavison/delta '_%arch1%.deb'
+	&& /pkg-install.sh DEV ghbin dandavison/delta '_%arch1%.deb' \
+	&& /pkg-install.sh DEV ghbin watchexec/watchexec '%arch%-unknown-linux-musl.deb' '' '' '' --force-overwrite
+RUN /pkg-install.sh HACK pipx install yxdump \
+	&& /pkg-install.sh HACK ghbin hackerschoice/dsniff 'linux-%arch%' dsniff "/usr/sbin"
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update
@@ -822,11 +839,11 @@ RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 #RUN rm -rf /var/lib/apt/lists/*
 
 # Do fs-root last (on vmbox it messes with permissions on directories and setup.sh fixes it)
-COPY setup.sh /fs-root/ /
+COPY setup.sh gitconfig-stub /fs-root/ /
 # Some tools are pre-compiled on existing segfaults and supplied as binary
 # (Mostly tools which are a bitch to build during 'docker build')
 COPY /fs-root-amd64/ /
 RUN		/setup.sh \
-	&& rm -f /setup.sh /pkg-install.sh
+	&& rm -f /setup.sh /gitconfig-stub /pkg-install.sh
 
 CMD ["zsh", "-il"]

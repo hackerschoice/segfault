@@ -27,6 +27,7 @@ CG="\e[1;32m" # green
 CDG="\e[0;32m" # green
 CDC="\e[0;36m" # cyan
 CDR="\e[0;31m" # red
+CDB="\e[0;34m" # blue
 CDM="\e[0;35m" # magenta
 CN="\e[0m"    # none
 CW="\e[1;37m" # white
@@ -929,11 +930,13 @@ print_timer()
 
 	[[ -z $c ]] && c=10
 
+	echo -e "\e[?25l"
 	while [[ $c -gt 0 ]]; do
 		echo -ne >&2 "Continuing in $c sec...   "$'\r'
 		sleep 1
 		((c--))
 	done
+	echo -e "\e[?25h"
 }
 
 usermsg()
@@ -959,6 +962,90 @@ ${CDY}@@@@@@@@@@@@@@@@@@ SysCops Message @@@@@@@@@@@@@@@@@@@@@@@${CN}"
 	echo -en >&2 "\e[?25h"$'\r'
 
 	rm -f "${SF_USER_DB_DIR}/syscop-msg.txt"
+}
+
+ERR_NOTHUMAN() {
+	sleep 5
+    echo -e >&2 "\
+💥 You do not seem to be human. Only HUMANS can create ${CDG}NEW SERVERS${CN}.
+
+This check is done ONLY when creating NEW SERVERS. Contact us
+if we got this wrong or try one of the following:
+
+- Read ${CB}${CUL}https://thc.org/sf/token${CN} and get a TOKEN.
+- Dare interrupt a SysCop and ask for help.
+- Connect with SSH from your TERMINAL (not from a script)."
+
+	sleep 15
+	ERREXIT 202
+}
+
+do_new_server_human() {
+    local R
+    local IFS
+    local arr
+    [[ -z $SF_NEW_SERVER_HUMAN ]] && return
+
+    # Check for valid TTY
+    [[ ! -t 0 ]] && ERR_NOTHUMAN
+
+    # WebShell does not support ANSI/resize sequence
+    [[ -n $SF_IS_WEBSHELL ]] && return
+
+	# Windows cmd.exe terminal does not support ansi escape codes :/ Cant use this
+	# trick.
+    # stty -echo
+    # printf "\033[18t"
+    # read -t 5 -rdt R
+    # stty echo
+    # R="${R//[^0-9;]/}"
+    # [[ "${#R}" -gt 10 ]] && ERR_NOTHUMAN
+
+    # IFS=';' read -r -a arr <<< "$R"
+    # [[ "${arr[1]}" -le 0 || "${arr[1]}" -ge 800 ]] && ERR_NOTHUMAN # COLS
+    # [[ "${arr[2]}" -le 0 || "${arr[2]}" -ge 600 ]] && ERR_NOTHUMAN # ROWS
+}
+
+do_new_server_delay() {
+	local R
+    [[ -z "$SF_NEW_SERVER_DELAY" ]] && return
+
+    echo -en "\
+${CDB}----------------------------------------------------------------------${CN}
+You are using the ${CDY}FREE TIER${CN} without ${CDY}TOKEN${CN}. Various ${CR}restrictions${CN}
+apply:
+
+- You have to wait ${CDG}${SF_NEW_SERVER_DELAY}${CN} seconds ❤️
+- Your network traffic is ${CDG}metered${CN} and at ${CDG}snail speed${CN} 🙈
+- Your ${CDG}CPU power${CN} and memory is limited 🙉
+- Your server is subject to ${CDG}automated ban${CN} 🙊
+- Your server will ${CDG}shut down${CN} on log out 💩
+
+Read 👉 ${CB}${CUL}https://thc.org/sf/token${CN} 👈 to remove these restrictions. ❤️
+
+After login, see your restrictions by typing: ${CDC}cat /config/self/limits${CN}
+${CDB}----------------------------------------------------------------------${CN}
+Read ${CB}${CUL}https://thc.org/sf/faq${CN} as well. 📖
+${CDB}----------------------------------------------------------------------${CN}
+"
+
+    print_timer "$SF_NEW_SERVER_DELAY"
+    echo -en >&2 "Press any key to continue."
+    read -t10 -r -n1 R || {
+        echo -e "\
+\nDARN. You did not press 'any key' in time. Try again.\
+
+...or GET A TOKEN: ${CB}${CUL}https://thc.org/sf/token${CN}
+"
+        sleep 15
+        ERREXIT 205
+    }
+	echo ""
+}
+
+do_new_server_limit() {
+    do_new_server_human
+    do_new_server_delay
 }
 
 # Check if max servers per IP are in use.
@@ -1207,6 +1294,7 @@ if [[ -d "${SF_USER_DB_DIR}" ]]; then
 else
 	print_disclaimer
 	sysmsg "/config/host/etc/loginmsg-new.sh"
+	do_new_server_limit
 	# ######################################################################
 	# 70 long
 	# Got 54 space

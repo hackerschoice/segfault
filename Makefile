@@ -1,4 +1,4 @@
-VER := 0.5.4rc1
+VER := 0.5.6rc1
 
 all:
 	make -C router
@@ -17,6 +17,7 @@ all:
 	docker pull crazymax/cloudflared
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
+FILES_GUEST += "segfault-$(VER)/guest/gitconfig-stub"
 FILES_GUEST += "segfault-$(VER)/guest/Dockerfile"
 FILES_GUEST += "segfault-$(VER)/guest/Makefile"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/usr/sbin/halt"
@@ -57,6 +58,10 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/asn"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sshj"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/shred"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/rshell"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/funcs_ip.sh"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/funcs_rport.sh"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/io"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/exfil"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"

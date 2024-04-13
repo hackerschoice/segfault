@@ -228,7 +228,7 @@ wg_up()
     ip -4 route add "${PEER_ADDRESS}" dev "${WG_DEV}"
     [[ -n $WITH_IPV6 ]] && { ip -6 route add "${PEER_ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
-    [[ $(iptables -L FORWARD) != *"policy ACC"* ]] && {
+    [[ $(iptables -L FORWARD -n) != *"policy ACC"* ]] && {
         ipt filter -I FORWARD -i "${WG_DEV}" -j ACCEPT
         ipt filter -I FORWARD -o "${WG_DEV}" -j ACCEPT
     }

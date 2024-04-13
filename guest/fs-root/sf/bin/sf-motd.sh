@@ -23,6 +23,7 @@ ${CN}${CF}host ${SF_HOSTNAME,,}
     HostName ${SF_FQDN}
     IdentityFile ~/.ssh/id_${key_suffix}
     SetEnv SECRET=${SF_SEC}
+    LocalForward 5900 0:5900
 ${CDR}__EOF__
 ${CDC}chmod 600 ~/.ssh/config ~/.ssh/id_${key_suffix}${CN}
 ######################################################################

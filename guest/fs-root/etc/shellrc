@@ -15,6 +15,7 @@ alias psg='ps alxwww | grep -i -E'
 alias reboot='halt'
 alias shutdown='halt'
 alias calc='kalker'
+alias cd..='cd ..'
 
 function dmesg {
 	[[ ! -t 1 ]] && { command curl -s sf/dmesg/ -dnocolor=1; return; }
@@ -167,19 +168,20 @@ docker-compose(){ docker;}
 		# curl's -v/-I goes to STDERR and needs special treadment.
 		function curl {
 			[[ "$1" == "rpc"* ]] && { command curl "$@"; return; }
+			[[ "$1" == "sf"* ]] && { command curl "$@"; return; }
 			[[ -t 2 ]] && {
 				# HERE: stderr is a TTY. Pipe stderr through grcat
 				# Add -s to not show progress meter (cURL defaults to show progress if stdout is not a TTY)
 				if [[ -t 1 ]]; then
-					{ command curl -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
+					{ command curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
 				else
-					{ command curl -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
+					{ command curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
 				fi
 				return
 			}
 			# /usr/bin/grc --colour=auto curl "$@" # Doesnt do anything (!)
-			[[ ! -t 1 ]] && { command curl "$@"; return; }
-			command curl -s "$@" | hl
+			[[ ! -t 1 ]] && { command curl --proto-default https "$@"; return; }
+			command curl --proto-default https -s "$@" | hl
 		}
 
 		# These need stdout buffer disabled:
@@ -298,6 +300,9 @@ PATH="${HOME:-/sec/root}/go/bin:${HOME:-/sec/root}/.cargo/bin:/sec/root/.local/b
 [[ -d /usr/share/doc/python3-impacket/examples ]] && PATH="${PATH}:/usr/share/doc/python3-impacket/examples"
 export PATH
 
+# when root changes to user, make X11 work
+[[ $UID -ne 0 ]] && export DISPLAY=:10.0
+
 _sf_info_non_perm()
 {
 	# On success show this...
@@ -321,6 +326,8 @@ apt-get()
 	_sf_info_non_perm
 }
 
+# Load io(), io2(), dns() and ptr() functions
+[[ -f /sf/bin/funcs_ip.sh ]] && source /sf/bin/funcs_ip.sh
 SHELLNAME="${SHELL##*/}"
 [[ -f "${HOME}/.gf/gf-completion.${SHELLNAME}" ]] && source "${HOME}/.gf/gf-completion.${SHELLNAME}"
 unset SHELLNAME

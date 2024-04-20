@@ -261,7 +261,7 @@ wt_dl()
 
     command -v tar >/dev/null || ERREXIT 255 "tar not found. Try ${CDC}apt install tar${CN}"
 
-    arch=$(uname -m)
+    arch=$(uname -m 2>/dev/null)
     url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${OS}_amd64.tar.gz"
     if [[ $arch == aarch64 ]] || [[ $arch == arm64 ]]; then
         url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${OS}_arm64.tar.gz"
@@ -316,7 +316,6 @@ wt_up()
     local pid
     local pidstr
     local cmd_checkrunning
-    local arg
     local n
     local killname
 
@@ -370,6 +369,7 @@ wt_up()
 
     if [[ -z $SF_DEBUG ]]; then
         PATH=".:$PATH" exec -a '[updated]' wiretap serve -q --allowed "${peer_addr}" &>/dev/null &
+        pid=$!
     else
         PATH=".:$PATH" ./wiretap serve --allowed "${peer_addr}"
     fi
@@ -407,7 +407,7 @@ Alternatively use ${CDM}WireGuard:${CDC}
 
     echo -e "\
 ${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}[updated]${CN}${pidstr} in the background.
----> To stop   : ${CDC}${CMD_PKILL} '${killname}'${CN}"
+---> To stop   : ${CDC}${CMD_PKILL} '${killname}'${CN} or ${CDC}kill ${pid:--1}${CN}"
 }
 
 [[ -z $X ]] && ERREXIT 255 "The variable ${CDY}X=${CN} is not set. Try

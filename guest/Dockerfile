@@ -830,7 +830,9 @@ RUN /pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx \
 	&& /pkg-install.sh DEV ghbin dandavison/delta '_%arch1%.deb' \
 	&& /pkg-install.sh DEV ghbin watchexec/watchexec '%arch%-unknown-linux-musl.deb' '' '' '' --force-overwrite
 RUN /pkg-install.sh HACK pipx install yxdump \
-	&& /pkg-install.sh HACK ghbin hackerschoice/dsniff 'linux-%arch%' dsniff "/usr/sbin"
+	&& /pkg-install.sh HACK ghbin hackerschoice/dsniff 'linux-%arch%' dsniff "/usr/sbin" \
+	&& /pkg-install.sh HACK bin https://paste.c-net.org/pbenc pbenc \
+	&& /pkg-install.sh HACK pipx install xortool
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

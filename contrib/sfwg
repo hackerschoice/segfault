@@ -8,6 +8,7 @@
 # Variables:
 #
 # SF_DEBUG=1                 Enable debug information and start WT in the foreground
+# EP=ip:port                 Specify custom Wireguard Endpoint
 # TYPE="wireguard:wiretap"   Force WireGuard or Wiretap or both
 
 # Test IPv6:
@@ -68,8 +69,7 @@ x2data()
     local str
     local ip
 
-    IFS="-"
-    CONF=($X)
+    IFS="-" read -r -a CONF <<< "$X"
 
     [[ ${#CONF[@]} -lt  4 ]] && ERREXIT 255 "X= is not a valid configuration string."
     [[ ${#CONF[1]} -ne 44 ]] && ERREXIT 255 "X= does not contain a valid private key."
@@ -78,7 +78,11 @@ x2data()
     [[ -z $SF_VER ]] && SF_VER=${CONF[0]//[^0-9]}
     PRIV=${CONF[1]}
     PEER=${CONF[2]}
-    EP=${CONF[3]}
+    if [ -z "$EP" ]; then
+        EP="${CONF[3]}"
+    else
+        WARN "Using ${CDY}${EP}${CN} as Endpoint. Use ${CDC}unset EP${CN} to disable."
+    fi
 
     [[ -z $SF_VER ]] && ERREXIT 255 "X= contains a bad version number."
 
@@ -367,11 +371,14 @@ wt_up()
     addenv WIRETAP_RELAY_PEER_ENDPOINT "${EP}"
     addenv WIRETAP_SIMPLE "true"
 
+    local cmd=()
+    command -v nice >/dev/null && cmd=("nice" "-n19")
+    cmd+=("wiretap")
     if [[ -z $SF_DEBUG ]]; then
-        PATH=".:$PATH" exec -a '[updated]' wiretap serve -q --allowed "${peer_addr}" &>/dev/null &
+        PATH=".:$PATH" exec -a '[updated]' "${cmd[@]}" serve -q --allowed "${peer_addr}" &>/dev/null &
         pid=$!
     else
-        PATH=".:$PATH" ./wiretap serve --allowed "${peer_addr}"
+        PATH=".:$PATH" "${cmd[@]}" serve --allowed "${peer_addr}"
     fi
     [[ ${#cmd_checkrunning[@]} -gt 0 ]] && {
         n=0

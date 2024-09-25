@@ -1,0 +1,8 @@
+#! /bin/bash
+
+#source /sf/bin/funcs.sh
+source /sf/bin/funcs_extra.sh 2>/dev/null 
+
+_func="${0##*/}"
+declare -F "${_func}" &>/dev/null || { echo -e >&2 "Function ${CDY}$_func${CN} not found."; exit 255; }
+"${_func}" "$@"

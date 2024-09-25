@@ -730,7 +730,7 @@ load_limits()
 		[[ ${SF_USER_ROOT_FS_SIZE_NUM} -gt 0 ]] && {
 			# HERE: Root-Fs is LIMITED in size
 			# These files must be mounted read-only as these are special files
-			# for docker and ingored by --opt storage-size= limitations.
+			# for docker and ignored by --opt storage-size= limitations.
 			# Backing FS must be of type XFS
 			[[ "${SF_BACKING_FS}" != "xfs" ]] && ERREXIT 1 "Backing FS is not XFS but SF_USER_ROOT_FS_SIZE is set"
 			DOCKER_ARGS+=("--storage-opt")

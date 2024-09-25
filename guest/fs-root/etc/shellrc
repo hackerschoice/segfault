@@ -18,14 +18,18 @@ alias calc='kalker'
 alias cd..='cd ..'
 
 function dmesg {
-	[[ ! -t 1 ]] && { command curl -s sf/dmesg/ -dnocolor=1; return; }
-	command curl -s sf/dmesg/
+	[[ ! -t 1 ]] && { /usr/bin/curl -s sf/dmesg/ -dnocolor=1; return; }
+	/usr/bin/curl -s sf/dmesg/
 }
 
-[[ -e /usr/bin/nvim ]] && {
-	alias vi='nvim'
-	alias vim='nvim'
-}
+# neovim DISABLED because vim's syntax highlighting is better. neovim
+# does it by file-extension but viom does it by FILE content..this means
+# diff.txt looks great in vim but b/w in neovim.
+# [[ -e /usr/bin/nvim ]] && {
+	# alias vi='nvim'
+	# alias vim='nvim'
+# }
+alias vi='vim'
 
 alias norg="gron --ungron"
 alias ungron="gron --ungron"
@@ -119,6 +123,9 @@ docker(){
 }
 docker-compose(){ docker;}
 
+# Note: bash and zsh act differently. This is for ZSH only.
+urldecode() { : "${*//+/ }"; echo -e "${_//\%/\\x}"; }
+
 [[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
 [[ -t 0 ]] && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
@@ -167,21 +174,20 @@ docker-compose(){ docker;}
 
 		# curl's -v/-I goes to STDERR and needs special treadment.
 		function curl {
-			[[ "$1" == "rpc"* ]] && { command curl "$@"; return; }
-			[[ "$1" == "sf"* ]] && { command curl "$@"; return; }
+			{ [[ "$1" == "sf/"* ]] || [[ "$2" == "sf/"* ]]; } && { /usr/bin/curl "$@"; return; }
 			[[ -t 2 ]] && {
 				# HERE: stderr is a TTY. Pipe stderr through grcat
 				# Add -s to not show progress meter (cURL defaults to show progress if stdout is not a TTY)
 				if [[ -t 1 ]]; then
-					{ command curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
+					{ /usr/bin/curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
 				else
-					{ command curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
+					{ /usr/bin/curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
 				fi
 				return
 			}
 			# /usr/bin/grc --colour=auto curl "$@" # Doesnt do anything (!)
-			[[ ! -t 1 ]] && { command curl --proto-default https "$@"; return; }
-			command curl --proto-default https -s "$@" | hl
+			[[ ! -t 1 ]] && { /usr/bin/curl --proto-default https "$@"; return; }
+			/usr/bin/curl --proto-default https -s "$@" | hl
 		}
 
 		# These need stdout buffer disabled:

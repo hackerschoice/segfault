@@ -104,6 +104,7 @@ GetFormVars()
 		[[ ${key} == "nocolor" ]] && unset COLOR
 		[[ ${key} == "nocreat" ]] && IS_NOCREAT=1
 		[[ ${key} == "verbose" ]] && IS_VERBOSE=1
+		[[ ${key} == "destruct" ]] && IS_DESTRUCT=1
 		[[ ${key} == "port" ]] && { val=$((${val//[^0-9]})); [[ $val -ge 32768 && $val -le 65535 ]] && R_PORT="$val"; }
 		[[ ${key} == "portsecret" ]] && R_PORTSECRET="${val//[^[:alnum:]]}"
 		[[ ${key} == "exit_private" ]] && R_WT_PRIVATE="${val//[^[:alnum:]+\/]}="
@@ -654,7 +655,7 @@ load_lg() {
 	arr=($(redr GET "ip:${REMOTE_ADDR}")) || BAIL "Bad Value" "Bad Value: " "ret=$?, ${#arr[@]}"
 	[[ ${#arr[@]} -ne 3 ]] && BAIL "Value != 3" "Value != 3: " "${#arr[@]}"
 	LID="${arr[0]}"
-	# CID="${arr[1]}"
+	CID="${arr[1]}"
 	PID="${arr[2]}"
 	[[ -z "$LID" ]] && BAIL "LID is empty."
 }
@@ -694,7 +695,7 @@ cmd_port() {
 	[[ -z $SF_RPORT ]] && BAIL "${M}You need a TOKEN to use this feature. Please read https://thc.org/sf/token.
 Alternatively, set up your own reverse port like so: https://tinyurl.com/thctips#ports${N}"
 
-	red RPUSH portd:cmd "remport ${lid}" >/dev/null
+	red RPUSH portd:cmd "remport ${LID}" >/dev/null
 	sleep 1  # Stop DoS attack: flood-requesting reverse ports
 	ipport=$(echo -e "DEL portd:response-${LID}\"\n\
 RPUSH portd:blcmd \"getport ${LID}\"\n\
@@ -708,9 +709,37 @@ BLPOP portd:response-${LID} 5" | redr) || return
 ${M}🌎 Tip${N}: Type ${C}cat /config/self/reverse_*${N} for details.
 ${M}🤭 Tip${N}: Type ${C}rshell${N} to start listening.
 ${M}🛜 Tip${N}: Type ${C}curl sf/port${N} to assign a new port.
-${G}👾 Your reverse Port is ${Y}${ipport}${CN}"
+${G}👾 Your reverse Port is ${Y}${ipport}${N}"
 
 	# portd.sh automaticaly adds this to /config/self/reverse_*
+	exit
+}
+
+cmd_proxy() {
+	local IFS
+	local pid
+
+	load_lg
+
+	IFS=/ read -r -a ARGS <<< "${REQUEST_URI:1}"  # Ignore first '/'. Split into arguements.
+	pid="${ARGS[1]}"
+	pid="${pid//[^0-9]}"
+	pid="${pid:0:12}"
+
+	[[ -z "$pid" ]] && BAIL "${M}Type ${C}curl sf/proxy/\$\$${M} to proxy your shell to :1040"
+
+	[[ $pid -eq 0 ]] && {
+			nsenter.u1000 -t "${PID:?}" -p sh -c "cat '/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs' | while read -r p; do echo \"\$p\" >'/sf-cgroup/docker-${CID}.scope/cgroup.procs'; done"
+			return
+	}
+
+	echo "$pid" | nsenter.u1000 -t "${PID:?}" -p sh -c "cat >'/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs'" || BAIL "invalid PID"
+
+	nsenter.u1000 -t "${PID:?}" -p echo "$pid" >>"/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs" || BAIL
+	echo -en "\
+${M}🌎 Tip${N}: Type ${C}cat /sys/fs/cgroup/proxy1040/cgroup.procs${N} for details.
+${G}👾 TCP+UDP traffic of PID ${Y}${pid}${G} ${F}(and all child processes)${G} is now redirected to ${Y}localhost:1040${N}"
+
 	exit
 }
 
@@ -728,6 +757,11 @@ cmd_token() {
 	echo -en "${G}🦋 Token set. ${N}Type ${C}halt${N} and log back in."
 
 	exit
+}
+
+cmd_destruct() {
+	rm -f "/dev/shm/sf/run/users/lg-${LID}/limits.txt" "/config/db/user/lg-${LID}/token"
+	[[ -d "/dev/shm/sf/run/users/lg-${LID}/wg" ]] && rm -rf "/dev/shm/sf/run/users/lg-${LID}/wg"
 }
 
 # CLIENT
@@ -794,7 +828,7 @@ Use ${C}curl sf/wg/up -d endpoint=<Server's IP Address, e.g. 1.2.3.4:51820> \\
                   -d PublicKey=<Server's Public Key> \\
                   -d PrivateKey=<Client's Private Key> \\
                   -d Address=<Client's IPv4, e.g. 1.2.3.4> \\
-                  -d Address=<Client's IPv6, e.g. fd:16::1> \\
+                  -d Addres6=<Client's IPv6, e.g. fd:16::1> \\
                   -d psk=<Pre-Shared-Secret> \\ ${F}# optional${C}
                   -d name=<A cool Name>        ${F}# optional${C}${N}
 Use ${C}curl sf/wg/down${N} to disconnect.
@@ -838,6 +872,7 @@ GetFormVars
 }
 
 [[ "${FCGI_CMD}" == "port" ]] && cmd_port
+[[ "${FCGI_CMD}" == "proxy" ]] && cmd_proxy
 [[ "${FCGI_CMD}" == "set" ]] && {
 	# If it is >=2025 then you can remove this block (it's now served via curl sf/vpn/*)
 	[[ -n $SF_OVPN_HACK ]] && {
@@ -853,6 +888,7 @@ GetFormVars
 		} 
 	}
 	[[ -n $TOKEN_NAME ]] && cmd_token
+	[[ -n $IS_DESTRUCT ]] && cmd_destruct
 	BAIL "${M}Setting not found.${N}"	
 }
 

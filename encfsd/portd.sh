@@ -159,7 +159,7 @@ remport_provider()
 	docker exec "sf-${provider,,}" /sf/bin/rportfw.sh delipports "$@"
 
 	# Might have encountered an error in cmd_fillstock() and remove the provider.
-	# Add provider back. This will trigger a re-fill eventuallly.
+	# Add provider back. This will trigger a re-fill eventually.
 	redr SADD portd:providers "${provider}" >/dev/null
 
 	# Delete from assgned-$provider list the specifuc IPPORT

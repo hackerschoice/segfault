@@ -37,7 +37,8 @@ echo -e "${CDR}***DESTRUCT***${CN}"
     str=$(hostname)
     SF_HOSTNAME="${str##*-}"
 }
-curl -s sf/net/del -dname=all -dnocolor=1 >/dev/null
+/usr/bin/curl -s sf/net/del -dname=all -dnocolor=1 >/dev/null
+/usr/bin/curl -s sf/set -ddestruct=1 -dnocolor=1 >/dev/null
 shopt -s dotglob
 rm -rf /onion/*
 [[ -d "/everyone/${SF_HOSTNAME,,}" ]] && rm -rf "/everyone/${SF_HOSTNAME,,}/"* 2>/dev/null

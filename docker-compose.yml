@@ -140,7 +140,7 @@ services:
         ipv4_address: ${SF_DOH_IP:?}
 
   dnsmasq:
-    image: 4km3/dnsmasq:2.85-r2
+    image: 4km3/dnsmasq:latest
     container_name: sf-dnsmasq
     restart: ${SF_RESTART:-on-failure}
     cgroup_parent: sf.slice
@@ -474,6 +474,7 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+      - "/sys/fs/cgroup/sf.slice/sf-guest.slice:/sf-cgroup"
       # - "/research/segfault/sfbin:/sf/bin:ro"  # FIXME-2022
       - "/var/run/docker.sock:/var/run/docker.sock"
       # - /research/segfault/master/cgi-bin:/cgi-bin:ro # FIXME-2022

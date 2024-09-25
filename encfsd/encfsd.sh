@@ -208,7 +208,7 @@ cmd_user_mount()
 
 	# HERE: Not yet mounted.
 	# Set XFS limits
-	load_limits "${lid}"
+	load_limits "${lid}" || return 255
 	[[ -z $SF_HOSTNAME ]] && { SF_HOSTNAME=$(<"/config/db/user/lg-${lid}/hostname") || return 255; }
 	[[ -n $SF_USER_FS_SIZE ]] && {
 		SF_NUM=$(<"/config/db/user/lg-${lid}/num") || return 255

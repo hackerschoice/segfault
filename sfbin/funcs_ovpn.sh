@@ -54,7 +54,7 @@ vpn_read_config() {
     VPN_LG_BASE="${R_CONFIG%/*}"
 
     set -f
-    IFS=$'\n' config=($(user_cat "$R_CONFIG" 16)) || BAIL "${config[*]}"
+    IFS=$'\r'$'\n' config=($(user_cat "$R_CONFIG" 16)) || BAIL "${config[*]}"
 
     # Extract only those configuration values we deem safe.
     for l in "${config[@]}"; do
@@ -94,6 +94,17 @@ vpn_read_config() {
             continue;
         }
 
+        ### TLS-CRYPT
+        [[ "${key,,}" == "<tls-crypt>" ]] && [[ -z "$VPN_CFG_TLSCRYPT" ]] && {
+            is_read_tlscrypt=1
+            continue
+        }
+        [[ -n "$is_read_tlscrypt" ]] && {
+            [[ "${key,,}" == "</tls-crypt>" ]] && { unset is_read_tlscrypt; continue; }
+            VPN_CFG_TLSCRYPT+="$l"$'\n'
+            continue;
+        }
+
         ### CERT
         [[ "${key,,}" == "<cert>" ]] && [[ -z "$VPN_CFG_CERT" ]] && {
             is_read_cert=1
@@ -109,7 +120,7 @@ vpn_read_config() {
 
         [[ ${key} == proto ]] && {
             str="${l##* }"
-            [[ ${str,,} == "tcp" ]] && VPN_CFG_PROTO="tcp"
+            [[ ${str,,} == "tcp"* ]] && VPN_CFG_PROTO="tcp"
             continue
         }
 
@@ -117,11 +128,11 @@ vpn_read_config() {
             IFS=" " read -r -a arr <<<"$l"
             # Empty. Should have -dpass and -duser
             [[ ${#arr[@]} -lt 2 ]] && {
-                [[ -z "$R_USER" || -z "$R_PASS" ]] && BAIL "Need ${C}-d user=username -d pass=password${N}"
+                [[ -z "$R_USER" || -z "$R_PASS" ]] && BAIL "Empty ${Y}auth-user-pass${N}. Please set ${C}-d user=username -d pass=password${N}"
                 continue
             }
 
-            IFS=$'\n' arr=($(user_cat "${l##* }")) || BAIL "${arr[*]}"
+            IFS=$'\r'$'\n' arr=($(user_cat "${l##* }")) || BAIL "${arr[*]}"
             VPN_CFG_USER="${arr[0]}"
             VPN_CFG_PASS="${arr[1]}"
             unset arr
@@ -215,6 +226,7 @@ vpn_read_config() {
     VPN_CFG_KEY=${VPN_CFG_KEY//[^a-zA-Z0-9+-/$'\n']}
     VPN_CFG_CERT=${VPN_CFG_CERT//[^a-zA-Z0-9+-/$'\n']}
     VPN_CFG_TLS=${VPN_CFG_TLS//[^a-zA-Z0-9+-/$'\n']}
+    VPN_CFG_TLSCRYPT=${VPN_CFG_TLSCRYPT//[^a-zA-Z0-9+-/$'\n']}
     [[ $VPN_CFG_PROTO == "tcp" ]] && VPN_CFG_PROTO_SIZE=20
 
     unset err
@@ -314,6 +326,7 @@ cmd_ovpn_up() {
     [[ -n "$VPN_CFG_KEY" ]] && VPN_CFG+="<key>"$'\n'"$VPN_CFG_KEY"$'\n'"</key>"$'\n'
     [[ -n "$VPN_CFG_CERT" ]] && VPN_CFG+="<cert>"$'\n'"$VPN_CFG_CERT"$'\n'"</cert>"$'\n'
     [[ -n "$VPN_CFG_TLS" ]] && VPN_CFG+="<tls-auth>"$'\n'"$VPN_CFG_TLS"$'\n'"</tls-auth>"$'\n'
+    [[ -n "$VPN_CFG_TLSCRYPT" ]] && VPN_CFG+="<tls-crypt>"$'\n'"$VPN_CFG_TLSCRYPT"$'\n'"</tls-crypt>"$'\n'
 
     VPN_CFG+="proto ${VPN_CFG_PROTO}"$'\n'
     VPN_CFG+="remote ${VPN_CFG_REMOTE} ${VPN_CFG_REMOTE_PORT}"$'\n'

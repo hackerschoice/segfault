@@ -48,6 +48,10 @@ mkdir /run/mysqld
 
 echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt
 
+# 2024 kali bug, shipped with cap_net_bind_service,cap_net_admin,cap_net_raw=eip, which will yield
+# /usr/bin/nmap: Operation not permitted inside a container.
+[ -e /usr/bin/nmap ] && setcap cap_net_bind_service,cap_net_raw=eip /usr/bin/nmap
+
 # Need to set correct permission which may have gotten skewed when building
 # docker inside vmbox from shared host drive. On VMBOX share all
 # source files and directories are set to "rwxrwx--- root:vobxsf" :/
@@ -117,8 +121,25 @@ mk_hook /usr/share/code code
 # Apache needs to enable modules
 command  -v a2enmod >/dev/null && a2enmod php8.2
 
+# link SRC -> DST
+# link chaos chaos-client
+# link() {
+# 	local srcp="${1:?}"
+# 	local dstp="${2:?}"
+# 	local dbin
+# 	local dir
+# 	dbin="$(command -v "${dstp}")" || return
+# 	[[ ! -x "${dbin}" ]] && return
+# 	dir="$(dirname "${dst}")" || return
+# 	ln -s "${dstp}" "$(dirname "${dbin}")/${srcp}"
+# }
+# link chaos chaos-client
+
 # git diff delta and other options
 [[ -f /usr/bin/delta ]] && cat /gitconfig-stub >>/etc/gitconfig 
+
+# 2024-08-02 bug when 'apt upgrade' starts 'telinit' and it consumes 100% cpu power FOREVER. 
+[[ -e /usr/sbin/telinit ]] && rm -f /usr/sbin/telinit
 
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {

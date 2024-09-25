@@ -14,10 +14,11 @@ SYN_BURST="$6"
 set -e  # Exit immediately on error
 source "/dev/shm/net-devs.txt"
 source "/sf/run/users/lg-${LID}/limits.txt"
+set +e # DO NOT Exit immediately on error.
 
 fn="/config/db/token/netns-${SF_USER_FW}.sh"
 FORWARD_USER="FW-${C_IP:?}"
-set +e
+
 iptables -F "${FORWARD_USER}" 2>/dev/null || iptables -N "${FORWARD_USER}"
 [[ -n $SF_USER_FW ]] && [[ -f "$fn" ]] && {
     iptables -C FORWARD -i "${DEV_LG:?}" -s "${C_IP}" -j "${FORWARD_USER}" &>/dev/null || iptables -I FORWARD 1 -i "${DEV_LG}" -s "${C_IP}" -j "${FORWARD_USER}"
@@ -32,7 +33,7 @@ iptables -F "${FORWARD_USER}" 2>/dev/null || iptables -N "${FORWARD_USER}"
 IDX=$((0x${YOUR_IP_HASH} % 1024))
 [[ $IDX -lt 0 ]] && IDX=$((IDX * -1))
 
-[[ -n $SYN_LIMIT ]] && {
+[[ -n $SYN_LIMIT ]] && [[ "$SYN_LIMIT" -gt 0 ]] && {
     CHAIN="SYN-${SYN_LIMIT}-${SYN_BURST}-${IDX}"
     IPT_FN="/dev/shm/ipt-syn-chain-${C_IP}.saved"
 

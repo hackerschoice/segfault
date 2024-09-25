@@ -50,8 +50,8 @@ xmv() {
 	dass="$2"
 	dstdir="$3"
 
-	[[ "$asset" != "$dass" ]] && {
-		mv "${dstdir}"/${asset} "${dstdir}/${dass}" || return
+	[[ "${asset##*/}" != "$dass" ]] && {
+		mv "${dstdir}"/${asset##*/} "${dstdir}/${dass}" || return
 	}
 
 	chmod 755 "${dstdir}/${dass}" || return

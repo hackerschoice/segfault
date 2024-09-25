@@ -35,10 +35,29 @@ dns() {
     curl -m10 -fsSL -H "X-API-Key: $dnsdb_TOKEN" -H "Accept: application/json" "https://api.dnsdb.info/lookup/rdata/ip/${1:?}?limit=20&humantime=t"
 }
 
+rdns() {
+    curl -m10 -fsSL "https://ip.thc.org/api/v1/download?ip_address=${1:?}&limit=10&apex_domain=${2}" | column -t -s,
+}
+
+resolv() {
+    local r
+    local x
+    while [[ $# -gt 0 ]]; do
+        r="$(getent hosts "$1")" && echo "${r%% *}"$'\t'"${1}"
+        shift 1
+    done
+    [ -t 0 ] && return
+    while read -t5 -r x; do
+        r="$(getent hosts "$x")" || continue
+        echo "${r%% *}"$'\t'"${x}"
+    done
+}
+
 ptr() {
     io "${1:?}"
     io2 "$1"
     shodan host "$1" 2>/dev/null
+    rdns "$1"
     dns "$1"
     host "$1"
 }

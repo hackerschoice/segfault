@@ -162,14 +162,16 @@ export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 
 [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ "${MAXMIND_KEY,,}" != "skip" ]] && {
 	WARN "Not found: data/share/GeoLite2-City.mmdb"
-	echo -e "Try \`curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'\`."
+	echo -e "Try ${CDC}curl -fL 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'${CN}."
 	echo -e "Try ${CDC}MAXMIND_KEY=skip${CN} to disable. This will also disable limits by GEOIP and disable user tools like geoip and geoiphn."
 }
 
 [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && {
 	WARN "Not found: data/share/tor-exit-nodes.txt"
-	echo -e "Try \`curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'\`"
+	echo -e "Try ${CDC}curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'${CN}"
 }
+
+[[ ! -f "${SF_DATADIR}/share/english.txt" ]] && WARN "Not found: data/share/english.txt - Try ${CDC}cp host/fs-root/etc/english.txt ${SF_DATADIR}/share/${CN}."
 
 [[ ! -f "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] && WARN "Not found: data/share/relay-exit-nodes-mullvad.txt - ${CDM}See contrib/cronjob how to create it.${CN}"
 
@@ -307,15 +309,26 @@ str=$(mount | grep ^cgroup2 | grep -F "$SF_CG_DIR" )
 
 # sf.slice's parent is root (/). Any siblings (e.g. /user.slice, /system.slice) also need to do
 # IO Accounting or otherwise /sf.slice can starve those.
-systemctl status system.slice | head -n8 | grep -F "IO: " &>/dev/null || WARN "IO Accounting not enabled. Check /etc/systemd/system.conf"
-grep -F sf.slice /etc/docker/daemon.json &>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
+systemctl status system.slice | grep -qFm1 "IO: " || WARN "IO Accounting not enabled. Check /etc/systemd/system.conf"
+[[ -f "/etc/docker/daemon.json" ]] && {
+	grep -qFm1 sf.slice /etc/docker/daemon.json 2>/dev/null && WARN "Obsolete sf.slice found in /etc/docker/daemon.json. Remove that line."
+}
 
-[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try ${CDC}apt-get install lxcfs${CN}?"
+# Otherwise -o SetEnv DNS=127.0.0.1 will flood the logs with 'error' if user does not
+# run dnschef
+grep -qFm1 log-level /etc/docker/daemon.json 2>/dev/null || WARN "log-level should be fatal to prevent flooding.\n---> Try ${CDC}echo ewoJICAibG9nLWxldmVsIjogImZhdGFsIgp9Cg== | base64 -d >/etc/docker/daemon.json${CN}"
+grep -qFm1 /sf/docker /etc/default/docker 2>/dev/null || WARN "data-root is not /sf/docker\n---> Try ${CDC}echo 'DOCKER_OPTS=\"--data-root /sf/docker\"' >>/etc/default/docker${CN}"
+
+
+[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try ${CDC}apt-get install lxcfs && systemctl start lxcfs${CN}?"
 # If there was a warning then wait...
 WARN_ENTER
 
 # Delete stale run files..
-[[ -d "${SF_SHMDIR}/run/encfsd/user" ]] && rm -rf "${SF_SHMDIR}/run/encfsd/user"
+# [[ -d "${SF_SHMDIR}/run/users" ]] && rm -rf "${SF_SHMDIR}/run/users"
+# [[ -d "${SF_SHMDIR}/run/encfsd/user" ]] && rm -rf "${SF_SHMDIR}/run/encfsd/user"
+[[ -d "${SF_SHMDIR}/run" ]] && rm -rf "${SF_SHMDIR}/run"
+[[ -d "${SF_SHMDIR}/self-for-guest" ]] && rm -rf "${SF_SHMDIR}/self-for-guest"
 [[ ! -d "${SF_SHMDIR}/run/redis/sock" ]] && mkdir -p "${SF_SHMDIR}/run/redis/sock"
 chmod 700 "${SF_SHMDIR}/run/redis"
 chown 999 "${SF_SHMDIR}/run/redis/sock" # docker/redis user

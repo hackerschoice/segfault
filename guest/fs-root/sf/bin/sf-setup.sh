@@ -10,20 +10,7 @@
 # NOTE: Possible that /sec/root etc already exists (old SECRET used after
 # earlier container exited) - in which case do nothing.
 
-CR="\e[1;31m" # red
-CN="\e[0m"    # none
-
-ERREXIT()
-{
-	local code
-	code="$1"
-	[[ -z $code ]] && code=99
-
-	shift 1
-	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
-
-	exit "$code"
-}
+source "/sf/bin/funcs.sh"
 
 if [[ -z $SF_DEBUG ]]; then
 	DEBUGF(){ :;}
@@ -114,7 +101,7 @@ link_etc()
 setup()
 {
 	cd /
-	[[ -d /sec ]] || ERREXIT 254 "Not found: /sec" # EncFS failed (?)
+	[[ -d /sec ]] || ERREXIT "Not found: /sec" # EncFS failed (?)
 
 	[[ -f /.dockerenv ]] && rm -f /.dockerenv 2>/dev/null # / Might be mounted read-only
 

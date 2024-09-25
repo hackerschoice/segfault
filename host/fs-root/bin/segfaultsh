@@ -64,6 +64,32 @@ LOG(){ _log "" "$@"; }
 LOG_E() { _log " ${CR}ERROR${CN} " "$@";}
 LOG_W() { _log " ${CDY}WARN${CN} " "$@";}
 
+ERREXIT()
+{
+	local code
+	code="$1"
+	[[ -z $code ]] && code=99
+
+	LOG_E "$@"
+	shift 1
+	[[ -n $1 ]] && echo -e >&2 "💥 ${CR}ERROR:${CN} $*"
+
+	sem_release
+	logout
+	exit "$code"
+}
+
+STOPEXIT()
+{
+	local l
+	l="$1"
+
+	shift 1
+	exec_devnull docker stop "lg-${l}"
+	ERREXIT "$@"
+}
+
+
 # NOTE: This function might get called from ERREXIT and before all variables are set.
 logout()
 {
@@ -104,38 +130,15 @@ sem_wait()
 {
 	IS_SEM_WAIT=1
 	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
+	redq BLPOP "sema:destructor" 5 || ERREXIT 238 "Could not get lock: destructor"
 }
 
 sem_release()
 {
 	[[ -z $IS_SEM_WAIT ]] && return
 	echo -e "DEL '${LG_SEM}'\nRPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
+	echo -e "DEL 'sema:destructor'\nRPUSH 'sema:destructor' 1" | red1 || LOG_E "Could not release lock: sema:destructor"
 	unset IS_SEM_WAIT
-}
-
-ERREXIT()
-{
-	local code
-	code="$1"
-	[[ -z $code ]] && code=99
-
-	LOG_E "$@"
-	shift 1
-	[[ -n $1 ]] && echo -e >&2 "💥 ${CR}ERROR:${CN} $*"
-
-	sem_release
-	logout
-	exit "$code"
-}
-
-STOPEXIT()
-{
-	local l
-	l="$1"
-
-	shift 1
-	exec_devnull docker stop "lg-${l}"
-	ERREXIT "$@"
 }
 
 if [[ -z $SF_DEBUG ]]; then
@@ -683,8 +686,7 @@ load_limits()
 	}
 
 	# Add SF docker args to LG container.
-	# DISABLED: otherwise, an attacker with write access to token/limits (e.g. through a web user-management interface) could own the PHY.
-	# [[ ${#SF_USER_DOCKER_ARGS[@]} -gt 0 ]] && DOCKER_ARGS+=("${SF_USER_DOCKER_ARGS[@]}")
+	[[ ${#SF_USER_DOCKER_ARGS[@]} -gt 0 ]] && DOCKER_ARGS+=("${SF_USER_DOCKER_ARGS[@]}")
 
 	# User gets a reverse port on login
 	[[ -n $SF_RPORT_ON_LOGIN ]] && SF_RPORT=1
@@ -936,7 +938,7 @@ print_timer()
 		sleep 1
 		((c--))
 	done
-	echo -e "\e[?25h"
+	echo -e "\e[2K\e[?25h"
 }
 
 usermsg()
@@ -1017,7 +1019,7 @@ apply:
 
 - You have to wait ${CDG}${SF_NEW_SERVER_DELAY}${CN} seconds ❤️
 - Your network traffic is ${CDG}metered${CN} and at ${CDG}snail speed${CN} 🙈
-- Your ${CDG}CPU power${CN} and memory is limited 🙉
+- Your ${CDG}CPU power${CN} and memory are limited 🙉
 - Your server is subject to ${CDG}automated ban${CN} 🙊
 - Your server will ${CDG}shut down${CN} on log out 💩
 
@@ -1030,10 +1032,10 @@ ${CDB}----------------------------------------------------------------------${CN
 "
 
     print_timer "$SF_NEW_SERVER_DELAY"
-    echo -en >&2 "Press any key to continue."
+    echo -en >&2 "Press any key to continue (you have 10 seconds)."
     read -t10 -r -n1 R || {
         echo -e "\
-\nDARN. You did not press 'any key' in time. Try again.\
+\nDARN. You did not press 'any key' within 10 seconds after the time expired. Try again.\
 
 ...or GET A TOKEN: ${CB}${CUL}https://thc.org/sf/token${CN}
 "
@@ -1224,6 +1226,15 @@ fi
 [[ -n $PRJ ]] && {
 	SF_PRJ="${PRJ//[^a-zA-Z0-9._]}"
 	SF_PRJ="${SF_PRJ:0:32}"
+	# Compat mode to add DNS via PRJ
+	[[ -z $DNS ]] && [[ ! $SF_PRJ =~ [^0-9.] ]] && { DNS="$SF_PRJ"; unset SF_PRJ; }
+}
+
+# Users can then use DNSChef and play with DNS MitM or redirect DNS requests to
+# wiretap'ed internal networks.
+[[ -n $DNS ]] && {
+	SF_USER_DNS="${DNS//[^0-9.]}"
+	SF_USER_DNS="${SF_USER_DNS:0:32}"
 }
 
 [[ -n $TOKEN ]] && {
@@ -1233,7 +1244,7 @@ fi
 	SF_TOKEN="${SF_TOKEN:0:32}"
 }
 # Unset user supplied env variables
-unset SECRET HUSHLOGIN HIDEIP PRJ TOKEN
+unset SECRET HUSHLOGIN HIDEIP PRJ TOKEN DNS
 ### ----END SANITIZE----
 
 # Only output progress if this is a login shell _and_ not HUSHLOGIN
@@ -1266,7 +1277,8 @@ write_lg_limits
 sysmsg "/config/host/etc/loginmsg-all.sh"
 
 HNLID_FILE="${HNLID_DIR}/hn2lid-${SF_HOSTNAME}"
-LG_SEM="sema:lg-$(( (SF_NUM + SF_RAND_OFS) % SF_HM_SIZE_LG ))"
+# LG_SEM is created in docker_sshd.sh
+LG_SEM="sema:lg-bucket-$(( (SF_NUM + SF_RAND_OFS) % SF_HM_SIZE_LG ))"
 
 # Keep guest waiting until there are sufficient resources
 wait_for_resources
@@ -1388,6 +1400,7 @@ write_guest_limits
 [[ -n $SF_IS_GOLD_PROMPT ]] && export SF_IS_GOLD_PROMPT
 [[ -n $SF_PRJ ]] && export SF_PRJ
 [[ -n $SF_DEBUG ]] && export SF_DEBUG
+[[ -z $SF_USER_DNS ]] && SF_USER_DNS="$SF_DNS"
 # exec_devnull docker run --runtime=sysbox-runc \
 exec_devnull docker run \
 	"${SYSBOX_ARGS[@]}" \
@@ -1407,7 +1420,7 @@ exec_devnull docker run \
 	--add-host dns:"${SF_DNS}"                              `# No effect when /etc/hosts is mounted read-only` \
 	--add-host rpc:"${SF_RPC_IP}"                           `# No effect when /etc/hosts is mounted read-only` \
 	--add-host sf:"${SF_RPC_IP}"                            `# No effect when /etc/hosts is mounted read-only` \
-	--dns "${SF_DNS:-BAD}" \
+	--dns "${SF_USER_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
 	--env SF_TOR_IP="${SF_TOR_IP}" \
 	--env SF_USER="${SF_USER}" \
@@ -1470,10 +1483,10 @@ echo_pty -n ".."
 res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || STOPEXIT "$LID" 252 "Failed to set LID in Redis"
 
 # Set FW rules for this container
-exec_devnull docker exec sf-router /user-limit.sh "${LID}" "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || STOPEXIT "${LID}" 251 "Faild to set syn-limit...";
+exec_devnull docker exec sf-router /user-limit.sh "${LID}" "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || STOPEXIT "${LID}" 251 "Failed to set syn-limit...";
 
 # Ready container
-exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" "${SF_USER_DL_RATE}" "${SF_USER_UL_RATE}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."
+exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" "${SF_USER_DL_RATE}" "${SF_USER_UL_RATE}" "${CID}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."
 
 # Setup container (within container's namespace)
 unset WGNAME_UP

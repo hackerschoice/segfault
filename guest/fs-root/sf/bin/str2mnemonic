@@ -1,13 +1,8 @@
-# /usr/bin/env bash
+#! /usr/bin/env bash
+
+source "/sf/bin/funcs.sh"
 
 BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
-
-ERREXIT() {
-    local code=$1
-    shift 1
-    echo -e >&2 "[ERROR] $*"
-    exit "$code"
-}
 
 usage() {
     echo -e "Create a Mnemonic from 'string'"
@@ -33,7 +28,7 @@ NUM=$(echo "$*" | md5sum)
 NUM=${NUM%% *}
 NUM=$((16#${NUM:0:15}))
 
-fn=$(findfn "${BINDIR}/english.txt" "/sf/share/english.txt" "/usr/share/english.txt" "/etc/english.txt") || ERREXIT 255 "List of 2000 words (english.txt) not found."
+fn=$(findfn "${BINDIR}/english.txt" "/sf/share/english.txt" "/usr/share/english.txt" "/etc/english.txt") || ERREXIT "List of 2000 words (english.txt) not found."
 readarray -t english <"$fn"
 unset fn
 

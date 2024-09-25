@@ -44,7 +44,7 @@ mk_vpn()
 			[[ -n $SFVPN_GEOIP ]] && VPN_DST+=" ${CF}(${SFVPN_GEOIP})${CN}"
 			VPN_DST+=" ${CR}>>> DIRECT <<<${CF} (no VPN)${CN}"$'\n'
 		else
-			VPN_DST="VPN Exit Node     : ${CR}TOR ${CF}(no VPN)${CN}"$'\n'
+			VPN_DST="VPN Exit Node     : ${CR}TOR only${CN}"$'\n'
 		fi
 	else
 		i=0
@@ -130,18 +130,15 @@ Your Web Page     : ${CB}${CUL}http://$(cat /config/guest/onion_hostname-80)/${S
 	# HERE: Only display this ONCE when a new server is created.
 [[ -n $SF_SSH_PORT ]] && PORTSTR=" -p${SF_SSH_PORT} "
 echo -e "\
-SSH               : ${CC}ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\"${PORTSTR} ${CR}${CF}\\ ${CDC}\n\
-                       ${SF_USER:-UNKNOWN}@${SF_FQDN:-UNKNOWN}${CN}"
+SSH               : ${CC}ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\"${PORTSTR} ${SF_USER:-UNKNOWN}@${SF_FQDN:-UNKNOWN}${CN}"
 
 [[ -e /config/guest/onion_hostname-22 ]] && {
 	echo -e "\
-SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
-                       ${SF_USER:-UNKNOWN}@$(cat /config/guest/onion_hostname-22)${CN}"
+SSH (TOR)         : ${CC}torsocks ssh${CN}${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER:-UNKNOWN}@$(cat /config/guest/onion_hostname-22)${CN}"
 }
 [[ -e /config/guest/gsnc-access-22.txt ]] && {
 	echo -e "\
-SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${CR}${CF}\\ ${CDC}\n\
-                       ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
+SSH (gsocket)     : ${CC}gsocket -s $(cat /config/guest/gsnc-access-22.txt) ssh${CDC} -o \"SetEnv SECRET=${SF_SEC:-UNKNOWN}\" ${SF_USER:-UNKNOWN}@${SF_FQDN%.*}.gsocket${CN}"
 }
 str="SECRET            : ${CDY}${SF_SEC}"
 [[ -n $SF_IS_LOGINSHELL ]] && str+=" ${CRY}<<<  WRITE THIS DOWN  <<<"

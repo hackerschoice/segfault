@@ -1,5 +1,5 @@
 
-VER=9.6p1
+VER=9.8p1
 
 all: albuild fs-root/bin/docker-exec-sigproxy fs-root/bin/unix-socket-client fs-root/usr/sbin/sshd Dockerfile
 	docker build --no-cache --network host -t sf-host .

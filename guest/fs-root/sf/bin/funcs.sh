@@ -24,5 +24,11 @@ CUL="\e[4m"
 
 CRY="\e[0;33;41m"  # YELLOW on RED (warning)
 }
+
+ERREXIT() {
+	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
+	exit 255
+}
+
 # BINDIR="$(cd "$(dirname "${0}")" || exit; pwd)"
 :

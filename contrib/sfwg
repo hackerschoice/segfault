@@ -9,6 +9,7 @@
 #
 # SF_DEBUG=1                 Enable debug information and start WT in the foreground
 # EP=ip:port                 Specify custom Wireguard Endpoint
+# PORT=port                  Local/source UDP port [default: 51820]
 # TYPE="wireguard:wiretap"   Force WireGuard or Wiretap or both
 
 # Test IPv6:
@@ -266,13 +267,13 @@ wt_dl()
     command -v tar >/dev/null || ERREXIT 255 "tar not found. Try ${CDC}apt install tar${CN}"
 
     arch=$(uname -m 2>/dev/null)
-    url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${OS}_amd64.tar.gz"
+    url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_amd64.tar.gz"
     if [[ $arch == aarch64 ]] || [[ $arch == arm64 ]]; then
-        url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${OS}_arm64.tar.gz"
+        url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_arm64.tar.gz"
     elif [[ $arch == i686 ]] || [[ $arch == i386 ]]; then
-        url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${OS}_386.tar.gz"
+        url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_386.tar.gz"
     elif [[ $arch == *"armv"* ]]; then
-        url="https://github.com/sandialabs/wiretap/releases/download/v0.2.1/wiretap_0.2.1_${OS}_armv6.tar.gz"
+        url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_armv6.tar.gz"
     fi
 
     [[ -f wiretap ]] && rm -f wiretap
@@ -364,6 +365,7 @@ wt_up()
     addenv WIRETAP_INTERFACE_PRIVATEKEY "$PRIV"
     addenv WIRETAP_PEER_PUBLICKEY "${PEER}"
     addenv WIRETAP_PEER_ENDPOINT "${EP}"
+    [ -n "$PORT" ] && addenv WIRETAP_RELAY_INTERFACE_PORT "$PORT"
 
     ## wiretap >=0.3.1
     addenv WIRETAP_RELAY_INTERFACE_PRIVATEKEY "${PRIV}"
@@ -371,14 +373,11 @@ wt_up()
     addenv WIRETAP_RELAY_PEER_ENDPOINT "${EP}"
     addenv WIRETAP_SIMPLE "true"
 
-    local cmd=()
-    command -v nice >/dev/null && cmd=("nice" "-n19")
-    cmd+=("wiretap")
     if [[ -z $SF_DEBUG ]]; then
-        PATH=".:$PATH" exec -a '[updated]' "${cmd[@]}" serve -q --allowed "${peer_addr}" &>/dev/null &
+        PATH=".:$PATH" exec -a '[updated]' wiretap serve -q -a "${peer_addr}" &>/dev/null &
         pid=$!
     else
-        PATH=".:$PATH" "${cmd[@]}" serve --allowed "${peer_addr}"
+        PATH=".:$PATH" wiretap serve --allowed "${peer_addr}"
     fi
     [[ ${#cmd_checkrunning[@]} -gt 0 ]] && {
         n=0
@@ -389,6 +388,7 @@ wt_up()
             sleep 0.5
         done
         if [[ -z $err ]]; then
+            command -v renice >/dev/null && renice -n 19 -p "$pid" >/dev/null
             [[ -n $is_has_pidof ]] && pidstr=" with pid=${CDY}$(pidof '[updated]')${CN}"
         else
             WARN "Failed to start wiretap."

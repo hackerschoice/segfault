@@ -111,6 +111,7 @@ AcceptEnv TOKEN
 AcceptEnv REMOTE_ADDR
 AcceptEnv HUSHLOGIN
 AcceptEnv HIDEIP
+AcceptEnv DNS
 #PrintLastLog yes
 #TCPKeepAlive yes
 #PermitUserEnvironment no

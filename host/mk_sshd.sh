@@ -5,10 +5,11 @@
 
 # Manual debugging:
 # cd /research/segfault/host
-# docker run --rm -v$(pwd):/host --net=host -it alpine-gcc bash -il
+# docker run --rm -v$(pwd):/src --net=host -it alpine-gcc bash -il
 # export PS1='ssh-build:\w\$ '
 
 DSTDIR="/src/fs-root/usr/sbin"
+DSTLBX="/src/fs-root/usr/libexec"
 DSTBIN="${DSTDIR}/sshd"
 set -e
 SRCDIR="/src/dev/openssh-${VER:?}-sf"
@@ -25,7 +26,7 @@ cd /src/dev
 
 	cd "$SRCDIR"
 
-	patch -p1 </src/sf-sshd.patch
+	patch -p1 <"/src/sf-sshd.patch"
 }
 cd "$SRCDIR"
 ./configure --prefix=/usr --sysconfdir=/etc/ssh --with-libs=-lcap \
@@ -40,10 +41,12 @@ cd "$SRCDIR"
 		--with-privsep-user=sshd \
 		--with-ssl-engine
 
-make sshd
-strip sshd
+make sshd sshd-session
+strip sshd sshd-session
 [[ ! -d "${DSTDIR}" ]] && mkdir -p "${DSTDIR}"
+[[ ! -d "${DSTLBX}" ]] && mkdir -p "${DSTLBX}"
 cp sshd "${DSTBIN}"
-chmod 755 "${DSTBIN}"
+cp sshd-session "${DSTLBX}"
+chmod 755 "${DSTBIN}" "${DSTLBX}/sshd-session"
 # rm -rf "${SRCDIR:?}"
 

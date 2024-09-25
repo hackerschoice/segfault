@@ -1,8 +1,7 @@
+#! /bin/bash
 
-# BUG-ARP-CACHE, _must_ use IP address
-# [[ -z $SF_REDIS_IP ]] && { echo >&2 "SF_REDIS_IP= not set"; return 255; }
-# SF_REDIS_SERVER="${SF_REDIS_SERVER:-sf-redis}"
-# REDCMD=("redis-cli" "--raw" "-h" "${SF_REDIS_IP}")
+# FIXME redis-cli on sf-master does not know -e (Ohh. $? on ERROR will be 0)
+# REDCMD=("redis-cli" "-e" "--raw" "-s" "/redis-sock/redis.sock")
 REDCMD=("redis-cli" "--raw" "-s" "/redis-sock/redis.sock")
 export REDISCLI_AUTH="${SF_REDIS_AUTH}"
 

@@ -5,11 +5,13 @@
 [[ $# -lt 2 ]] && { echo -e >&2 "${CY}ERROR${CN}: gsexec SECRET 'command'"; exit 255; }
 
 # cut & paste this into your shell on your workstation or add to ~/.bashrc
-gsexec() {
+OLDgsexec() {
     local sec
     sec="$1"
     shift 1
     echo "$*; kill -9 \$\$; __START"|gs-netcat -I -s "$sec"|sed -un '/__START/,$p'|tail +2
 }
 
-gsexec "$@"
+s="$1"
+shift 1
+echo "$@" | gsexecio "$s"

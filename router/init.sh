@@ -266,9 +266,12 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_DIRECT}" -p tcp --sport 22 -j ACCEPT
 	# -----END DIRECT SSH-----
 
-	# LG can access Internet via VPN except bad routes
+	# LG shall only be allowed to spoof within 100.126.224.0/22
+	# (ready-lg.sh sets even stricter ipt rules, per container)
+	iptables -A FORWARD -i "${DEV_LG}" ! -s "${NET_LG}" -p tcp -j REJECT --reject-with tcp-reset
+	iptables -A FORWARD -i "${DEV_LG}" ! -s "${NET_LG}" -j REJECT
+
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_ONION}" -j ACCEPT
-	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${TOR_IP}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_VPN_DNS_IP}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${MULLVAD_ROUTE}" -j ACCEPT
 	for ip in "${BAD_ROUTES[@]}"; do

@@ -1,3 +1,6 @@
+0.5.7 - 2024-10-00
+    * proxy on - Each TCP exits via a different EXIT (up to 500 source IPs)
+
 0.5.6 - 2024-03-00
     * exfil
     * Human captcha & new-server delay of 60 seconds

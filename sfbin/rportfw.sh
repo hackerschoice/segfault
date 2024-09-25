@@ -82,15 +82,18 @@ cmd_delipports()
 	err=1
 	for ipport in "$@"; do
 		r_port="${ipport##*:}"
+
 		res=$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd "-ddelfwd=${r_port}" 2>/dev/null) && {
-			[[ $res == *"has been removed"* ]] && unset err
+			# [[ $res == *"has been removed"* ]] && unset err
+			[[ "$res" != *":${r_port}" ]] && unset err
 		}
 
 		[[ -n $err ]] && {
 			ERR "${PROVIDER} Failed to remove Port Forward (${ipport})"
-			echo "------------------------"
-			echo "${res:0:1024}"
-			echo "------------------------"
+			# 2024-09-22, PRIVACY LEAK: CS changed api. It now returns ALL ports but no error.
+			# echo "------------------------"
+			# echo "${res:0:2048}"
+			# echo "------------------------"
 		}
 
 		fw_del "${r_port}"
@@ -194,6 +197,7 @@ cmd_moreports()
 	local members_num
 	local req_num
 	local err
+	local cur
 	err=200
 	req_num="$1"
 
@@ -205,19 +209,23 @@ cmd_moreports()
 	members_num=0
 	# Try 5x the number requested in case we accidentally request a port
 	# that was already requested (by us or somebody else).
+	cur="$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd)" || { sleep 1; return "$err"; }
 	while [[ $i -lt $((req_num * 5)) ]]; do
 		port=$((30000 + RANDOM % 35534))
+		[[ "$cur" == *":${port}"* ]] && continue # Port colission.
+
 		res=$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -dport="$port") || break
 		# Check and delete and stale ports
 		[[ $i -eq 0 ]] && delstale_cs "$res" "$port" >/dev/null
 		((i++))
 		# You already have 100 forwards. The max is 100. Please delete some of the existing ones first.
 		[[ "$res" == *"You already have "* ]] && { ERR "${PROVIDER} Out of ports!!!"; err=255; break; }        # Max Port Forward reached.
-		[[ "$res" != *"is now forwarding"* ]] && { WARN "${PROVIDER} Failed to get port=${port}."; continue; } # Failed. Try again.
+		# 2024-09-22, CS changed api. 
+		#[[ "$res" != *"is now forwarding"* ]] && { WARN "${PROVIDER} Failed to get port=${port}."; continue; } # Failed. Try again.
 
-		res="${res%% is now forwarding*}"
-		ip="${res##* }"
-		# Must sanitize
+		res="${res%%:${port}*}"
+		ip="${res##*$'\n'}"
+
 		[[ "$ip" =~ [^0-9.] ]] && break
 		members+="${PROVIDER} ${ip}:${port}"$'\n'
 		((members_num++))

@@ -25,15 +25,19 @@ while :; do
 	sleep 30
 	source /config/etc/sf/timers.conf 2>/dev/null
 	source /funcs_destructor.sh 2>/dev/null
+	# shellcheck disable=2034
 	NOW=$(date +%s)
 	# Every 30 seconds check all container we are tracking (from encfsd)
-	containers=($(cd /sf/run/encfsd/user && echo lg-*))
+	read -r -a containers < <(cd /sf/run/encfsd/user && echo lg-*)
 	n=${#containers[@]}
 	# Continue if no entry (it's lg-* itself)
 	[[ $n -eq 1 ]] && [[ ! -f "/sf/run/encfsd/user/${containers[0]}" ]] && continue
 	i=0
+	# Get SEM
+	redq BLPOP "sema:destructor" 15
 	while [[ $i -lt $n ]]; do
 		check_container "${containers[$i]}"
 		((i++))
 	done
+	echo -e "DEL 'sema:destructor'\nRPUSH 'sema:destructor' 1" | red1 || LOG "destructor" "Could not release lock: sema:destructor"
 done

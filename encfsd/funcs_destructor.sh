@@ -122,7 +122,7 @@ check_container()
 		[[ -f "/config/db/user/lg-${lid}/is_logged_in" ]] && return
 		[[ $((NOW - ts_logout)) -lt ${to_with_shell} ]] && return
 		# HERE: Not logged in. logged out more than 1 week ago.
-		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for $((NOW - ts_logout))sec (shell running)."
+		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for $((NOW - ts_logout))sec (shell running)." || return
 		[[ -z $is_token ]] && try_syscop_msg "$lid"
 
 		return
@@ -143,7 +143,7 @@ check_container()
 	[[ $((NOW - ts_logout)) -ge ${to_no_shell} ]] && {
 		# User logged out 1.5 days ago. No shell. No known processes.
 
-		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for ${to_no_shell}sec (no shell running)."
+		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for ${to_no_shell}sec (no shell running)." || return
 		[[ -z $is_token ]] && try_syscop_msg "$lid"
 
 		return

@@ -428,7 +428,7 @@ lgpurge()
 		elif [[ ${_sfquota["${l}-blocks-perctt"]} -gt 9900 ]]; then
 			is_purge="${CDR}100% usage"
 		elif [[ ${_sfquota["${l}-inode-perctt"]} -gt 9900 ]]; then
-			is_purge="${CDR}100% iusage"
+			is_purge="${CDR}100% inode usage"
 		else
 			continue
 		fi
@@ -506,6 +506,10 @@ _sf_lgrm()
 	[[ -z $l ]] && return
 
 	fn="${_sf_dbdir}/user/${l}/hostname"
+	[[ -z $SF_FORCE ]] && [[ -e "${_sf_dbdir}/user/${l}/token" ]] && {
+		echo -e >&2 "${CDR}ERROR:${CN} ${l} has a TOKEN and is likely a valued user. Set ${CDC}SF_FORCE=1${CN} to force-rm."
+		return
+	}
 	[[ -f "$fn" ]] && hn="$(<"$fn")"
 	[[ -n $hn ]] && {
 		_sf_xrm "${_sf_dbdir}/hn/hn2lid-${hn}"

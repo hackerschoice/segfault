@@ -4,7 +4,24 @@
 # HOSTS+=("adm")
 # HOSTS+=("lgm")
 
+do_down() {
+	local h
+	local i
+	i=${#HOSTS[@]}
+	while [[ $i -gt 0 ]]; do
+	    ((i--))
+	    h="${HOSTS[$i]}"
+	    echo "#${i} Syncing ${h} DOWN"
+ 	   rsync -ral "${h}":/sf/config/db/banned .
+	# "${h}":/sf/config/db/token "${h}":/sf/config/db/limits .
+	done
+}
+
 source .env_hosts || exit
+
+IS_DOWN=1
+IS_UP=1
+[[ "${1,,}" == "up" ]] && unset IS_DOWN
 
 echo "PRIVATE, LIMITS and TOKEN are now taken from SYSCOPS workstation. ADM is no longer the master"
 # SYNC private/ is DANGEROUS because those files are SOUCED by
@@ -15,17 +32,12 @@ echo "PRIVATE, LIMITS and TOKEN are now taken from SYSCOPS workstation. ADM is n
 
 # Reverse order so that first in HOSTS has master priority
 #rm -rf banner
-i=${#HOSTS[@]}
-while [[ $i -gt 0 ]]; do
-    ((i--))
-    h="${HOSTS[$i]}"
-    echo "#${i} Syncing ${h} DOWN"
-    rsync -ral "${h}":/sf/config/db/banned .
-# "${h}":/sf/config/db/token "${h}":/sf/config/db/limits .
-done
+[[ -n "$IS_DOWN" ]] && {
+	do_down
+	echo "==[DOWN done. Press Enter to start UP]=================================================="
+	read 
+}
 
-echo "==[DOWN done. Press Enter to start UP]=================================================="
-read 
 i=0
 for h in "${HOSTS[@]}"; do
     echo "#$i Syncing ${h} UP"

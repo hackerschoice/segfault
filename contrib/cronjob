@@ -1,14 +1,46 @@
 #! /usr/bin/env bash
 
 # Run regular maintenance jobs in host's crontab after 'sf up' has been started
-# PHY: crontab -l | grep -v cronjob | echo "15 0 * * sun /sf/sfbin/cronjob all >/dev/shm/sf/run/logs/cronjob.out" | crontab -
+# PHY: crontab -l | grep -v cronjob | echo "15 0 * * sun /sf/sfbin/cronjob all >/dev/shm/sf/run/logs/cronjob.out 2>/dev/shm/sf/run/logs/cronjob.err" | crontab -
 
+SF_BASEDIR="/sf"
+SF_DATADIR="${SF_BASEDIR}/data"
+SF_MV_EXIT_FN="${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt"
+SF_MV_RELAY_FN="${SF_DATADIR}/share/proxies.txt"
+SF_HA_CONF="${SF_DATADIR}/share/haproxy-1040.conf"
+SF_TOR_EXIT_FN="${SF_DATADIR}/share/tor-exit-nodes.txt"
 
-SF_MV_EXIT_FN="/sf/data/share/relay-exit-nodes-mullvad.txt"
-SF_MV_RELAY_FN="/sf/data/share/proxies.txt"
-SF_TOR_EXIT_FN="/sf/data/share/tor-exit-nodes.txt"
 # SF_GLOBAL_EXIT_FN="/sf/config/etc/relay-exit-nodes-global.txt" # Provided by Blind Mouse
 # aka curl -H "Auth: hAV2fDFN..." http://92.x.x.x:50613 >/sf/config/etc/relay-exit-nodes-global.txt
+
+mk_haproxy1040_conf() {
+    local fn="$(mktemp)"
+
+    [[ -z $fn ]] && return
+
+    cat >"${fn}"<<-'EOF'
+defaults
+  timeout connect 15s
+  timeout client 10s
+  timeout server 60s
+
+frontend socks-in
+  mode tcp
+  bind :1080
+  default_backend socks-out
+
+backend socks-out
+  mode tcp
+  default-server check observe layer4 error-limit 3 on-error mark-down inter 3600s downinter 60s rise 1
+EOF
+    shuf <"${SF_MV_RELAY_FN}" | while read -r str; do
+        ips="$(dig +short "${str%:*}")" || continue
+        [[ -z $ips ]] && continue
+        echo "  server s${n} ${ips}:${str##*:} #$str"
+        ((n++))
+    done >>"${fn}"
+    mv "${fn}" "${SF_HA_CONF}"
+}
 
 # Make a list of working proxies
 # and exit mullvad proxy IPs.
@@ -41,6 +73,7 @@ mk_mullvad_relays()
     done
     echo -n "$proxies" >"${SF_MV_RELAY_FN}"
     echo -n "$ips" >"${SF_MV_EXIT_FN}"
+    mk_haproxy1040_conf
 }
 
 mk_tor_relays()
@@ -66,12 +99,28 @@ mk_global_relays()
     # echo "$str" >"${SF_GLOBAL_EXIT_FN}"
 }
 
+mk_geolite() {
+    local fn="GeoLite2-City.mmdb"
+    [ ! -f "${SF_BASEDIR:-/sf}/config/.env" ] && return
+    eval "$(grep ^MAX "${SF_BASEDIR:-/sf}/config/.env")"
+    [ -z "$MAXMIND_KEY" ] && return
+
+    curl -fL "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz" | tar xfvz  - --strip-components=1  --no-anchored -C '/tmp' "${fn}" || return
+    rm -f "${SF_DATADIR}/share/${fn}"
+    chmod 644 "/tmp/${fn}"
+    mv "/tmp/${fn}" "${SF_DATADIR}/share/${fn}"
+}
+
 str="$*"
-[[ $str == *all* ]] && str="mullvad tor global"
+[[ $str == *all* ]] && {
+    mk_geolite
+    str="mullvad tor global"
+}
 
 [[ $str == *mullvad* ]] && { mk_mullvad_relays; is_ran=1; }
 [[ $str == *tor* ]] && { mk_tor_relays; is_ran=1; }
 # [[ $str == *global* ]] && { mk_global_relays; is_ran=1; }
+
 
 [[ -n $is_ran ]] && exit
 

@@ -1,7 +1,7 @@
-diff -x !*.[ch] -u openssh-9.6p1-orig/channels.c openssh-9.6p1-sf/channels.c
---- openssh-9.6p1-orig/channels.c	2023-12-18 14:59:50
-+++ openssh-9.6p1-sf/channels.c	2024-01-20 17:50:15
-@@ -3683,7 +3683,7 @@
+diff -x '!*.[ch]' -u openssh-9.8p1-orig/channels.c openssh-9.8p1-sf/channels.c
+--- openssh-9.8p1-orig/channels.c	2024-07-01 07:36:28.000000000 +0300
++++ openssh-9.8p1-sf/channels.c	2024-07-03 08:42:25.000000000 +0300
+@@ -3715,7 +3715,7 @@
  	ssh->chanctxt->IPv4or6 = af;
  }
  
@@ -10,7 +10,7 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/channels.c openssh-9.6p1-sf/channels.c
  /*
   * Determine whether or not a port forward listens to loopback, the
   * specified address or wildcard. On the client, a specified bind
-@@ -3721,6 +3721,7 @@
+@@ -3753,6 +3753,7 @@
  			 * address and it was overridden.
  			 */
  			if (*listen_addr != '\0' &&
@@ -18,10 +18,10 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/channels.c openssh-9.6p1-sf/channels.c
  			    strcmp(listen_addr, "0.0.0.0") != 0 &&
  			    strcmp(listen_addr, "*") != 0) {
  				ssh_packet_send_debug(ssh,
-diff -x !*.[ch] -u openssh-9.6p1-orig/serverloop.c openssh-9.6p1-sf/serverloop.c
---- openssh-9.6p1-orig/serverloop.c	2023-12-18 14:59:50
-+++ openssh-9.6p1-sf/serverloop.c	2024-01-20 17:50:15
-@@ -101,6 +101,12 @@
+diff -x '!*.[ch]' -u openssh-9.8p1-orig/serverloop.c openssh-9.8p1-sf/serverloop.c
+--- openssh-9.8p1-orig/serverloop.c	2024-07-01 07:36:28.000000000 +0300
++++ openssh-9.8p1-sf/serverloop.c	2024-07-03 08:48:37.000000000 +0300
+@@ -97,6 +97,12 @@
  /* requested tunnel forwarding interface(s), shared with session.c */
  char *tun_fwd_ifnames = NULL;
  
@@ -31,22 +31,19 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/serverloop.c openssh-9.6p1-sf/serverloop.c
 +extern int sf_sigusr1_received;
 +void sf_sshd2ns(void);
 +
- /* returns 1 if bind to specified port by specified user is permitted */
- static int
- bind_permitted(int port, uid_t uid)
-@@ -388,8 +394,10 @@
- 			/* Clean up sessions, utmp, etc. */
- 			cleanup_exit(255);
- 		}
--
+ static void
+ sigchld_handler(int sig)
+ {
+@@ -357,6 +363,8 @@
+ 			error_f("osigset sigprocmask: %s", strerror(errno));
+ 
  		channel_after_poll(ssh, pfd, npfd_active);
 +		if (sf_sigusr1_received != 0)
 +			sf_sshd2ns();
-+
  		if (conn_in_ready &&
  		    process_input(ssh, connection_in) < 0)
  			break;
-@@ -634,12 +642,14 @@
+@@ -601,12 +609,14 @@
  
  	if (strcmp(ctype, "session") == 0) {
  		c = server_request_session(ssh);
@@ -67,7 +64,7 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/serverloop.c openssh-9.6p1-sf/serverloop.c
  	}
  	if (c != NULL) {
  		debug_f("confirm %s", ctype);
-@@ -799,8 +809,20 @@
+@@ -764,8 +774,20 @@
  			ssh_packet_send_debug(ssh, "Server has disabled port forwarding.");
  		} else {
  			/* Start listening on the port */
@@ -90,10 +87,10 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/serverloop.c openssh-9.6p1-sf/serverloop.c
  		}
  		if ((resp = sshbuf_new()) == NULL)
  			fatal_f("sshbuf_new");
-diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
---- openssh-9.6p1-orig/sshd.c	2023-12-18 14:59:50
-+++ openssh-9.6p1-sf/sshd.c	2024-01-20 17:50:15
-@@ -531,8 +531,71 @@
+diff -x '!*.[ch]' -u openssh-9.8p1-orig/sshd-session.c openssh-9.8p1-sf/sshd-session.c
+--- openssh-9.8p1-orig/sshd-session.c	2024-07-01 07:36:28.000000000 +0300
++++ openssh-9.8p1-sf/sshd-session.c	2024-07-03 09:49:58.000000000 +0300
+@@ -384,6 +384,69 @@
  		return 0;
  	}
  }
@@ -103,7 +100,7 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
 +#ifndef SECBIT_KEEP_CAPS
 +#define SECBIT_KEEP_CAPS (1<<4)
 +#endif
- 
++
 +int sf_done;
 +int sf_by_signal;
 +int sf_sigusr1_received;
@@ -111,7 +108,7 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
 +size_t sf_ports_n;
 +static char sf_nsnet_name[128];
 +static struct ssh *sf_ssh;
- static void
++static void
 +cb_sigusr1(int sig)
 +{
 +	debug("SIGUSR1 RECEIVED");
@@ -160,12 +157,10 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
 +
 +	sf_done = 1;
 +}
-+
-+static void
+ 
+ static void
  privsep_postauth(struct ssh *ssh, Authctxt *authctxt)
- {
- #ifdef DISABLE_FD_PASSING
-@@ -571,8 +634,34 @@
+@@ -429,10 +492,36 @@
  
  	reseed_prngs();
  
@@ -173,8 +168,9 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
 +	prctl(PR_SET_SECUREBITS, SECBIT_KEEP_CAPS);
 +
  	/* Drop privileges */
- 	do_setusercontext(authctxt->pw);
-+
+ 	if (!skip_privdrop)
+ 		do_setusercontext(authctxt->pw);
+ 
 +	// Set the effective CAPS to remove SECUREBITS
 +	cap_t caps = cap_get_proc();
 +	const cap_value_t cl[] = {CAP_SETPCAP};
@@ -197,6 +193,7 @@ diff -x !*.[ch] -u openssh-9.6p1-orig/sshd.c openssh-9.6p1-sf/sshd.c
 +	snprintf(sf_nsnet_name, sizeof sf_nsnet_name, "/dev/shm/ns-net-%d", getpid());
 +	sf_ssh = ssh;
 +	signal(SIGUSR1, cb_sigusr1);
- 
-  skip:
++
  	/* It is safe now to apply the key state */
+ 	monitor_apply_keystate(ssh, pmonitor);
+ 

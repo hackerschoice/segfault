@@ -141,6 +141,7 @@ mergedir()
   return 0
 }
 
+
 init_config_run()
 {
   : "${SF_DATADIR:=${SF_BASEDIR}/data}"
@@ -164,6 +165,7 @@ init_config_run()
 
   [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ -n "${MAXMIND_KEY}" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='"${MAXMIND_KEY}"'&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
   [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
+  [[ ! -f "${SF_DATADIR}/share/english.txt" ]] && cp "${SF_BASEDIR}/host/fs-root/etc/english.txt" "${SF_DATADIR}/share/english.txt"
 
   # Setup /dev/shm/sf/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then

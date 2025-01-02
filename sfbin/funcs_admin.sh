@@ -73,7 +73,7 @@ _sf_usage()
 	echo -e "${CDC}lgsh [lg-LID]${CN}                          # Enter bash [FOR TESTING]"
 	echo -e "${CDC}lghst [regex]${CN}                          # grep in zsh_history [FOR TESTING]"
 	echo -e "${CDC}lgx [regex]${CN}                            # Output LIDs that match process"
-	echo -e "> ${CDR}"'for x in $(lgx xmrig); do lgban "$x" "Mining not allowed."; done'"${CN}"
+	echo -e "> ${CDR}"'for x in $(lgx "xmrig"); do lgban "$x" "Mining not allowed."; done'"${CN}"
 	echo -e "${CDC}lgcpu${CN}                                  # Sorted list of CPU usage"
 	echo -e "${CDC}lgmem${CN}                                  # Sorted list of MEM usage"
 	echo -e "${CDC}lgdf <lg-LID>${CN}                          # Storage usage (Try '|sort -n -k3' for inode)"
@@ -569,6 +569,13 @@ lgban()
 # <lg-LID> <MESSAGE>
 lgstop()
 {
+	local l="${1:?}"
+
+	[[ -z $SF_FORCE ]] && [[ -e "${_sf_dbdir}/user/${l}/token" ]] && {
+		echo -e >&2 "${CDR}ERROR:${CN} ${l} has a TOKEN and is likely a valued user. Set ${CDC}SF_FORCE=1${CN} to force-rm."
+		return
+	}
+
 	[[ -n $2 ]] && {
 		lgwall "${1}" "$2"
 		echo -e "$2" >"${_sf_dbdir}/user/${1}/syscop-msg.txt"

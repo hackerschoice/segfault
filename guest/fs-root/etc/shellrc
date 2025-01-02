@@ -272,6 +272,7 @@ lsg() {
 	ls -Alh --color=always | grep -i -E "$*" 
 }
 
+xor() { perl -e 'while(<>){foreach $c (split //){print $c^chr('"${1:-0xfa}"');}}'; }
 noansi() { sed -e 's/\x1b\[[0-9;]*m//g'; }
 alias nocol=noansi
 

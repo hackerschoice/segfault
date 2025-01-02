@@ -17,7 +17,7 @@ AUTHOR_FEED_RSS = None
 # Blogroll
 LINKS = (('Pelican', 'https://getpelican.com/'),
          ('THC', 'https://www.thc.org/'),
-         ('Telegram', 'https://t.me/thcorg'),
+         ('JoinUS', 'https://thc.org/ops'),
          ('Modify those links in pelicanconf.py', '#'),)
 
 # Social widget

@@ -37,5 +37,4 @@ Provisioning turns a freshly created Linux (a bare minimum Installation) into a 
 
 ---
 
-Telegram: https://t.me/thcorg
-Twitter: https://twitter.com/hackerschoice
+Join us: https://thc.org/ops

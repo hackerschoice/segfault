@@ -451,7 +451,7 @@ print_goodbye()
 
 	echo -e "\
 📖 RTFM           : ${CB}${CUL}https://www.thc.org/segfault/faq${CN}
-🤗 GOODBYE        : ${CW}Join us on Telegram - https://t.me/thcorg${CN}"
+🤗 GOODBYE        : ${CW}Join us - https://thc.org/ops${CN}"
 	[[ -z $SF_IS_NEW_SERVER ]] && return
 
 	prompt_wait_yN 10 "Would you like to see your ${CDY}SECRET${CN} to log back in to ${CDY}${SF_HOSTNAME:-UNKNOWN}${CN}?" || return
@@ -470,7 +470,7 @@ print_to_many_servers()
 --> Log in to your already running servers before creating any more new servers.
 --> Read ${CB}${CUL}https://www.thc.org/segfault/faq/#reconnect${CN}
 --> Read ${CB}${CUL}https://www.thc.org/segfault/free${CN}
---> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
+--> Contact us: ${CW}https://thc.org/ops${CN}"
 }
 
 show_last_server()
@@ -489,7 +489,7 @@ show_last_server()
 	prompt_wait_yN 30 "Would you like to see your ${CDY}SECRET${CN} now?" && {
 		echo >&2 -e "\
 --> SECRET: ${CDY}${SF_SEC:-BAD}${CN}
---> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
+--> Contact us: ${CW}https://thc.org/ops${CN}"
 	}
 }
 
@@ -894,7 +894,7 @@ print_relay_notice()
 --> Log in from Relays is available for ${CG}VALUED${CN} users only.
 --> To log in from Relays please ask us for an ACCESS TOKEN.
 --> Read ${CB}${CUL}https://www.thc.org/segfault/free${CN}
---> Contact us on Telegram: ${CW}https://t.me/thcorg${CN}"
+--> Contact us: ${CW}https://thc.org/ops${CN}"
 	sleep 5
 }
 
@@ -980,6 +980,24 @@ if we got this wrong or try one of the following:
 
 	sleep 15
 	ERREXIT 202
+}
+
+# Server does not exist _AND_ not an interactive shell.
+ERR_NOTEXIT() {
+	sleep 5
+	echo -e >&2 "\
+💥 The server ${CDM}${SF_FQDN%%\.*}-${SF_HOSTNAME}${CN} does not exist
+at the domain ${CDM}${SF_FQDN}${CN}.
+
+Please check that you are connecting to the correct domain where your
+server has been created (it was not at ${SF_FQDN}).
+
+Please supply the correct ${CDY}SECRET${CN}:
+
+   ${CDY}ssh -o SetEnv SECRET=ChangeMeSecretHere root@${SF_FQDN}${CN}"
+
+	sleep 5
+	ERREXIT 203
 }
 
 do_new_server_human() {
@@ -1304,6 +1322,7 @@ if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	echo_pty -en "${S:0:65}"
 	touch "${HNLID_FILE}"
 else
+	[[ -z "$IS_LOGIN" ]] && ERR_NOTEXIT
 	print_disclaimer
 	sysmsg "/config/host/etc/loginmsg-new.sh"
 	do_new_server_limit

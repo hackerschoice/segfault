@@ -229,7 +229,6 @@ RUN /pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		proxychains \
 		python2-minimal \
 		python-is-python3 \
-		python3-bitcoinlib \
 		python3-cheroot \
 		python3-confuse \
 		python3-decouple \
@@ -372,7 +371,7 @@ RUN /pkg-install.sh GUI bash -c '{ cd /tmp \
 		fonts-noto-color-emoji \
 		fonts-symbola \
 		`### geany kali-2024 yanked` \
-		gimp \
+		`### gimp kali-2024.4 yanked` \
 		gnome \
 		gnome-terminal \
 		kate \
@@ -401,14 +400,14 @@ RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		code || { [ $(uname -m) != x86_64 ] && true; }
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`### xpra ### Using Xpra repo instead` \
-		libavformat60 \
+		libavformat61 \
 		libavif16 \
 		libjs-jquery-ui \
 		`###libprocps8 ### yanked from Kali` \
 		libqrencode4 \
 		libxres1 \
 		libxtst6 \
-		libswscale7 \
+		libswscale8 \
 		libturbojpeg0 \
 		gir1.2-gtk-3.0 \
 		python3-cairo \
@@ -538,6 +537,7 @@ RUN /pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		python3-harmony \
 		python3-irc
 RUN /pkg-install.sh    HACK pipx install aort \
+	&& /pkg-install.sh HACK pipx install aospdtgen \
 	&& /pkg-install.sh HACK pipx install arsenal-cli \
 	&& /pkg-install.sh HACK pipx install bbrf \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/vortexau/dnsvalidator \
@@ -546,6 +546,7 @@ RUN /pkg-install.sh    HACK pipx install aort \
 	&& /pkg-install.sh HACK pipx install greynoise \
 	&& /pkg-install.sh HACK pipx install h8mail \
 	&& /pkg-install.sh HACK pipx install holehe \
+	&& /pkg-install.sh HACK pipx install jishaku \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/codingo/Interlace \
 	&& /pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret `### 2023-03-07 pipx repo fails on aiohttp/longintrepr.h` \
 	&& /pkg-install.sh HACK pipx install raccoon-scanner \
@@ -555,38 +556,38 @@ RUN /pkg-install.sh    HACK pipx install aort \
 	&& /pkg-install.sh HACK pipx install webtech \
 	&& /pkg-install.sh DEVEL pipx install dulwich \
 	&& /pkg-install.sh DEVEL pipx install names \
-	&& /pkg-install.sh DEVEL pipx install Red-DiscordBot
+	&& `### /pkg-install.sh DEVEL pipx install Red-DiscordBot yanked, no pipx version match`
 RUN /pkg-install.sh WEB bash -c '{ apt-get remove -y pelican; true; }' \
 	&& /pkg-install.sh WEB pipx install 'grip' \
 	&& /pkg-install.sh WEB pipx install 'pelican[Markdown]' `### apt/pelican causes missing /onion/theme directory` \
-	&& /pkg-install.sh WEB pipx install 'tiny-http-server'
+	&& /pkg-install.sh WEB pipx install 'tiny-http-server' 'uploadserver'
+RUN /pkg-install.sh    LARGE pipx install gdown \
+	&& /pkg-install.sh LARGE pipx install udocker
 RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		cryptocode \
 		ipaddress \
 		mmh3   `# FavFreak` \
 		pyTelegramBotAPI \
-		tgcrypto \
-		uploadserver \
-		wsgidav
-RUN /pkg-install.sh DEVEL pip install \
+		tgcrypto
+RUN /pkg-install.sh DEVEL pip install --break-system-packages \
 		`# aiogram YANKED kali2024` \
-		aospdtgen \
 		booru \
 		discum \
 		disnake \
-		donna25519 \
+		`### donna25519, gcc error when compiling` \
 		heroku3 \
-		jishaku \
 		`# lastversion YANKED kali2024` \
 		libgen_api \
-		openai \
 		pyrogram \
 		python-json-logger \
-		python-nmap \
-		telegram \
 		timer
-RUN /pkg-install.sh    LARGE pipx install gdown \
-	&& /pkg-install.sh LARGE pipx install udocker
+RUN /pkg-install.sh HACK pip install --break-system-packages --no-deps --force-reinstall art git+https://github.com/Revoltsecurities/Subdominator \
+	&& /pkg-install.sh HACK pip install --break-system-packages xortool `#pipx install yields No module named 'importlib_metadata'`
+RUN /pkg-install.sh    LARGE apt-get install -y --no-install-recommends \
+		python3-nmap \
+		python3-openai \
+		python3-python-telegram-bot \
+		python3-wsgidav
 RUN /pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.4/geonet_0.4.4_%arch:x86_64=x86_64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
 	&& /pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
 	&& /pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
@@ -643,7 +644,7 @@ RUN /pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan%arch:x86_64=:aarch64=_arm6
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/dsieve@master; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/trickest/enumerepo@latest; }' \
 	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/lobuhi/byp4xx@latest; }' \
-	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Hackmanit/Web-Cache-Vulnerability-Scanner@latest && ln -s Web-Cache-Vulnerability-Scanner /usr/bin/wcvs; }' \
+	&& /pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/Hackmanit/Web-Cache-Vulnerability-Scanner@latest; }' \
 	&& /pkg-install.sh HACK ghbin tomnomnom/qsreplace         'linux-amd64'                                qsreplace `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin tomnomnom/unfurl            'linux-amd64'                                unfurl    `# x86_64 only` \
 	&& /pkg-install.sh HACK ghbin tomnomnom/gron              'linux-%arch:x86_64=amd64:aarch64=arm64%-'   gron \
@@ -760,7 +761,7 @@ RUN /pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                     
 	&& /pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr \
 	&& /pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch1%'                                                 dalfox
 RUN /pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
-	&& /pkg-install.sh NET ghbin ginuerzh/gost                     'linux-%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost                          \
+	&& /pkg-install.sh NET ghbin ginuerzh/gost                     'linux[_-]%arch:x86_64=amd64:aarch64=armv8%.*gz$' gost                          \
 	&& /pkg-install.sh NET ghbin tulir/gomuks                      'linux-%arch1%'                                gomuks                        \
 	&& /pkg-install.sh NET ghbin Snawoot/hola-proxy                'linux-%arch1%'                                hola-proxy                    \
 	&& /pkg-install.sh NET ghbin maxmind/mmdbinspect               'linux_amd64.tar.gz$'                          mmdbinspect   `# x86_64 only` \
@@ -835,9 +836,8 @@ RUN /pkg-install.sh HACK pipx install yxdump \
 	&& /pkg-install.sh HACK ghbin hackerschoice/dsniff 'linux-%arch%' dsniff "/usr/sbin" \
 	&& /pkg-install.sh HACK ghbin lwthiker/curl-impersonate  'curl-impersonate.*%arch%-linux' \
 	&& /pkg-install.sh HACK bin https://paste.c-net.org/pbenc pbenc \
-	&& /pkg-install.sh LARGE ghbin sqlectron/sqlectron-gui  '_amd64.deb' \
-	&& /pkg-install.sh HACK pip install xortool `#pipx install yields No module named 'importlib_metadata'` \
-	&& /pkg-install.sh HACK pip install --no-deps --force-reinstall art git+https://github.com/Revoltsecurities/Subdominator
+	&& /pkg-install.sh HACK bin https://github.com/lgandx/PCredz/raw/refs/heads/master/Pcredz pcredz \
+	&& /pkg-install.sh LARGE ghbin sqlectron/sqlectron-gui  '_amd64.deb'
 RUN /pkg-install.sh GUI apt-get install -y --no-install-recommends \
 	dolphin \
 	kdegraphics-thumbnailers \
@@ -850,6 +850,7 @@ RUN /pkg-install.sh DEV apt-get install -y --no-install-recommends \
 	mb2md
 RUN /pkg-install.sh HUGE ghbin microsoft/go-sqlcmd 'linux-%arch1%.tar.bz2' sqlcmd
 RUN /pkg-install.sh HACK ghbin kitabisa/mubeng '_linux_%arch1%' mubeng
+RUN /pkg-install.sh HACK bin 'https://github.com/milio48/serveo/raw/refs/heads/master/serveo.sh' serveo
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update

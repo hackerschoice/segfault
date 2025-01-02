@@ -111,7 +111,7 @@ vpn_read_config() {
             continue
         }
         [[ -n "$is_read_cert" ]] && {
-            [[ "${key,,}" == "</cert>" ]] && { unset is_read_key; continue; }
+            [[ "${key,,}" == "</cert>" ]] && { unset is_read_cert; continue; }
             [[ $is_read_cert -le 1 ]] && [[ "${l:0:5}" != "-----" ]] && continue
             is_read_cert=2
             VPN_CFG_CERT+="$l"$'\n'

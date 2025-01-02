@@ -121,6 +121,8 @@ str="$*"
 [[ $str == *tor* ]] && { mk_tor_relays; is_ran=1; }
 # [[ $str == *global* ]] && { mk_global_relays; is_ran=1; }
 
+source "${SF_BASEDIR}/sfbin/funcs_admin.sh" >/dev/null
+lgpurge
 
 [[ -n $is_ran ]] && exit
 

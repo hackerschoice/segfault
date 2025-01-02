@@ -31,7 +31,7 @@ gsexecio() {
     # - Escaping quotes the correct way makes it unreadable. Sorry.
     unset pl
     pl="echo '#####STARTMARKER'"$'\n'
-    pl+=$(cat)
+    pl+="$(cat)"
     { echo 'exec bash -c '"'"'IFS="" s=$(dd bs=1 count='"${#pl}"' 2>/dev/null) eval eval "\$s"'"'"; sleep 1; echo "$pl";} | gs-netcat -Ii -s "$1" 2>/dev/null | sed -un '/^#####STARTMARKER/,$p' | tail +2
 }
 

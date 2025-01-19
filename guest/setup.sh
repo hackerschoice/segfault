@@ -50,7 +50,7 @@ echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt
 
 # 2024 kali bug, shipped with cap_net_bind_service,cap_net_admin,cap_net_raw=eip, which will yield
 # /usr/bin/nmap: Operation not permitted inside a container.
-[ -e /usr/bin/nmap ] && setcap cap_net_bind_service,cap_net_raw=eip /usr/bin/nmap
+[ -e /usr/lib/nmap/nmap ] && setcap cap_net_bind_service,cap_net_raw=eip /usr/lib/nmap/nmap
 
 # Need to set correct permission which may have gotten skewed when building
 # docker inside vmbox from shared host drive. On VMBOX share all

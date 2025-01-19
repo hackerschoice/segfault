@@ -754,7 +754,7 @@ _sfmax()
 	[[ -z $3 ]] && unset _sf_stats
 }
 
-lgsh() { docker exec -w/root -u0 -e HISTFILE=/dev/null -it "$1" bash -c 'exec -a [cached] bash'; }
+lgsh() { docker exec -w/root -u0 -e HISTFILE=/dev/null -it "$1" bash -c 'exec -a \[cached\] bash'; }
 
 _grephst()
 {

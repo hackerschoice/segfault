@@ -7,9 +7,10 @@ sf_rport_load_all || exit
 
 KTYPE="$1"
 [[ -z $KTYPE ]] && {
-        #KTYPE=ed25519
-        KTYPE="rsa:1024"
-        echo -e "${CDY}WARNING:${CN} Using ${CDR}${KTYPE}${CN}. Try ${CDC}${0##*/} ed25519${CN} or ${CDC}${0##*/} rsa:2048${CN} on newer systems."
+        #KTYPE=ed25519    # ERR on older systems
+        #KTYPE="rsa:1024" # ERR on newer systems
+        KTYPE="rsa:2048"
+        echo -e "${CDY}WARNING:${CN} Using ${CDR}${KTYPE}${CN}. Try ${CDC}${0##*/} ed25519${CN} on newer systems."
 }
 pemfn="/tmp/.sf_exfil_ssl.pem"
 [[ ! -f "$pemfn" ]] && {

@@ -48,9 +48,13 @@ nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -m addrtype --dst-type
 nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp -d "${SF_RPC_IP:?}" -j ACCEPT
 nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp -d "${SF_TOR_IP:?}" -j ACCEPT
 nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp -d "${SF_DNS:?}" -j ACCEPT
+
+# Debian11 does not support net_cls/cgroup. Ignore
+set +e
 mkdir "/sf-cgroup/docker-${CID:-NULL}.scope/proxy1040"
 nsenter.u1000 -t "${LG_PID}" -n -C iptables -t nat -A OUTPUT -m cgroup --path /proxy1040 -p tcp -j REDIRECT --to-port 1040
 nsenter.u1000 -t "${LG_PID}" -n -C iptables -t nat -A OUTPUT -m cgroup --path /proxy1040 -p udp -j REDIRECT --to-port 1040
+set -e
 
 # Set egress limits per LG
 [[ -n $USER_UL_RATE ]] && nsenter.u1000 -t "${LG_PID:?}" --setuid 0 --setgid 0 -n tc qdisc add dev eth0 root cake bandwidth "${USER_UL_RATE}" dsthost

@@ -134,11 +134,12 @@ warn_file()
 	WARN "Not found: $1"
 }
 
+# <src> <installed>
 warn_outdated()
 {
-    local fn dst src
-    dst="${SF_BASEDIR}/${1}"
-    src="${BINDIR}/../${1}"
+    local dst src
+    src="${1}"
+    dst="${2}"
 
     [[ ! -f "$dst" ]] && { WARN "Not found: $dst"; return; }
     [[ ! -f "$src" ]] && ERREXIT 255 "Not found: $src"
@@ -253,8 +254,9 @@ sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
 # Warn for outdated files in /sf/config/* (that are older and different size)
 mapfile -t arr < <(cd "${BINDIR}/../" || exit; find config -type f)
 for fn in "${arr[@]}"; do
-    warn_outdated "$fn"
+    warn_outdated "${BINDIR}/../${fn}" "${SF_BASEDIR}/${fn}" 
 done
+warn_outdated "${BINDIR}/../contrib/cronjob" "${SF_BASEDIR}/sfbin/cronjob" 
 
 # Check if there are any fils in /sf/sfbin that are not equal to ./sfbin
 for x in "${BINDIR}/"*; do

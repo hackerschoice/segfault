@@ -252,7 +252,7 @@ sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
 [[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN "Huge Tables not set. Consider ${CDC}echo \"vm.nr_hugepages=8192\" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192${CN}"
 
 # Warn for outdated files in /sf/config/* (that are older and different size)
-mapfile -t arr < <(cd "${BINDIR}/../" || exit; find config -type f)
+mapfile -t arr < <(cd "${BINDIR}/../" || exit; find config -type f ! -name '*example*')
 for fn in "${arr[@]}"; do
     warn_outdated "${BINDIR}/../${fn}" "${SF_BASEDIR}/${fn}" 
 done

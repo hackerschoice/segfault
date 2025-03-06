@@ -30,7 +30,7 @@ init_color()
     CC="\e[1;36m" # cyan
     # CM="\e[1;35m" # magenta
     # CW="\e[1;37m" # white
-    CB="\e[1;34m" # blue
+    # CB="\e[1;34m" # blue
     CF="\e[2m"    # faint
     CN="\e[0m"    # none
     # CBG="\e[42;1m" # Background Green

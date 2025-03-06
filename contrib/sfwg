@@ -14,6 +14,8 @@
 #
 # Wiretap only:
 # PORT=port                  Local/source UDP port, =0 pick at random [default: 51820]
+# DRYRUN=1                   Do not download. Do not start. Output Cut&Paste-friendly command instead
+# NAME='/usr/sbin/updated'   Process name
 
 # Test IPv6:
 # curl -I 'http://[2606:4700:4700::1111]'
@@ -48,6 +50,9 @@ init_color()
 [[ -z $WITHOUT_TUNE ]] && WITH_TUNE=1
 [[ -z $TYPE ]] && TYPE="wireguard:wiretap"
 [[ -z $UID ]] && UID=$(id -u)
+[ -z "$VER" ] && VER="0.6.0"
+[ -z "$NAME" ] && NAME='/usr/sbin/updated'
+[ -z "$MTU" ] && MTU=1340
 
 ERR(){ echo -e >&2 "[${CR}ERROR${CN}] $*"; }
 
@@ -231,7 +236,7 @@ wg_up()
     ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || { ip link del "${WG_DEV}"; return 255; }
     [[ -n $WITH_IPV6 ]] && { ip -6 address add "${ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
-    ip link set mtu "${MTU:-1420}" up dev "${WG_DEV}"
+    ip link set mtu "${MTU:-1340}" up dev "${WG_DEV}"
 
     ip -4 route add "${PEER_ADDRESS}" dev "${WG_DEV}"
     [[ -n $WITH_IPV6 ]] && { ip -6 route add "${PEER_ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
@@ -270,15 +275,23 @@ wt_dl()
     command -v tar >/dev/null || ERREXIT 255 "tar not found. Try ${CDC}apt install tar${CN}"
 
     arch=$(uname -m 2>/dev/null)
-    url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_amd64.tar.gz"
+    url="https://github.com/sandialabs/wiretap/releases/download/v${VER}/wiretap_${VER}_${OS}_amd64.tar.gz"
     if [[ $arch == aarch64 ]] || [[ $arch == arm64 ]]; then
-        url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_arm64.tar.gz"
+        url="https://github.com/sandialabs/wiretap/releases/download/v${VER}/wiretap_${VER}_${OS}_arm64.tar.gz"
     elif [[ $arch == i686 ]] || [[ $arch == i386 ]]; then
-        url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_386.tar.gz"
+        url="https://github.com/sandialabs/wiretap/releases/download/v${VER}/wiretap_${VER}_${OS}_386.tar.gz"
     elif [[ $arch == *"armv"* ]]; then
-        url="https://github.com/sandialabs/wiretap/releases/download/v0.5.0/wiretap_0.5.0_${OS}_armv6.tar.gz"
+        url="https://github.com/sandialabs/wiretap/releases/download/v${VER}/wiretap_${VER}_${OS}_armv6.tar.gz"
     fi
 
+    command -v curl >/dev/null && DL_CMD="curl -fsSL '$url' | tar xfz - wiretap"
+    [ -z "$DL_CMD" ] && command -v wget >/dev/null && DL_CMD="wget -qO- '$url' | tar xfz - wiretap"
+
+    [ -n "$DRYRUN" ] && {
+        echo -e "${CDC}${DL_CMD} \\"$'\n'"&& chmod 700 wiretap${CN}"
+        IS_DOWNLOADED=1
+        return
+    }
     [[ -f wiretap ]] && rm -f wiretap
     touch wiretap 2>/dev/null || {
         cd /dev/shm || ERREXIT 255 "Change to a writeable directory"
@@ -286,17 +299,8 @@ wt_dl()
     }
     rm -f wiretap
     echo -e "Downloading ${CDM}Wiretap${CN}..."
-    IS_DOWNLOADED=1
-    command -v curl >/dev/null && {
-        DL_CMD="curl -fsSL '$url' | tar xfvz - wiretap"
-        curl -fsSL "$url" | tar xfz - wiretap && return
-    }
+    sh -c "$DL_CMD" && { IS_DOWNLOADED=1; return; }
 
-    command -v wget >/dev/null && {
-        DL_CMD="wget -qO- '$url' | tar xfvz - wiretap"
-        wget -qO- "$url" | tar xfz - wiretap && return
-    }
-    unset IS_DOWNLOADED
     [[ -f wiretap ]] && rm -f wiretap &>/dev/null # stale file
 
     ERREXIT 255 "Failed to download ${CDM}Wiretap${CN}. Download it from
@@ -326,6 +330,7 @@ wt_up()
     local cmd_checkrunning
     local n
     local killname
+    local str
 
     [[ -z $OSTYPE ]] && {
         command -v uname >/dev/null || ERREXTI 255 "uname not found. Try ${CDC}apt install coreutils${CN}"
@@ -342,10 +347,10 @@ wt_up()
 
     if command -v pidof >/dev/null; then
         is_has_pidof=1
-        cmd_checkrunning=("pidof" "[updated]")
-        pid=$(pidof '[updated]') && ERREXIT 255 "${CDM}Wiretap${CN} is already running with PID ${CDY}${pid}${CN}. To stop: ${CDC}${CMD_PKILL} '${killname}'${CN}"
+        cmd_checkrunning=("pidof" "${NAME##*/}")
+        pid=$(pidof "${NAME}") && ERREXIT 255 "${CDM}Wiretap${CN} is already running with PID ${CDY}${pid}${CN}. To stop: ${CDC}${CMD_PKILL} '${killname}'${CN}"
     elif command -v pkill >/dev/null; then
-        [[ $OS == "darwin" ]] && killname="\[updated\]"
+        [[ $OS == "darwin" ]] && killname="${NAME##*/}"
         cmd_checkrunning=("pkill" "-0" "${killname}")
         "${cmd_checkrunning[@]}" && ERREXIT 255 "${CDM}Wiretap${CN} is already running. To stop: ${CDC}pkill '${killname}'${CN}"
     elif command -v killall >/dev/null; then
@@ -377,9 +382,17 @@ wt_up()
     [ -n "$PORT" ] && addenv WIRETAP_RELAY_INTERFACE_PORT "$PORT"
     [ -n "$MTU"  ] && addenv WIRETAP_RELAY_INTERFACE_MTU  "$MTU"
 
+    [ -n "$DRYRUN" ] && {
+        str=$'\n'"sleep 1 && rm -f wiretap"
+        [ -z "$IS_DOWNLOADED" ] && str=$'\n'"${CF}# sleep 1 && rm -f wiretap"
+        echo -e "${CDC}(PATH=.:\$PATH \\"$'\n'"${ENVSTR}bash -c 'exec -a ${NAME} wiretap serve -q -a \"${peer_addr}\"' &>/dev/null &)${str}${CN}"
+        return
+    }
+
     if [[ -z $SF_DEBUG ]]; then
-        PATH=".:$PATH" exec -a '[updated]' wiretap serve -q -a "${peer_addr}" &>/dev/null &
+        PATH=".:$PATH" exec -a "${NAME}" wiretap serve -q -a "${peer_addr}" &>/dev/null &
         pid=$!
+        disown "$pid"
     else
         PATH=".:$PATH" wiretap serve --allowed "${peer_addr}"
     fi
@@ -393,7 +406,7 @@ wt_up()
         done
         if [[ -z $err ]]; then
             command -v renice >/dev/null && renice -n 19 -p "$pid" >/dev/null
-            [[ -n $is_has_pidof ]] && pidstr=" with pid=${CDY}$(pidof '[updated]')${CN}"
+            [[ -n $is_has_pidof ]] && pidstr=" with pid=${CDY}${pid:-$(pidof "${NAME##*/}")}${CN}"
         else
             WARN "Failed to start wiretap."
             echo -e "To run in the foreground:"
@@ -417,7 +430,7 @@ Alternatively use ${CDM}WireGuard:${CDC}
     }
 
     echo -e "\
-${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}[updated]${CN}${pidstr} in the background.
+${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}${NAME}${CN}${pidstr} in the background.
 ---> To stop   : ${CDC}${CMD_PKILL} '${killname}' || kill ${pid:--1}${CN}"
 }
 

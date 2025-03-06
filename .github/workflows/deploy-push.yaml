@@ -2,7 +2,7 @@ name: Auto upload sfwg[*|.ps1] to thc.org/sfwg*
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - contrib/sfwg.ps1
       - contrib/sfwg

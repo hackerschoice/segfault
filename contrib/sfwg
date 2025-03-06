@@ -16,6 +16,7 @@
 # PORT=port                  Local/source UDP port, =0 pick at random [default: 51820]
 # DRYRUN=1                   Do not download. Do not start. Output Cut&Paste-friendly command instead
 # NAME='/usr/sbin/updated'   Process name
+# VER=0.6.0                  Wiretap version to use
 
 # Test IPv6:
 # curl -I 'http://[2606:4700:4700::1111]'

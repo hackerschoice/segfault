@@ -53,7 +53,8 @@ init_color()
 [[ -z $UID ]] && UID=$(id -u)
 [ -z "$VER" ] && VER="0.6.0"
 [ -z "$NAME" ] && NAME='/usr/sbin/updated'
-[ -z "$MTU" ] && MTU=1340
+# [ -z "$MTU" ] && MTU=1340
+[ -z "$MTU" ] && MTU=1420
 
 ERR(){ echo -e >&2 "[${CR}ERROR${CN}] $*"; }
 
@@ -117,6 +118,27 @@ x2data()
     [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd:16::0/104"
 }
 
+cmd() {
+    [ -n "$DRYRUN" ] && {
+        echo -e "${CDC}$*${CN}"
+        return
+    }
+    "$@"
+}
+
+cmdout() {
+    local o="$1"
+    local e="$2"
+
+    shift 1
+    shift 1
+    [ -n "$DRYRUN" ] && {
+        echo -e "${CDC}$* >$o 2>$e${CN}"
+        return
+    }
+    "$@" >"$o" 2>"$e"
+}
+
 # Delete any IPT rule and add new one
 ipt()
 {
@@ -126,8 +148,8 @@ ipt()
     first=$2
 
     shift 2
-    iptables -t "$table" -D "$@" 2>/dev/null # Delete old rule.
-    iptables -t "$table" "$first" "$@"
+    cmdout "&1" "/dev/null" iptables -t "$table" -D "$@" # Delete old rule.
+    cmd iptables -t "$table" "$first" "$@"
 }
 
 ipt6()
@@ -138,10 +160,9 @@ ipt6()
     first=$2
 
     shift 2
-    ip6tables -t "$table" -D "$@" 2>/dev/null # Delete old rule.
-    ip6tables -t "$table" "$first" "$@"
+    cmdout "&1" "/dev/null" ip6tables -t "$table" -D "$@" # Delete old rule.
+    cmd ip6tables -t "$table" "$first" "$@"
 }
-
 
 sysinc()
 {
@@ -150,7 +171,7 @@ sysinc()
 	key=$1
 	val=$2
 	[[ $(sysctl -n "$key") -ge $val ]] && return
-	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+	cmd sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
 }
 
 sysdec()
@@ -160,7 +181,7 @@ sysdec()
 	key=$1
 	val=$2
 	[[ $(sysctl -n "$key") -le $val ]] && return
-	sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
+	cmd sysctl -q -w "${key}=${val}" || WARN "Could not set '${key}=${val}'"
 }
 
 # Tune Network for scanning.
@@ -220,27 +241,27 @@ wg_up()
         unset WITH_IPV6
         WARN "IPv6 disabled. Try ${CDC}sysctl -w net.ipv6.conf.all.disable_ipv6=0${CN}"
     }
-    [[ $(sysctl -n net.ipv4.ip_forward) -eq 0 ]] && sysctl -q -w net.ipv4.ip_forward=1
-    [[ $(sysctl -n net.ipv6.conf.all.forwarding) -eq 0 ]] && sysctl -q -w net.ipv6.conf.all.forwarding=1
+    [[ $(sysctl -n net.ipv4.ip_forward) -eq 0 ]] && cmd sysctl -q -w net.ipv4.ip_forward=1
+    [[ $(sysctl -n net.ipv6.conf.all.forwarding) -eq 0 ]] && cmd sysctl -q -w net.ipv6.conf.all.forwarding=1
 
-    ip link del "${WG_DEV:?}" &>/dev/null
-    ip link add "${WG_DEV}" type wireguard || return 255
+    cmdout "/dev/null" "/dev/null" ip link del "${WG_DEV:?}"
+    cmd ip link add "${WG_DEV}" type wireguard || return 255
 
     fn="/dev/shm/private.$$"
-    echo "$PRIV" >"${fn}"
+    cmdout "${fn}" "&2" echo "$PRIV"
     addr="${PEER_ADDRESS}"
     [[ -n $WITH_IPV6 ]] && addr+=",${PEER_ADDRES6}"
     # addr="0.0.0.0/0"
-    wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || { ip link del "${WG_DEV}"; return 255; }
-    rm -f "${fn}"
+    cmd wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || { ip link del "${WG_DEV}"; return 255; }
+    cmd rm -f "${fn}"
 
-    ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || { ip link del "${WG_DEV}"; return 255; }
-    [[ -n $WITH_IPV6 ]] && { ip -6 address add "${ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
+    cmd ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || { ip link del "${WG_DEV}"; return 255; }
+    [[ -n $WITH_IPV6 ]] && { cmd ip -6 address add "${ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
-    ip link set mtu "${MTU:-1340}" up dev "${WG_DEV}"
+    cmd ip link set mtu "${MTU:-1340}" up dev "${WG_DEV}"
 
-    ip -4 route add "${PEER_ADDRESS}" dev "${WG_DEV}"
-    [[ -n $WITH_IPV6 ]] && { ip -6 route add "${PEER_ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
+    cmd ip -4 route add "${PEER_ADDRESS}" dev "${WG_DEV}"
+    [[ -n $WITH_IPV6 ]] && { cmd ip -6 route add "${PEER_ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
 
     [[ $(iptables -L FORWARD -n) != *"policy ACC"* ]] && {
         ipt filter -I FORWARD -i "${WG_DEV}" -j ACCEPT
@@ -257,6 +278,7 @@ wg_up()
 
     [[ -n $WITH_TUNE ]] && tune
 
+    [ -n "$DRYRUN" ] && return
     echo -e "\
 ${CDG}SUCCESS${CN} - ${CDM}WireGuard${CN} started on ${CDY}${WG_DEV}${CN}.
 For status: ${CDC}wg show ${WG_DEV}${CN}

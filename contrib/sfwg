@@ -99,11 +99,11 @@ x2data()
     str=${CONF[4]}
     str="${str//[^0-9a-f,x:.\/]}"
     [[ -n $str ]] && {
-        # Format: "172.16.0.x/16,fd:16::x/104"
+        # Format: "172.16.0.x/24,fd:16::x/104"
         ip=${str%%,*}
-        PEER_ADDRESS="${ip//x/0}"     # 172.16.0.0/16
+        PEER_ADDRESS="${ip//x/0}"     # 172.16.0.0/24
         ip=${ip%/*}
-        ADDRESS="${ip//x/1}/32"       # 172.16.0.0/32
+        ADDRESS="${ip//x/1}/32"       # 172.16.0.1/32
         # IPv6
         ip=${str##*,}
         PEER_ADDRES6="${ip//x/0}"     # fd:16::0/104
@@ -113,7 +113,7 @@ x2data()
 
     [[ -z $ADDRESS ]] && ADDRESS="172.16.0.1/32"
     [[ -z $ADDRES6 ]] && ADDRES6="fd:16::1/128"
-    [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="172.16.0.0/16"
+    [[ -z $PEER_ADDRESS ]] && PEER_ADDRESS="172.16.0.0/24"
     [[ -z $PEER_ADDRES6 ]] && PEER_ADDRES6="fd:16::0/104"
 }
 
@@ -331,7 +331,7 @@ wt_up()
     local cmd_checkrunning
     local n
     local killname
-    local str
+    local str peer_addr
 
     [[ -z $OSTYPE ]] && {
         command -v uname >/dev/null || ERREXTI 255 "uname not found. Try ${CDC}apt install coreutils${CN}"
@@ -380,22 +380,25 @@ wt_up()
     addenv WIRETAP_RELAY_PEER_PUBLICKEY "${PEER}"
     addenv WIRETAP_RELAY_PEER_ENDPOINT "${EP}"
     addenv WIRETAP_SIMPLE "true"
+    addenv WIRETAP_RELAY_PEER_ALLOWED "${peer_addr}"
+    addenv WIRETAP_RELAY_INTERFACE_LOCALHOSTIP "${ADDRESS%/*}" # 172.16.0.1
+    [ -z "$WITH_IPV6" ] && addenv WIRETAP_DISABLEIPV6 "true"
     [ -n "$PORT" ] && addenv WIRETAP_RELAY_INTERFACE_PORT "$PORT"
     [ -n "$MTU"  ] && addenv WIRETAP_RELAY_INTERFACE_MTU  "$MTU"
 
     [ -n "$DRYRUN" ] && {
         str=$'\n'"sleep 1 && rm -f wiretap"
         [ -z "$IS_DOWNLOADED" ] && str=$'\n'"${CF}# sleep 1 && rm -f wiretap"
-        echo -e "${CDC}(PATH=.:\$PATH \\"$'\n'"${ENVSTR}bash -c 'exec -a ${NAME} wiretap serve -q -a \"${peer_addr}\"' &>/dev/null &)${str}${CN}"
+        echo -e "${CDC}(PATH=.:\$PATH \\"$'\n'"${ENVSTR}bash -c 'exec -a ${NAME} wiretap serve -q' &>/dev/null &)${str}${CN}"
         return
     }
 
     if [[ -z $SF_DEBUG ]]; then
-        PATH=".:$PATH" exec -a "${NAME}" wiretap serve -q -a "${peer_addr}" &>/dev/null &
+        PATH=".:$PATH" exec -a "${NAME}" wiretap serve -q &>/dev/null &
         pid=$!
         disown "$pid"
     else
-        PATH=".:$PATH" wiretap serve --allowed "${peer_addr}"
+        PATH=".:$PATH" wiretap serve
     fi
     [[ ${#cmd_checkrunning[@]} -gt 0 ]] && {
         n=0
@@ -412,7 +415,7 @@ wt_up()
             WARN "Failed to start wiretap."
             echo -e "To run in the foreground:"
             [[ -n $IS_DOWNLOADED ]] && echo -e "${CDC}${DL_CMD:-<download wiretap>}${CN}"
-            echo -e "${CDC}${ENVSTR}./wiretap serve --allowed '${peer_addr}'${CN}"
+            echo -e "${CDC}${ENVSTR}./wiretap serve${CN}"
         fi
     }
     
@@ -421,7 +424,7 @@ wt_up()
 
     # problem with gVisor DNAT & wt <=0.3.0 TCP mixup
     WARN "${CDM}Wiretap${CN} is ${CDR}not good${CN} for scanning.
----> Masscan   : ${CDC}-e wgExit --adapter-ip 172.16.0.3-172.16.128.2 --adapter-port 1024-33791${CN}"
+---> Masscan   : ${CDC}-e wgExit --adapter-ip 172.16.0.3-172.16.0.254 --adapter-port 1024-33791${CN}"
     [[ -z $IS_WG_TRIED ]] && {
             echo -e "\
 Alternatively use ${CDM}WireGuard:${CDC}

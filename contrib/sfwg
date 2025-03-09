@@ -22,6 +22,8 @@
 # curl -I 'http://[2606:4700:4700::1111]'
 # ping6 2606:4700:4700::1111
 
+SURL="https://github.com/hackerschoice/segfault/raw/refs/heads/main/contrib/sfwg"
+
 init_color()
 {
     # shellcheck disable=SC2034 # Unused
@@ -133,7 +135,7 @@ cmdout() {
     shift 1
     shift 1
     [ -n "$DRYRUN" ] && {
-        echo -e "${CDC}$* >$o 2>$e${CN}"
+        echo -e "${CDC}$*${CF} >$o 2>$e${CN}"
         return
     }
     "$@" >"$o" 2>"$e"
@@ -354,6 +356,7 @@ wt_up()
     local n
     local killname
     local str peer_addr
+    local opts=()
 
     [[ -z $OSTYPE ]] && {
         command -v uname >/dev/null || ERREXTI 255 "uname not found. Try ${CDC}apt install coreutils${CN}"
@@ -404,23 +407,26 @@ wt_up()
     addenv WIRETAP_SIMPLE "true"
     addenv WIRETAP_RELAY_PEER_ALLOWED "${peer_addr}"
     addenv WIRETAP_RELAY_INTERFACE_LOCALHOSTIP "${ADDRESS%/*}" # 172.16.0.1
-    [ -z "$WITH_IPV6" ] && addenv WIRETAP_DISABLEIPV6 "true"
+    [ -z "$WITH_IPV6" ] && {
+        addenv WIRETAP_DISABLEIPV6 "true"
+        opts+=("-0${PEER_ADDRESS%/*}") # API
+    }
     [ -n "$PORT" ] && addenv WIRETAP_RELAY_INTERFACE_PORT "$PORT"
     [ -n "$MTU"  ] && addenv WIRETAP_RELAY_INTERFACE_MTU  "$MTU"
 
     [ -n "$DRYRUN" ] && {
         str=$'\n'"sleep 1 && rm -f wiretap"
         [ -z "$IS_DOWNLOADED" ] && str=$'\n'"${CF}# sleep 1 && rm -f wiretap"
-        echo -e "${CDC}(PATH=.:\$PATH \\"$'\n'"${ENVSTR}bash -c 'exec -a ${NAME} wiretap serve -q' &>/dev/null &)${str}${CN}"
+        echo -e "${CDC}(PATH=.:\$PATH \\"$'\n'"${ENVSTR}bash -c 'exec -a ${NAME} wiretap serve -q ${opts[*]}' &>/dev/null &)${str}${CN}"
         return
     }
 
     if [[ -z $SF_DEBUG ]]; then
-        PATH=".:$PATH" exec -a "${NAME}" wiretap serve -q &>/dev/null &
+        PATH=".:$PATH" exec -a "${NAME}" wiretap serve -q "${opts[@]}" &>/dev/null &
         pid=$!
         disown "$pid"
     else
-        PATH=".:$PATH" wiretap serve
+        PATH=".:$PATH" wiretap serve "${opts[@]}"
     fi
     [[ ${#cmd_checkrunning[@]} -gt 0 ]] && {
         n=0
@@ -437,7 +443,7 @@ wt_up()
             WARN "Failed to start wiretap."
             echo -e "To run in the foreground:"
             [[ -n $IS_DOWNLOADED ]] && echo -e "${CDC}${DL_CMD:-<download wiretap>}${CN}"
-            echo -e "${CDC}${ENVSTR}./wiretap serve${CN}"
+            echo -e "${CDC}${ENVSTR}./wiretap serve" "${opts[@]}" "${CN}"
         fi
     }
     
@@ -452,16 +458,16 @@ wt_up()
 Alternatively use ${CDM}WireGuard:${CDC}
     ${CMD_PKILL} '${killname}'
     export TYPE=wireguard
-    X=\"\$X\" bash -c \"\$(curl -fsSL https://thc.org/sfwg)\"${CN}"
+    X=\"\$X\" bash -c \"\$(curl -fsSL ${SURL})\"${CN}"
     }
 
     echo -e "\
-${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}${NAME}${CN}${pidstr} in the background.
+${CDG}SUCCESS${CN} - ${CDM}Wiretap${CN} started as ${CDY}${NAME}${CN}${pidstr}.
 ---> To stop   : ${CDC}${CMD_PKILL} '${killname}' || kill ${pid:--1}${CN}"
 }
 
 [[ -z $X ]] && ERREXIT 255 "The variable ${CDY}X=${CN} is not set. Try
-    ${CDC}X=<YourConfigurationString> bash -c \"\$(curl -fsSL https://thc.org/sfwg)\"${CN}"
+    ${CDC}X=<YourConfigurationString> bash -c \"\$(curl -fsSL ${SURL})\"${CN}"
 
 x2data
 

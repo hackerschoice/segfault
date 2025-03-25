@@ -53,7 +53,9 @@ init_color()
 [[ -z $WITHOUT_TUNE ]] && WITH_TUNE=1
 [[ -z $TYPE ]] && TYPE="wireguard:wiretap"
 [[ -z $UID ]] && UID=$(id -u)
-[ -z "$VER" ] && VER="0.6.0"
+#[ -z "$VER" ] && VER="0.6.0"
+#2025-03-25 wiretap TCP bug effecting all versions >0.3.1
+[ -z "$VER" ] && VER="0.3.1"
 [ -z "$NAME" ] && NAME='/usr/sbin/updated'
 # [ -z "$MTU" ] && MTU=1340
 [ -z "$MTU" ] && MTU=1420

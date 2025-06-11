@@ -4,21 +4,21 @@
 source "${0%/*}/funcs.sh" || exit
 cd /
 
-[[ "$1" != now ]] && {
+[[ "${1^^}" != "NOW" ]] && {
     echo -e "\
 This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds.
 
 ${CDR}*** ALL DATA WILL BE WIPED ***${CN}
-Press ${CDY}ANY KEY${CN} to stop or type ${CDC}now${CN} to proceed immediatly.
+Press ${CDY}ANY KEY${CN} to stop or type ${CDC}now${CN} to proceed immediately.
 
 Consider ${CDC}halt${CN} to shut down this server instead. This way all your
 encrypted data will remain until next log in (with the correct SECRET).
 
 This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds."
     read -r -n8 -t10 str && {
-        [[ $str != "now" ]] && {
+        [[ ${str^^} != "NOW" ]] && {
             echo -e "${CDR}Self-Destruct cancelled...${CDY}*phew*${CN}"
-            [[ $str == "halt" ]] && {
+            [[ "${str^^}" == "HALT" ]] && {
                 echo -e "HALT instead..."
                 halt
             }
@@ -27,7 +27,7 @@ This system will ${CRY}SELF-DESTRUCT${CN} in 10 seconds."
     }
 }
 
-[[ "$str" == halt ]] && {
+[[ "${str^^}" == "HALT" ]] && {
     halt
     exit 0; }
 

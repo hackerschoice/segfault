@@ -45,7 +45,11 @@ Sanitize()
 	REQUEST_URI="${REQUEST_URI//[^[:alnum:]_+=\/]}"
 	[[ "${#REQUEST_BODY}" -gt 512 ]] && BAIL "To long" "To Long" ": REQUEST_BODY(${#REQUEST_BODY})=${REQUEST_BODY:0:32}..."
 	[[ "${#REQUEST_URI}" -gt 512 ]] && BAIL "To long!" "ATTACK" ": REQUEST_URI(${#REQUEST_URI})=${REQUEST_URI:0:32}..."
+	C_IP="${REMOTE_ADDR//[^0-9.]/}"
+	[ -z "$C_IP" ] && BAIL "LG IP not known" "ERROR" ": ${REMOTE_ADDR} not a valid container IP"
 }
+
+lgns() { nsenter.u1000 --setuid 0 --setgid 0 "$@"; }
 
 InitColors() {
 	# COLOR is set (to 'always')
@@ -81,7 +85,7 @@ GetFormVars()
 		str="${arr[$i]}"
 		((i++))
 		key=${str%%=*}
-		[[ ${#key} -le 0 ]] && BAIL "Bad Request" "ERROR: " "Body contains bad variable: '$str'"
+		[[ ${#key} -eq 0 ]] && BAIL "Bad Request" "ERROR: " "Body contains bad variable: '$str'"
 		key=${key,,}
 		val=${str#*=}
 
@@ -101,6 +105,7 @@ GetFormVars()
 			R_ROUTE_ARR+=("${a}/${b:-32}")
 		}
 
+		[[ ${key} == "ipt" ]] && IS_IPT=1
 		[[ ${key} == "nocolor" ]] && unset COLOR
 		[[ ${key} == "nocreat" ]] && IS_NOCREAT=1
 		[[ ${key} == "verbose" ]] && IS_VERBOSE=1
@@ -153,9 +158,9 @@ GetFormVars()
 # Load PID of WireGuard container
 load_config()
 {
-	source /dev/shm/config.txt && return
+	source /dev/shm/config.txt && source /dev/shm/config-lg.txt && return
 
-	BAIL "Not ready. SF is still booting up..." "Failed to load: " "/dev/shm/config.txt"
+	BAIL "Not ready. SF is still booting up..." "Failed to load: " "/dev/shm/config*.txt"
 }
 
 GenSecret()
@@ -180,7 +185,8 @@ To connect ${G}${name}${N} use this command on the LINUX Exit Node:
 ${C}X='${WT_VER}-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
 X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
-DL='curl -fsSL https://thc.org/sfwg || wget --no-verbose -qO- https://thc.org/sfwg'
+U='https://github.com/hackerschoice/segfault/raw/refs/heads/main/contrib/sfwg'
+DL=\"curl -fsSL \$U || wget --no-verbose -qO- \$U\"
 X=\"\$X\" bash -c \"\$(sh -c \"\$DL\")\"${N}
 or this command on the WINDOWS Exit Node:
 ${CY}${F}\$env:X='${WT_VER}-${WT_PRIVATE}'
@@ -221,7 +227,7 @@ cmd_net_list()
 Port      : ${Y}$WG_PORT${N}
 Portsecret: ${Y}$PORTSECRET${N}
 "
-	str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n wg show all public-key)
+	str=$(lgns -t "${LG_PID}" -n wg show all public-key)
 	active_pubkey=${str##*$'\t'}
 	# List all configured names
 	echo -e "\
@@ -460,22 +466,22 @@ xrm()
 set_normal_route()
 {
 	# Delete static routes
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
-	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	lgns -t "${LG_PID}" -n ip route del "${SF_TOR_IP}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	lgns -t "${LG_PID}" -n ip route del "${SF_NET_ONION}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	lgns -t "${LG_PID}" -n ip route del "${SF_DNS}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	[[ -n $SF_MULLVAD_ROUTE ]] && lgns -t "${LG_PID}" -n ip route del "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 
 	# Should not exist anyway:
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del default 2>/dev/null
+	lgns -t "${LG_PID}" -n ip route del default 2>/dev/null
 
 	# EndPoint
-	epip=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route show | grep -F "via ${SF_NET_LG_ROUTER_IP} dev" | grep -v ^default | tail -n1)
+	epip=$(lgns -t "${LG_PID}" -n ip route show | grep -F "via ${SF_NET_LG_ROUTER_IP} dev" | grep -v ^default | tail -n1)
 	epip="${epip%% *}"
 	epip=${epip//[^0-9.]}
-	[[ -n $epip ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route del "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	[[ -n $epip ]] && lgns -t "${LG_PID}" -n ip route del "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 
 	# Restore default routing
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
+	lgns -t "${LG_PID}" -n ip route add default via "${SF_NET_LG_ROUTER_IP}" || { echo "Oops. Could not set default route."; return; }
 	# Zero the file
 	:>"${LID_PROMPT_FN}"
 }
@@ -494,10 +500,10 @@ net_down()
 	if [[ -z $name || $name == "all" ]]; then
 		### Need name for help below
 		[[ -e "${LID_WGNAME_FN}" ]] && name=$(<"${LID_WGNAME_FN}")
-		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null || return
+		lgns -t "${LG_PID}" -n ip link delete group 31337 2>/dev/null || return
 	else
 		# Return early if device did not exist.
-		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete "wg${name}" 2>/dev/null || return
+		lgns -t "${LG_PID}" -n ip link delete "wg${name}" 2>/dev/null || return
 	fi
 	echo -e "${G}SUCCESS${N}"
 	echo -e "Use ${C}curl sf/net/up -d name=${name:-<NAME>}${N} to connect again."
@@ -549,10 +555,10 @@ cmd_net()
 wg_show()
 {
 	if [[ -z $COLOR ]]; then
-		nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg show "${WG_DEV}"
+		lgns -t "${LG_PID}" -n wg show "${WG_DEV}"
 	else
 		# Use 'script' to force color output
-		script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${PID}\" -n wg show \"${WG_DEV}\"" /dev/null </dev/null
+		script -q -c "nsenter.u1000 --setuid 0 --setgid 0 -t \"${LG_PID}\" -n wg show \"${WG_DEV}\"" /dev/null </dev/null
 	fi
 }
 
@@ -578,7 +584,7 @@ Use ${C}curl sf/net/up${N} to enable a new Exit Node."
 
 	echo "$str"
 	if [[ "$str" == *"latest handshake"* ]]; then
-		str=$(nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n wg show "${WG_DEV}" latest-handshakes)
+		str=$(lgns -t "${LG_PID}" -n wg show "${WG_DEV}" latest-handshakes)
 		str=${str##*$'\t'}
 		now=$(date +%s)
 		[[ $((now - str)) -gt 180 ]] && is_not_connected=1
@@ -620,7 +626,8 @@ cmd_net_help()
 	echo -en "\
 Create Exit Node : ${C}curl sf/net/init [-d name=<NAME>] [-d private=<PrivateKey>]
                                     [-d exit_public=<PublicKey>]
-                                    [-d exit_private=<PrivateKey>]${N}
+                                    [-d exit_private=<PrivateKey>]
+                                    [-d route=<CIDR>]${N}
 Delete Exit Node : ${C}curl sf/net/del  [-d name=<NAME|all>]${N}
 List Exit Nodes  : ${C}curl sf/net/list${N}
 Show connections : ${C}curl sf/net/show${N}
@@ -656,7 +663,7 @@ load_lg() {
 	[[ ${#arr[@]} -ne 3 ]] && BAIL "Value != 3" "Value != 3: " "${#arr[@]}"
 	LID="${arr[0]}"
 	CID="${arr[1]}"
-	PID="${arr[2]}"
+	LG_PID="${arr[2]}"
 	[[ -z "$LID" ]] && BAIL "LID is empty."
 }
 
@@ -705,14 +712,25 @@ BLPOP portd:response-${LID} 5" | redr) || return
 	[[ ! "${ipport##*:}" -gt 0 ]] && BAIL "Ports not available. Please report this to a SysCop." "BAD sf/port (ipport='$ipport')"
 
 	# The PortD add's a /sf/run/self/reverse_forward.
-	echo -en "\
+	echo -e "\
 ${M}🌎 Tip${N}: Type ${C}cat /config/self/reverse_*${N} for details.
 ${M}🤭 Tip${N}: Type ${C}rshell${N} to start listening.
 ${M}🛜 Tip${N}: Type ${C}curl sf/port${N} to assign a new port.
-${G}👾 Your reverse Port is ${Y}${ipport}${N}"
+${G}👾 Your reverse Port is ${Y}${ipport%%:*} ${ipport##*:}${N} ${F}[${ipport%%:*}:${ipport##*:}]${N}"
 
 	# portd.sh automaticaly adds this to /config/self/reverse_*
 	exit
+}
+
+cmd_ipt() {
+	load_lg
+	load_config
+	echo -e "${CDM}====NAT ${CF}(YOUR server)${CN}"
+	lgns -t "${LG_PID:?}" -n iptables -t nat -vnL OUTPUT --line-numbers | grep -Ev '(DOCKER)'
+	lgns -t "${LG_PID:?}" -n iptables -t nat -vnL "OUT-PROXY-${LID}" --line-numbers 2>/dev/null
+	echo -e "${CDM}====FORWARD ${CF}(SF-ROUTER)${CN}"
+	nsenter -t "${SF_ROUTER_PID}" -m -n sh -c "iptables -L \"\$(cat \"/dev/shm/ipt-syn-chain-${C_IP}.saved\")\" -vn"
+	nsenter -t "${SF_ROUTER_PID:?}" -n iptables -vnL "FW-${LID:?}"
 }
 
 cmd_proxy() {
@@ -729,13 +747,38 @@ cmd_proxy() {
 	[[ -z "$pid" ]] && BAIL "${M}Type ${C}curl sf/proxy/\$\$${M} to proxy your shell to :1040"
 
 	[[ $pid -eq 0 ]] && {
-			nsenter.u1000 -t "${PID:?}" -p sh -c "cat '/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs' | while read -r p; do echo \"\$p\" >'/sf-cgroup/docker-${CID}.scope/cgroup.procs'; done"
+			nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -D "OUTPUT" -j "OUT-PROXY-${LID}" 2>/dev/null && {
+				nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -F "OUT-PROXY-${LID}"
+				nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -X "OUT-PROXY-${LID}"
+			}
+
+			# Move all processes back to normal cgroup
+			# cgroup needs an EOF after each write => Use a while loop
+			nsenter.u1000 -t "${LG_PID:?}" -p sh -c "cat '/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs' | while read -r p; do echo \"\$p\" >'/sf-cgroup/docker-${CID}.scope/cgroup.procs'; done"
 			return
 	}
 
-	echo "$pid" | nsenter.u1000 -t "${PID:?}" -p sh -c "cat >'/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs'" || BAIL "invalid PID"
+	nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -N "OUT-PROXY-${LID}" && {
+		# Did not exit. 
+		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -N "OUT-PROXY-${LID}"
+		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUTPUT" -j "OUT-PROXY-${LID}"
+		[[ -n "$SF_MULLVAD_ROUTE" ]] && nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp -d "$SF_MULLVAD_ROUTE" -j RETURN
+		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -m addrtype --dst-type LOCAL -j RETURN
+		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -p tcp -d "${SF_RPC_IP:?}" -j RETURN
+		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -p tcp -d "${SF_TOR_IP:?}" -j RETURN
+		# echo "DNS=$SF_DNS"
+		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -p udp -d "${SF_DNS:?}" -j RETURN
+	}
+	for dst in "${R_ROUTE_ARR[@]:-0.0.0.0/0}"; do
+		# Set redirect rules
+		nsenter.u1000 -t "${LG_PID}" -n -C iptables -t nat -A "OUT-PROXY-${LID}" -m cgroup --path /proxy1040 -p tcp -d "$dst" -j REDIRECT --to-port 1040
+		nsenter.u1000 -t "${LG_PID}" -n -C iptables -t nat -A "OUT-PROXY-${LID}" -m cgroup --path /proxy1040 -p udp -d "$dst" -j REDIRECT --to-port 1040
+	done
 
-	nsenter.u1000 -t "${PID:?}" -p echo "$pid" >>"/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs" || BAIL
+	# echo "$pid" | nsenter.u1000 -t "${LG_PID:?}" -p sh -c "cat >'/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs'" || BAIL "invalid PID"
+	# Amazing, linux moves the FD into the target process space so >> works!
+	nsenter.u1000 -t "${LG_PID:?}" -p echo "$pid" >>"/sf-cgroup/docker-${CID}.scope/proxy1040/cgroup.procs" || BAIL "invalid PID"
+
 	echo -en "\
 ${M}🌎 Tip${N}: Type ${C}cat /sys/fs/cgroup/proxy1040/cgroup.procs${N} for details.
 ${G}👾 TCP+UDP traffic of PID ${Y}${pid}${G} ${F}(and all child processes)${G} is now redirected to ${Y}localhost:1040${N}"
@@ -783,12 +826,12 @@ cmd_wg_up()
 	[[ -z $R_OUT_IP4 ]] && [[ -z $R_OUT_IP6 ]] && ERR_wg_help_exit "Bad IP (${R_OUT_IP4:-???},${R_OUT_IP6:-???}) for this peer. Please use ${C}-d ip=1.2.3.4${N} and/or ${C}-d ip6=fd:16::1${N}"
 
 	# Delete any EXIT or OUT 
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
+	lgns -t "${LG_PID}" -n ip link delete group 31337 2>/dev/null
 
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "Failed: ip link add '${WG_DEV}' (${err:0:64})." "Failed ${WG_DEV}" ": $err"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "ip link set FAILED."
-	[[ -n $R_OUT_IP4 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip address add dev "${WG_DEV}" "${R_OUT_IP4}" || BAIL "Failed to assign IPv4 address '${R_OUT_IP4}'."; }
-	[[ -n $R_OUT_IP6 ]] && { nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add dev "${WG_DEV}" "${R_OUT_IP6}" || BAIL "Failed to assign IPv6 address '${R_OUT_IP6}'."; }
+	err=$(lgns -t "${LG_PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "Failed: ip link add '${WG_DEV}' (${err:0:64})." "Failed ${WG_DEV}" ": $err"
+	lgns -t "${LG_PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "ip link set FAILED."
+	[[ -n $R_OUT_IP4 ]] && { lgns -t "${LG_PID}" -n ip address add dev "${WG_DEV}" "${R_OUT_IP4}" || BAIL "Failed to assign IPv4 address '${R_OUT_IP4}'."; }
+	[[ -n $R_OUT_IP6 ]] && { lgns -t "${LG_PID}" -n ip -6 address add dev "${WG_DEV}" "${R_OUT_IP6}" || BAIL "Failed to assign IPv6 address '${R_OUT_IP6}'."; }
 
 	args=()
 	[[ -n $R_OUT_PSK ]] && {
@@ -796,14 +839,14 @@ cmd_wg_up()
 		echo "$R_OUT_PSK" >"/dev/shm/psk.$$"
 	}
 	echo "$R_WG_PRIVATE" >"/dev/shm/private.$$"
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "Failed: wg set (${err:0:128})"
+	err=$(lgns -t "${LG_PID}" -n wg set "$WG_DEV" private-key "/dev/shm/private.$$" peer "$R_OUT_PEER" "${args[@]}" endpoint "${R_OUT_ENDPOINT}" persistent-keepalive 25 allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "Failed: wg set (${err:0:128})"
 	rm -f "/dev/shm/private.$$" "/dev/shm/psk.$$"
 	# WG IPv4: HOST_MTU - 60 (20 + 40)
     # WG IPv6: HOST_MTU - 80 (40 + 40)
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80 - 80)) up dev "${WG_DEV}"
+	lgns -t "${LG_PID}" -n ip link set mtu $((SF_HOST_MTU - 80 - 80)) up dev "${WG_DEV}"
 
 	# Route to WG endpoint:
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip route add "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
+	lgns -t "${LG_PID}" -n ip route add "${epip}" via "${SF_NET_LG_ROUTER_IP}" 2>/dev/null
 
 	set_route
 	echo "(%F{yellow}EXIT:%B${R_WT_NAME:-$epip}%b%F{%(#.blue.green)})" >"${LID_PROMPT_FN}"
@@ -838,7 +881,7 @@ Use ${C}curl sf/wg/show${N} to check WireGuard connetion."
 # CLIENT
 cmd_wg_del()
 {
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
+	lgns -t "${LG_PID}" -n ip link delete group 31337 2>/dev/null
 	# [[ -f "${USER_DB_WGCLIENT_FN}" ]] && rm -f "${USER_DB_WGCLIENT_FN}"
 	echo -e "${G}SUCCESS${N}"
 	mk_normal_route
@@ -863,8 +906,6 @@ cmd_wg_show()
 Sanitize
 GetFormVars
 
-
-
 [[ "${FCGI_CMD}" == "dmesg" ]] && {
 	# dmesg --color=always -f kern --level err,warn -e | tail -n100
 	dmesg --color="${COLOR:-never}" -f kern --level err -e | tail -n20
@@ -874,23 +915,17 @@ GetFormVars
 [[ "${FCGI_CMD}" == "port" ]] && cmd_port
 [[ "${FCGI_CMD}" == "proxy" ]] && cmd_proxy
 [[ "${FCGI_CMD}" == "set" ]] && {
-	# If it is >=2025 then you can remove this block (it's now served via curl sf/vpn/*)
-	[[ -n $SF_OVPN_HACK ]] && {
-		wg_net_init
-		[[ ${ARGS[1]} == 'ovpn' ]] && {
-			source "/sf/bin/funcs_ovpn.sh"
-			[[ ${ARGS[2]} == 'up'   ]] && cmd_ovpn_up
-			[[ ${ARGS[2]} == 'show'   ]] && cmd_ovpn_show
-			[[ ${ARGS[2]} == 'del'  ]] && cmd_ovpn_del
-			[[ ${ARGS[2]} == 'down' ]] && cmd_ovpn_del
-			cmd_ovpn_help
-			exit
-		} 
-	}
 	[[ -n $TOKEN_NAME ]] && cmd_token
 	[[ -n $IS_DESTRUCT ]] && cmd_destruct
-	BAIL "${M}Setting not found.${N}"	
+	BAIL "${M}Setting not found.${N}"
 }
+
+[ "${FCGI_CMD}" = "get" ] && {
+	[ -n "$IS_IPT" ] && cmd_ipt
+	BAIL "${M}Setting not found.${N}"
+}
+
+[ "${FCGI_CMD}" = "ipt" ] && cmd_ipt
 
 [[ -n $SF_DEBUG ]] && [[ "${FCGI_CMD}" == "env" ]] && { env; exit; }
 
@@ -917,7 +952,6 @@ wg_net_init
 	[[ ${ARGS[1]} == 'show'   ]] && cmd_ovpn_show
 	[[ ${ARGS[1]} == 'del'  ]] && cmd_ovpn_del
 	[[ ${ARGS[1]} == 'down' ]] && cmd_ovpn_del
-	# [[ ${ARGS[1]} == 'show' ]] && cmd_wg_show
 	cmd_ovpn_help
 
 	exit
@@ -939,7 +973,7 @@ wg_net_init
 
 	# Sanitize 0.4.8rc1 bug where '172...' was '"172...' in .env
 	WG_IPS="${WG_IPS//[^a-fx0-9\/,:.]}"
-	[[ -z $WG_IPS ]] && WG_IPS="172.16.0.x/16,fd:16::x/104"
+	[[ -z $WG_IPS ]] && WG_IPS="172.16.0.x/24,fd:16::x/104"
 
 	WG_IP_PRE="${WG_IPS%%x*}"      # 172.16.0.
 	WG_IP="${WG_IP_PRE}2/32"       # 172.16.0.2/32
@@ -983,7 +1017,7 @@ wg_net_init
 
 	[[ -n $is_already_up ]] && {
 		# HERE: No name supplied. Another WG is already UP. 
-		# nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip l sh "${WG_DEV}" &>/dev/null && {
+		# nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n ip l sh "${WG_DEV}" &>/dev/null && {
 		name=$(<"${LID_WGNAME_FN}")
 		echo -e "${RR}ERROR${N}: Exit Node ${G}${name}${N} is already UP."
 		net_print_example  "${name}"
@@ -1004,7 +1038,7 @@ wg_net_init
 	# then it would be easier to implement WireGuard Port Multiplexer simiar to
 	# https://github.com/apernet/mwgp but use IPTABLES (NFQUEUE) instaed to make it
 	# _far_ more efficient.)
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link delete group 31337 2>/dev/null
+	lgns -t "${LG_PID}" -n ip link delete group 31337 2>/dev/null
 
 	err=$(nsenter -t "${WG_PID}" -n ip link add "${WG_DEV}" type wireguard 2>&1) || BAIL "Failed: ip link add ${WG_DEV} (${err:0:32})." "Failed ${WG_DEV}" ": $err"
 	nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" group 31337 || BAIL "ip link set FAILED."
@@ -1012,12 +1046,14 @@ wg_net_init
 	err=$(nsenter -t "${WG_PID}" -n wg set "${WG_DEV}" listen-port "${WG_PORT}" private-key "/dev/shm/private.$$" peer "${WT_PUBLIC}" allowed-ips 0.0.0.0/0,::/0 2>&1) || BAIL "Failed: wg set (${err:0:128})"
 	rm -f "/dev/shm/private.$$"
 	# Move Interface to user's container:
-	err=$(nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" netns "${PID}" 2>&1) || BAIL "Failed to move ${WG_DEV}." "Failed ${WG_DEV} netns $PID" ": $err"
+	err=$(nsenter -t "${WG_PID}" -n ip link set "${WG_DEV}" netns "${LG_PID}" 2>&1) || BAIL "Failed to move ${WG_DEV}." "Failed ${WG_DEV} netns ${LG_PID}" ": $err"
 
 	# Configure interface after moving
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -4 address add "${WG_IP}" dev "${WG_DEV}"
-	err=$(nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${RR}ERROR${N}: ip -6: $err"
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n ip link set mtu $((SF_HOST_MTU - 80)) up dev "${WG_DEV}"
+	lgns -t "${LG_PID}" -n ip -4 address add "${WG_IP}" dev "${WG_DEV}"
+	err=$(lgns -t "${LG_PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${RR}ERROR${N}: ip -6: $err"
+	# This can happen if an sshd-session gets stuck and the namespace for that IP is kept alive
+	# lsns -t net | awk '{print $4;}' | anew | while read -r PID; do echo XXX${LG_PID}; nsenter -t "${LG_PID}" -n wg show; done | less
+	err=$(lgns -t "${LG_PID}" -n ip link set mtu $((SF_HOST_MTU - 80)) up dev "${WG_DEV}" 2>&1) || BAIL "${err} - port already used? Report to SysCops please."
 
 	set_route
 

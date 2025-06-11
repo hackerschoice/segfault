@@ -7,31 +7,32 @@ stop_lg()
 	local is_container
 	local lid
 	local ts_born
+	local msg="$5"
 	lid="$1"
 	ts_born="$2"
 	is_encfs="$3"
-	is_container="$4"
 
-	LOG "$lid" "Stopping [$((NOW - ts_born)) sec]. $5"
+	LOG "$lid" "Stopping [$((NOW - ts_born)) sec]. ${msg}"
 
+	# Remove reverse port.
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
-	rm -f "/sf/run/encfsd/user/lg-${lid}"
-	rm -f "/sf/run/pids/lg-${lid}.pid"
-	rm -f "/sf/run/ips/lg-${lid}.ip"
-	rm -rf "/config/self-for-guest/lg-${lid}"
-	rm -rf "/sf/run/users/lg-${lid}"
 
-	# Kill the OpenVPN process (if running)
-	docker exec sf-master killall "openvpn-$lid" 2>/dev/null
-	docker exec sf-master rm -rf "/tmp/lg-$lid" 2>/dev/null 
+	# Teardown LG
+	docker exec sf-master /teardown-lg.sh "${lid}" #"${C_IP}" "${LG_PID}" 
 
-	# Tear down container
-	[[ -n $is_container ]] && docker stop "lg-$lid" &>/dev/nuill
+	# Remove files
+	rm -f 	"/sf/run/encfsd/user/lg-${lid}"\
+			"/sf/run/ips/lg-${lid}.ip"
+	rm -rf 	"/config/self-for-guest/lg-${lid}"\
+			"/sf/run/users/lg-${lid}"
+
+	# Stop container
+	docker stop "lg-$lid" &>/dev/null
 
 	# Odd: On cgroup2 the command 'docker top lg-*' shows that encfs is running
 	# inside the container even that we never moved it into the container's
 	# Process Namespace. EncFS will also die when the lg- is shut down.
-	# This is only neede for cgroup1:
+	# This is only needed for cgroup1:
 	[[ -n $is_encfs ]] && {
 		pkill -SIGTERM -f "^\[encfs-${lid}\]" 2>/dev/null
 		# Give kernel time to unmount mountpoint
@@ -83,7 +84,7 @@ check_container()
 	# Check if EncFS is still running.
 	pgrep -f "^\[encfs-${lid}\]" &>/dev/null || {
 		# NOTE: On CGROUPv2 the encfs dies when the lg container stops (user called 'halt' or 'docker stop')
-		stop_lg "$lid" "${ts_born}" "" "lg" "EncFS died..."
+		stop_lg "$lid" "${ts_born}" "" "EncFS died..."
 		return
 	}
 
@@ -98,7 +99,7 @@ check_container()
 	comm=$(docker top "lg-${lid}" -eo pid,comm 2>/dev/null | tail +2 | awk '{print $2;}') || {
 		# HERE: lg died or top failed.
 		set +o pipefail
-		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "LG no longer running."
+		stop_lg "${lid}" "${ts_born}" "encfs" "LG no longer running."
 		return
 	}
 
@@ -122,7 +123,7 @@ check_container()
 		[[ -f "/config/db/user/lg-${lid}/is_logged_in" ]] && return
 		[[ $((NOW - ts_logout)) -lt ${to_with_shell} ]] && return
 		# HERE: Not logged in. logged out more than 1 week ago.
-		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for $((NOW - ts_logout))sec (shell running)." || return
+		stop_lg "${lid}" "${ts_born}" "encfs" "Not logged in for $((NOW - ts_logout))sec (shell running)." || return
 		[[ -z $is_token ]] && try_syscop_msg "$lid"
 
 		return
@@ -135,7 +136,7 @@ check_container()
 	# Filter out stale processes
 	echo "$comm" | grep -m1 -v -E '(^docker-init$|^sleep$|^encfs$|^gpg-agent$)' >/dev/null || {
 		# HERE: Nothing running but stale processes
-		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "No processes running."
+		stop_lg "${lid}" "${ts_born}" "encfs" "No processes running."
 		return
 	}
 	# HERE: Something running (but no shell, and no known processes)
@@ -143,7 +144,7 @@ check_container()
 	[[ $((NOW - ts_logout)) -ge ${to_no_shell} ]] && {
 		# User logged out 1.5 days ago. No shell. No known processes.
 
-		stop_lg "${lid}" "${ts_born}" "encfs" "lg" "Not logged in for ${to_no_shell}sec (no shell running)." || return
+		stop_lg "${lid}" "${ts_born}" "encfs" "Not logged in for ${to_no_shell}sec (no shell running)." || return
 		[[ -z $is_token ]] && try_syscop_msg "$lid"
 
 		return

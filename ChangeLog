@@ -1,3 +1,11 @@
+0.5.8 - 2025-06-11
+    * New command 'proxy' 
+    * 'exfil' to support complex find .. -print0 input
+    * color enhancement
+    * updated DNS (dnscrypt-proxy)
+    * Connect to itself and forward real IP (ssh root@segfault)
+    * Tmux C-b P/H/R/S
+
 0.5.7 - 2024-10-00
     * proxy on - Each TCP exits via a different EXIT (up to 500 source IPs)
 

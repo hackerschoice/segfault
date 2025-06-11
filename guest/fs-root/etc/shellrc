@@ -16,14 +16,18 @@ alias reboot='halt'
 alias shutdown='halt'
 alias calc='kalker'
 alias cd..='cd ..'
+alias udocker='udocker --allow-root'
 
-function dmesg {
+lf() { find . -type f -name "${1:?}" -exec stat --format '%Y :%n' "{}" + 2>/dev/null | sort -n |tail -n1| cut -d: -f2-; }
+v() { vim "$(lf "${1:?}")"; }
+
+dmesg() {
 	[[ ! -t 1 ]] && { /usr/bin/curl -s sf/dmesg/ -dnocolor=1; return; }
 	/usr/bin/curl -s sf/dmesg/
 }
 
 # neovim DISABLED because vim's syntax highlighting is better. neovim
-# does it by file-extension but viom does it by FILE content..this means
+# does it by file-extension but vim does it by FILE content..this means
 # diff.txt looks great in vim but b/w in neovim.
 # [[ -e /usr/bin/nvim ]] && {
 	# alias vi='nvim'
@@ -36,6 +40,11 @@ alias ungron="gron --ungron"
 alias carbonyl="carbonyl --no-sandbox"
 alias seppuku="destruct"
 alias brave="brave-browser"
+alias ssm='ssm --exit --show'
+command -v neofetch >/dev/null || {
+	command -v fastfetch >/dev/null && alias neofetch='fastfetch'
+}
+#[ -f /usr/bin/asn ] && alias asn='asn -n'
 
 # Warning for script kiddies
 [[ -t 0 ]] && [[ ! -e "${HOME}/.nokiddie" ]] && {
@@ -69,9 +78,8 @@ Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 				echo -e "    ${CC}command ${CDC}${cmd} $*${CN}\n"
 				sleep 2 
 			}
-			command "$cmd" "$@"  $(echo "$sargs") # allow word splitting
+			command "$cmd" "$@" $sargs # allow word splitting
 		fi
-
 	}
 
 	command -v massdns    >/dev/null && massdns(){    _nokiddie_warning "massdns" ""                                    "$@"; }
@@ -79,6 +87,7 @@ Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan" ""                                    "$@"; }
 	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" ""                                 "$@"; }
 	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei" "-rl 15 -c 4 -bs 4 -hbs 2 -headc 2"    "$@"; }
+	command -v httpx      >/dev/null && httpx(){      _nokiddie_warning "httpx"  "-rl 15"                               "$@"; }
 	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf"    ""                                    "$@"; }
 	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu"   ""                                    "$@"; }
 	command -v zmap       >/dev/null && zmap(){       _nokiddie_warning "zmap"    ""                                    "$@"; }
@@ -90,11 +99,8 @@ PROXY(){
 	local IFS=" "
 	local fmt="$*"
 	local arr
-	local n
-	local h
-	local p
-	local str
-	[[ -z $fmt ]] && fmt="%h:%p"
+	local n h p str
+	[ -z "$fmt" ] && fmt="%h:%p"
 
 	if [[ -f /sf/share/proxies.txt ]]; then
 		IFS=$'\n' arr=($(<"/sf/share/proxies.txt"))
@@ -118,8 +124,8 @@ PROXY(){
 }
 
 docker(){
-	echo -e >&2 "${CDB}[${CDY}SF${CDB}] ${CR}Docker aint working.${CN} Try ${CDC}udocker${CN} instead."
-	return 255
+	echo -e >&2 "${CDB}[${CDY}SF${CDB}] ${CR}Docker aint working.${CN} Trying ${CDC}udocker${CN} instead."
+	udocker --allow-root "$@"
 }
 docker-compose(){ docker;}
 
@@ -129,80 +135,7 @@ urldecode() { : "${*//+/ }"; echo -e "${_//\%/\\x}"; }
 [[ -n $IS_SHOW_MOTD_XPRA ]] && [[ -f /sf/bin/funcs_motd-xpra ]] && source /sf/bin/funcs_motd-xpra
 
 [[ -t 0 ]] && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && {
-	_grccmd()
-	{
-		local cmd
-		cmd=$1
-		shift 1
-		[[ ! -t 1 ]] && { command "$cmd" "$@"; return; }
-
-		command "$cmd" "$@" | /usr/bin/python3 /usr/bin/grcat "conf.${cmd##*/}"
-		[[ -n ${PIPESTATUS[0]} ]] && return ${PIPESTATUS[0]} # bash
-		return ${pipestatus[1]}  # zsh
-	}
-
-	_grcset()
-	{
-		local c
-		c=$1
-
-		unalias "$c" 2>/dev/null
-
-		# Execution is faster if we assign a shell function
-		[[ -e "/usr/share/grc/conf.${c##*/}" ]] && {
-			eval "function ${c} { _grccmd \"$c\" \"\$@\"; }"
-			# ZSH only: "$c"() { _grccmd "$0" "$@"; }
-			return
-		}
-
-		# Fallback to slower (calls grc which calls grcat)
-		alias $c="/usr/bin/grc --colour=auto $c"
-	}
-
-	# Be gay and color it all. #OneLove
-	[[ -e /usr/bin/grc ]] && {
-		cmds+=(./configure df dig du env findmnt free id ifconfig)
-		cmds+=(lsattr lsblk lsof lspci make mount netstat nmap ntpdate)
-		cmds+=(ping ps pv ss sockstat stat sysctl traceroute traceroute6 uptime vmstat wdiff whois)
-		for c in "${cmds[@]}"; do
-			_grcset "$c"
-		done
-		unset cmds
-
-		# Currently broken:
-		# - mtr (no output) 
-
-		# curl's -v/-I goes to STDERR and needs special treadment.
-		function curl {
-			{ [[ "$1" == "sf/"* ]] || [[ "$2" == "sf/"* ]]; } && { /usr/bin/curl "$@"; return; }
-			[[ -t 2 ]] && {
-				# HERE: stderr is a TTY. Pipe stderr through grcat
-				# Add -s to not show progress meter (cURL defaults to show progress if stdout is not a TTY)
-				if [[ -t 1 ]]; then
-					{ /usr/bin/curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
-				else
-					{ /usr/bin/curl --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
-				fi
-				return
-			}
-			# /usr/bin/grc --colour=auto curl "$@" # Doesnt do anything (!)
-			[[ ! -t 1 ]] && { /usr/bin/curl --proto-default https "$@"; return; }
-			/usr/bin/curl --proto-default https -s "$@" | hl
-		}
-
-		# These need stdout buffer disabled:
-		cmds+=(tcpdump)
-		for c in "${cmds[@]}"; do
-			alias $c="/usr/bin/stdbuf -o0 /usr/bin/grc --colour=auto $c"
-		done
-		unset cmds
-
-	}
-	unset -f _grcset
-
-	[[ -e /usr/bin/lsd ]] && {
-		alias ls='lsd --icon never'
-	}
+	[ -e /usr/bin/lsd ] && alias ls='lsd --icon never'
 
 	[[ -e /usr/bin/bat ]] && {
 		less() {
@@ -226,42 +159,132 @@ urldecode() { : "${*//+/ }"; echo -e "${_//\%/\\x}"; }
 		_hicmd() {
 			local cmd
 			local ex
-			cmd=$1
+			local opts=()
+			cmd="$1"
 			shift 1
 
-			# If any Opts are given then use orignal command.
+			# Not a TTY, use original command
+			[ ! -t 1 ] && { "$cmd" "$@"; return; }
+
+			# No args, let batcat try its best
+			[ "${#}" -eq 0 ] && { "$cmd" | bat -pp; return; }
+
+			# Consider
+			# - tail -f foo.sh foo bar.log
+			# - tail foo.sh foo bar.log
+
+			# If any Opts are given then use original command.
 			for o in "$@"; do
 				[[ ${o} == "--" ]] && continue
-				[[ ${o:0:1} == "-" ]] && { command "$cmd" "$@"; return; }
+				[[ ${o:0:1} == "-" ]] && { "$cmd" "$@"; return; }
 			done
 
-			[[ ! -t 1 || ${#} -le 0 ]] && { command "$cmd" "$@"; return; }
 			for source in "$@"; do
 				[[ "$source" == "--" ]] && continue
     			case $source in
         			# *ChangeLog|*changelog)
 	        		# 	command "$cmd" -- "$source" | source-highlight --failsafe -f esc --lang-def=changelog.lang --style-file=esc.style ;;
 			        *Makefile|*makefile)
-				        command "$cmd" -- "$source" | bat -pp -l Makefile ;;
+						opts=("-l" "Makefile") ;;
 			        *.bashrc|*.zshrc|*.profile|*.bash_profile|*rc.local|*.shellrc|*_history)
-				        command "$cmd" -- "$source" | bat -pp -l bash ;;
+						opts=("-l" "bash") ;;
 			        *)
 						ex="${source##*.}"
-						[[ -z $ex || $ex == $source ]] && { command "$cmd" "$@"; return; }
-						# Check if extension exists...
-						bat -pp -l "$ex" </dev/null 2>/dev/null || { command "$cmd" "$@"; return; }
-						command "$cmd" -- "$source" | bat -pp -l "$ex" ;;
+						# Check if extension is known by batcat
+						[ -n "$ex" ] && [ "$ex" != "$source" ] && bat -pp -l "$ex" </dev/null 2>/dev/null && opts=("-l" "$ex")
+						;;
 			    esac
+				"$cmd" -- "$source" | bat -pp "${opts[@]}"
 			done
 		}
-		# alias cat="/usr/bin/bat -pp"
-		cat() { _hicmd cat "$@"; }
-		tail() { _hicmd tail "$@"; }
-		head() { _hicmd head "$@"; }
-	}
+		# FIXME-2025: batcat has become much smarter these days. Is this still needed for "cat"?
+		# cat() { _hicmd /usr/bin/cat "$@"; }
+		alias cat="/usr/bin/bat -pp"
+		tail() { _hicmd /usr/bin/tail "$@"; }
+		head() { _hicmd /usr/bin/head "$@"; }
+	} #EO batcat
 }
 
-[[ -f /usr/bin/zoxide ]] && {
+[[ -t 0 ]] && [[ -n $TERM ]] && [[ "$TERM" != dumb ]] && [ -e /usr/bin/grc ] && {
+	_grccmd() {
+		local cmd
+		cmd=$1
+		shift 1
+		{ [ -n "$NOCOLOR" ] || [ ! -t 1 ]; }  && { command "$cmd" "$@"; return; }
+
+		command "$cmd" "$@" | /usr/bin/python3 /usr/bin/grcat "conf.${cmd##*/}"
+		[[ -n ${PIPESTATUS[0]} ]] && return ${PIPESTATUS[0]} # bash
+		return ${pipestatus[1]}  # zsh
+	}
+
+	_grcset() {
+		local c="${1:?}"
+
+		unalias "$c" 2>/dev/null
+		# Execution is faster if we assign a shell function
+		[ -e "/usr/share/grc/conf.${c##*/}" ] && {
+			eval "${c}() { _grccmd \"$c\" \"\$@\"; }"
+			return
+		}
+
+		# traceroute6 + make have no separate config file but use
+		# conf.traceroute + conf.gcc. Set alias as this is simpler (but slower):
+		eval "alias $c=\"/usr/bin/grc --colour=auto $c\""
+	}
+
+	# curl's -v/-I goes to STDERR and needs special treatment.
+	_curlhl() {
+		local suffix="$1"
+		shift 1
+		{ [ -n "$NOCOLOR" ] || [[ "$1" == "sf/"* ]] || [[ "$2" == "sf/"* ]]; } && { /usr/bin/curl "$@"; return; }
+		[ -t 2 ] && {
+			# HERE: stderr is a TTY. Pipe stderr through grcat
+			# Add -s to not show progress meter (cURL defaults to show progress if stdout is not a TTY)
+			if [ -t 1 ]; then
+				{ "/usr/bin/curl${suffix}" --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
+			else
+				{ "/usr/bin/curl${suffix}" --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
+			fi
+			return
+		}
+		[ ! -t 1 ] && { "/usr/bin/curl${suffix}" --proto-default https "$@"; return; }
+		"/usr/bin/curl${suffix}" --proto-default https -s "$@" | hl
+	}
+
+	# Be gay and color it all. #OneLove
+	_grcenable() {
+		local cmds c
+		cmds=(./configure df dig du env findmnt free id ifconfig)
+		cmds+=(lsattr lsblk lsof lspci make mount netstat nmap ntpdate)
+		cmds+=(ping ps pv ss sockstat stat sysctl traceroute traceroute6 uptime vmstat wdiff whois)
+		for c in "${cmds[@]}"; do
+			_grcset "$c"
+		done
+
+		# Currently broken:
+		# - mtr (no output) 
+
+		# curl and curl-impersonate
+		command -v hl >/dev/null && {
+			curl() { _curlhl "" "$@"; }
+			# Create a function for every curl_* binary
+			for c in /usr/bin/curl_*; do
+				eval "curl_${c##*curl_}() { _curlhl '_${c##*curl_}' \"\$@\"; }";
+			done
+		}
+
+		# These need stdout buffer disabled:
+		unset cmds
+		cmds+=(tcpdump)
+		for c in "${cmds[@]}"; do
+			eval "alias $c=\"/usr/bin/stdbuf -o0 /usr/bin/grc --colour=auto $c\""
+		done
+	}
+	_grcenable
+	unset -f _grcset _grcenable
+}
+
+[ -f /usr/bin/zoxide ] && {
 	eval "$(zoxide init "$(basename "$SHELL")")"
 	alias cd='z'
 }
@@ -277,6 +300,11 @@ noansi() { sed -e 's/\x1b\[[0-9;]*m//g'; }
 alias nocol=noansi
 
 [[ -f /usr/bin/fdfind ]] && alias fd=fdfind
+
+command -v batcat >/dev/null && {
+	export MANROFFOPT="-c"
+	export MANPAGER="sh -c 'col -bx | batcat -l man -p'"
+}
 
 [[ -z $LANG ]] && export LANG=en_US.UTF-8
 
@@ -317,8 +345,7 @@ _sf_info_non_perm()
 	echo -e "${CDB}[${CDY}SF${CDB}] ${CB}${CUL}https://www.thc.org/segfault/faq/#lost${CN}"
 }
 
-apt()
-{
+apt() {
 	/usr/bin/apt "$@"
 
 	# Show a warning on success on quota-error or package not found.
@@ -326,8 +353,7 @@ apt()
 	_sf_info_non_perm
 }
 
-apt-get()
-{
+apt-get() {
 	/usr/bin/apt-get "$@"
 
 	_sf_info_non_perm

@@ -193,6 +193,7 @@ docker run --rm --device=/dev/kvm sf-host true && SF_HAS_DEV_KVM=1
 echo "NPROC=\"$(nproc)\"
 SF_CG_PARENT=\"${SF_CG_PARENT}\"
 SF_DNS=\"${SF_DNS}\"
+SF_SSHD_IP=\"${SF_SSHD_IP}\"
 SF_TOR_IP=\"${SF_TOR_IP}\"
 SF_SEED=\"${SF_SEED}\"
 SF_REDIS_AUTH=\"${SF_REDIS_AUTH}\"
@@ -220,6 +221,7 @@ ff00::0 ip6-mcastprefix
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 ff02::3 ip6-allhosts
+${SF_SSHD_IP:?}	${SF_FQDN} ${SF_FQDN%%.*} segfault segfault.net 
 ${SF_TOR_IP}	tor
 ${SF_NET_LG_ROUTER_IP}	router
 ${SF_DNS}	dns

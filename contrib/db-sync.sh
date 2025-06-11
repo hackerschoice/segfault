@@ -37,8 +37,6 @@ echo "PRIVATE, LIMITS and TOKEN are now taken from SYSCOPS workstation. ADM is n
 #rm -rf banner
 [[ -n "$IS_DOWN" ]] && {
 	do_down "$@"
-	echo "==[DOWN done. Press Enter to start UP]=================================================="
-	read 
 }
 
 i=0

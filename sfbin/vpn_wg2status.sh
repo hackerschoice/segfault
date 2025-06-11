@@ -1,11 +1,12 @@
 #! /bin/bash
 
 # CONTEXT: VPN context. Called when WG goes UP or DOWN
+# from sfbin/* and mounted into each VPN container
 
 # PARAMETERS: [output filename] [up/down] [interface]
 
 # NOTE:
-# POST_UP has all the set enviornment variables but
+# POST_UP has all the set environment variables but
 # PRE/POST_DOWN is started with all environment variables emptied.
 # Is this a WireGuard bug?
 # Solution: Save the important variables during POST_UP
@@ -75,6 +76,7 @@ up()
 	local geo
 	local exit_ip
 	local ep_ip
+	local str
 
 	t="$(wg show "${DEV:-wg0}" endpoints)" && {
 		t="${t##*[[:space:]]}"
@@ -85,22 +87,25 @@ up()
 		str=$(grep '# GEOIP=' "/etc/wireguard/wg0.conf")
       	geo="${str:8}"
 
-		[[ -z $geo ]] && geo=$(curl -fsSL --retry 3 --max-time 15 https://ipinfo.io 2>/dev/null) && {
-			local city
-			local geo
-			t=$(echo "$geo" | jq '.country | select(. != null)')
-			country="${t//[^[:alnum:].-_ \/]}"
-			t=$(echo "$geo" | jq '.city |  select(. != null)')
-			city="${t//[^[:alnum:].-_ \/]}"
-			t=$(echo "$geo" | jq '.ip | select(. != null)')
-			unset geo
+		str=$(curl -fsSL --retry 3 --max-time 15 https://ipinfo.io 2>/dev/null) && {
+			t=$(echo "$str" | jq '.ip | select(. != null)')
 			exit_ip="${t//[^0-9.]}"
-			[[ -n $city || -n $country ]] && geo="${city}/${country}"
+			[ -z "$geo" ] && {
+				local city country
+				t=$(echo "$str" | jq '.country | select(. != null)')
+				country="${t//[^[:alnum:].-_ \/]}"
+				t=$(echo "$str" | jq '.city |  select(. != null)')
+				city="${t//[^[:alnum:].-_ \/]}"
+				[[ -n $city || -n $country ]] && geo="${city}/${country}"
+			}
 		}
 		# [[ -z $geo ]] && {
 			# Query local DB for info
 		# }
-		[[ -z $exit_ip ]] && exit_ip=$(curl -fsSL --max-time 15 ifconfig.me 2>/dev/null)
+		[ -z "$exit_ip" ] && exit_ip="$(curl -fsSL --max-time 5 ifconfig.me 2>/dev/null)"
+		[ -z "$exit_ip" ] && exit_ip="$(curl -SsfL --max-time 5 https://api.ipify.org 2>/dev/null)"
+		[ -z "$exit_ip" ] && exit_ip="$(curl -SsfL --max-time 5 https://icanhazip.com 2>/dev/null)"
+		exit_ip="${exit_ip//[^0-9.]}"
 	} # wg show
 
 	if [[ -z $ep_ip ]]; then
@@ -122,13 +127,11 @@ SFVPN_EXIT_IP=\"${exit_ip:-333.1.2.3}\"\n" >"${LOGFNAME}"
 
 	create_vpn_status
 
-	# Old cryptostorm containers set a network route to default IP.
-	# Remove; We need to route to NET_VPN_ROUTER_IP instead.
-	ip route del "${NETWORK}" 2>/dev/null
+	# ip route del "${NETWORK}" 2>/dev/null
 	ip route add "${NETWORK}" via "${NET_VPN_ROUTER_IP}" 2>/dev/null
 
 	# Delete all old port forwards.
-	[[ "${PROVIDER,,}" == "cryptostorm" ]] && curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -ddelallfwd=1
+	[[ "${PROVIDER,,}" == "cryptostorm" ]] && curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -ddelallfwd=1 >/dev/null
 
 	red RPUSH portd:cmd "vpnup ${PROVIDER}"
 	true
@@ -146,12 +149,18 @@ DSTDIR="$(dirname "${LOGFNAME}")"
 [[ ! -d "${DSTDIR}" ]] && { umask 077; mkdir -p "${DSTDIR}"; }
 [[ "$OP" == "down" ]] && { down; exit; }
 
+# This is executed by PostUp. wg-quick (in run.sh) will wait until this has finished executing.
+# - Make sure VPN is up correctly and we can get geo-ip infos.
+# - wg_up in "run" will go into a forever-loop to check VPN status.
 source /check_vpn.sh
 wait_for_handshake "${DEV}" || { echo -e "Handshake did not complete"; exit 255; }
 
-check_vpn "${PROVIDER}" "${DEV}" || { echo -e "VPN Check failed"; exit 255; }
-
-[[ "$OP" == "up" ]] && { up; exit; }
+[ "$OP" = "up" ] && {
+	# wg_route_up "${DEV}"
+	check_vpn "${PROVIDER}" "${DEV}" || { echo -e "VPN Check failed"; exit 255; }
+	up
+	exit
+}
 
 echo >&2 "OP=${OP}"
 echo >&2 "Usage: [output filename] [up/pdown] [interface] <mullvad/cryptostorm/nordvpn>"

@@ -3,6 +3,7 @@ FROM alpine
 RUN apk add --no-cache --upgrade \
 	&& apk add --no-cache \
 		bash \
-	&& wget -O - https://github.com/hackerschoice/binary/raw/main/gsocket/bin/gs-netcat_x86_64-alpine.tar.gz | tar xfvz -
+	&& wget -O/gs-netcat "https://github.com/hackerschoice/gsocket/releases/latest/download/gs-netcat_linux-$(uname -m)" \
+	&& chmod 755 /gs-netcat
 
 COPY sf-gsnc.sh /

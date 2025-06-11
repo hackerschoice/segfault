@@ -24,9 +24,10 @@ down()
 }
 
 [[ -z $SF_REDIS_AUTH ]] && {
-	SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0)
-	SF_REDIS_AUTH="${SF_REDIS_AUTH//[^[:alnum:]]}"
-	SF_REDIS_AUTH="${SF_REDIS_AUTH:0:32}"
+	# SF_REDIS_AUTH=$(echo -n "Redis AUTH $SF_SEED" | sha512sum | base64 -w0 | tr -dc '[:alnum:]' | head -c 16)
+	# SF_REDIS_AUTH="${SF_REDIS_AUTH//[^[:alnum:]]}"
+	# SF_REDIS_AUTH="${SF_REDIS_AUTH:0:32}"
+	SF_REDIS_AUTH="$(head -c 64 < /dev/urandom | base64 | tr -dc '[:alnum:]' | head -c 32)"
 	export SF_REDIS_AUTH
 }
 
@@ -158,6 +159,13 @@ load_env
 [[ -z $SF_HOST_MTU ]] && SF_HOST_MTU=1500
 export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 
+[ -z "$SF_DNSCRYPT_AUTH" ] && SF_DNSCRYPT_AUTH=$(echo -n "DNSProxy-crypt AUTH ${SF_SEED:?} access" | sha512sum | base64 -w0 | tr -dc '[:alnum:]' | head -c 16)
+sed -i "s|^password =.*|password = \"${SF_DNSCRYPT_AUTH}\"|" "${SF_BASEDIR}/config/etc/dnscrypt/dnscrypt-proxy.toml"
+echo "dnscrypt-proxy http://127.0.0.1:8053 admin / ${SF_DNSCRYPT_AUTH}"
+
+# Check if _current_ SF_TOR_IP is in the config file or otherwise add it.
+grep -qFm1 "${SF_TOR_IP}:5353" "${SF_BASEDIR}/config/etc/dnscrypt/forwarding-rules.txt" || sed -i "s|^onion        .*|onion        ${SF_TOR_IP:?}:5353|" "${SF_BASEDIR}/config/etc/dnscrypt/forwarding-rules.txt"
+
 [[ ! -d "${SF_DATADIR}/user" ]] && mkdir -p "${SF_DATADIR}/user"
 [[ ! -d "${SF_DATADIR}/share" ]] && mkdir -p "${SF_DATADIR}/share"
 
@@ -171,6 +179,8 @@ export SF_GUEST_MTU=$((SF_HOST_MTU - 80))
 	WARN "Not found: data/share/tor-exit-nodes.txt"
 	echo -e "Try ${CDC}curl 'https://www.dan.me.uk/torlist/?exit' >'${SF_DATADIR}/share/tor-exit-nodes.txt'${CN}"
 }
+
+[ ! -f "${SF_DATADIR}/share/hackshell.sh" ] && curl -SsfL "https://github.com/hackerschoice/hackshell/raw/main/hackshell.sh" -o "${SF_DATADIR}/share/hackshell.sh"
 
 [[ ! -f "${SF_DATADIR}/share/english.txt" ]] && WARN "Not found: data/share/english.txt - Try ${CDC}cp host/fs-root/etc/english.txt ${SF_DATADIR}/share/${CN}."
 
@@ -228,6 +238,8 @@ sysinc net.netfilter.nf_conntrack_buckets 16384 # default is 65536 for >4GB syst
 sysinc net.netfilter.nf_conntrack_max 1048576
 # find /proc/*/fd -lname anon_inode:inotify | cut -d/ -f3 | xargs -I '{}' -- ps --no-headers -o '%p %U %c' -p '{}' | uniq -c | sort -nr 
 sysinc fs.inotify.max_user_instances 1024
+sysinc net.core.rmem_max=7500000
+sysinc net.core.wmem_max=7500000
 
 # Conntrack & Namespaces is a mess. Restricting these inside a container
 # only results that the connection is dropped sooner but the state still
@@ -245,6 +257,7 @@ sysdec net.netfilter.nf_conntrack_tcp_timeout_unacknowledged 30 # default is 300
 sysdec net.netfilter.nf_conntrack_tcp_timeout_established 10800 # 3h, default is 5 days
 sysdec net.netfilter.nf_conntrack_icmp_timeout 10 # default is 30
 sysdec net.netfilter.nf_conntrack_udp_timeout 10  # default is 30
+sysdec fs.suid_dumpable 1
 
 # Each Hugepagesize is 2MB (grep HUGE /proc/meminfo)
 #  512 => 1g as HUGE 
@@ -322,9 +335,15 @@ grep -qFm1 log-level /etc/docker/daemon.json 2>/dev/null || WARN "log-level shou
 grep -qFm1 /sf/docker /etc/default/docker 2>/dev/null || WARN "data-root is not /sf/docker\n---> Try ${CDC}echo 'DOCKER_OPTS=\"--data-root /sf/docker\"' >>/etc/default/docker${CN}"
 
 
-[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try ${CDC}apt-get install lxcfs && systemctl start lxcfs${CN}?"
+[[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try ${CDC}apt-get install lxcfs && systemctl enable lxcfs && systemctl start lxcfs${CN}"
 # If there was a warning then wait...
 WARN_ENTER
+
+[ ! -d "${SF_BASEDIR}/config/db/private/dnscrypt" ] && mkdir -p "${SF_BASEDIR}/config/db/private/dnscrypt"
+for f in allowed-ips.txt allowed-names.txt blocked-ips.txt blocked-names.txt cloaking-rules.txt; do
+	[ -e "${SF_BASEDIR}/config/db/private/dnscrypt/${f}" ] && continue
+	touch "${SF_BASEDIR}/config/db/private/dnscrypt/${f}"
+done
 
 # Delete stale run files..
 # [[ -d "${SF_SHMDIR}/run/users" ]] && rm -rf "${SF_SHMDIR}/run/users"
@@ -332,6 +351,7 @@ WARN_ENTER
 [[ -d "${SF_SHMDIR}/run" ]] && rm -rf "${SF_SHMDIR}/run"
 [[ -d "${SF_SHMDIR}/self-for-guest" ]] && rm -rf "${SF_SHMDIR}/self-for-guest"
 [[ ! -d "${SF_SHMDIR}/run/redis/sock" ]] && mkdir -p "${SF_SHMDIR}/run/redis/sock"
+[[ ! -d "${SF_SHMDIR}/run/pids" ]] && mkdir -p "${SF_SHMDIR}/run/pids"
 chmod 700 "${SF_SHMDIR}/run/redis"
 chown 999 "${SF_SHMDIR}/run/redis/sock" # docker/redis user
 chmod 711 "${SF_SHMDIR}/run/redis/sock"

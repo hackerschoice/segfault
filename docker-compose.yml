@@ -11,7 +11,9 @@ services:
     environment:
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
     network_mode: none
-    command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH}" ]
+    command: [ "bash", "-c", "exec redis-server /redis.conf --save \"\" --appendonly no --requirepass ${SF_REDIS_AUTH}" ]
+    # Why the hell is readis 8.0.x failing with ASSERT is started like this???
+    # command: [ "redis-server", "/redis.conf",  "--save", "\"\"", "--appendonly", "no", "--requirepass", "${SF_REDIS_AUTH}" ]
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/redis/redis.conf:/redis.conf:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
@@ -110,6 +112,12 @@ services:
     volumes:
       - "${SF_BASEDIR:-.}/config/etc/logpipe/:/app/config/:ro"    
       - "${SF_SHMDIR:-/dev/shm/sf}/run/logpipe/:/app/sock/:rw"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        [ ! -d /app/config/config.yaml ] && exit 0
+        exec /app/logpipe
       
   sf-portd:
     build: encfsd
@@ -126,43 +134,38 @@ services:
     network_mode: none
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/config/self-for-guest"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run:/sf/run:ro"  # FIXME:  why cant i use /run/pids? It throws errors in container when reading.
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
-  dns-doh:
-    image: crazymax/cloudflared
-    container_name: sf-dns-doh
-    restart: ${SF_RESTART:-on-failure}
+  dnscrypt:
+    image: sf-dnscrypt
+    container_name: sf-dnscrypt
     cgroup_parent: sf.slice
-    networks:
-      dns-doh-net:
-        ipv4_address: ${SF_DOH_IP:?}
-
-  dnsmasq:
-    image: 4km3/dnsmasq:latest
-    container_name: sf-dnsmasq
-    restart: ${SF_RESTART:-on-failure}
-    cgroup_parent: sf.slice
-    depends_on:
-      - dns-doh
     cap_add:
       - NET_ADMIN
-    command: ["--no-resolv", "--domain-needed", "--server=${SF_DOH_IP}#5053", "--server=/onion/${SF_TOR_IP}#5353"]
+    command: ["/usr/sbin/dnscrypt-proxy", "-config", "/config/dnscrypt-proxy.toml"]
+    environment:
+      - SF_DEBUG
+    ports:
+      - "127.0.0.1:8053:8080" # For debugging only. DISABLE in production.
     networks:
       vpn-net:
         ipv4_address: ${SF_NET_VPN_DNS_IP:?}
-      dns-doh-net:
       access-net:
         ipv4_address: ${SF_NET_ACCESS_DNS_IP:?}
+    volumes:
+      - "${SF_BASEDIR:-.}/config/etc/dnscrypt:/config:ro"
+      - "${SF_BASEDIR:-.}/config/db/private/dnscrypt:/lists:ro"
 
   nordvpn:
-    image: hackerschoice/cryptostorm
+    image: sf-wgvpn
     container_name: sf-nordvpn
-    restart: "no"
+    restart: "${SF_RESTART:-on-failure}"
     cgroup_parent: sf.slice
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - sf-redis
       - router
     dns: ${SF_NET_VPN_DNS_IP}
@@ -207,15 +210,16 @@ services:
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
 
   cryptostorm:
-    image: hackerschoice/cryptostorm
+    image: sf-wgvpn
     container_name: sf-cryptostorm
     cgroup_parent: sf.slice
-    restart: "no"
+    restart: "${SF_RESTART:-on-failure}"
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - sf-redis
       - router
     dns: ${SF_NET_VPN_DNS_IP}
+    # dns: 1.1.1.1
     cap_add:
       - NET_ADMIN #required
     environment:
@@ -223,7 +227,6 @@ services:
       - PROVIDER=CryptoStorm
       - NETWORK=${SF_NET_LG}
       - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP}
-      - DNS=1.1.1.1 # Cryptostorm's DNS is often broken
       - POST_UP=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log up %i
       - PRE_DOWN=/sf/bin/vpn_wg2status.sh /sf/run/vpn/status-cryptostorm.log down %i
       - RECONNECT=604800 # Re-Connect every 7 days
@@ -259,12 +262,12 @@ services:
 
 
   mullvad:
-    image: hackerschoice/cryptostorm
+    image: sf-wgvpn
     container_name: sf-mullvad
-    restart: "no"
+    restart: "${SF_RESTART:-on-failure}"
     cgroup_parent: sf.slice
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - sf-redis
       - router
     dns: ${SF_NET_VPN_DNS_IP}
@@ -316,7 +319,7 @@ services:
     restart: ${SF_RESTART:-on-failure}
     cgroup_parent: sf.slice
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - sf-redis
       - router
     cap_add:
@@ -462,7 +465,7 @@ services:
       - SF_RPC_IP=${SF_RPC_IP:?}
       - SF_TOR_IP=${SF_TOR_IP:?}
       - SF_NET_ONION=${SF_NET_ONION:?}
-      - WG_IPS=${SF_WG_IPS:-172.16.0.x/16,fd:16::x/104}
+      - WG_IPS=${SF_WG_IPS:-172.16.0.x/24,fd:16::x/104}
       - SF_MULLVAD_ROUTE=${SF_MULLVAD_ROUTE:?}
       - SF_DNS=${SF_NET_VPN_DNS_IP}
       - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
@@ -475,9 +478,9 @@ services:
       - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
       - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
       - "/sys/fs/cgroup/sf.slice/sf-guest.slice:/sf-cgroup"
-      # - "/research/segfault/sfbin:/sf/bin:ro"  # FIXME-2022
+      # - "/research/segfault/sfbin:/sf/bin:ro"  # FIXME: Enable for development
       - "/var/run/docker.sock:/var/run/docker.sock"
-      # - /research/segfault/master/cgi-bin:/cgi-bin:ro # FIXME-2022
+      # - /research/segfault/master/cgi-bin:/cgi-bin:ro # FIXME: Enable for development
     entrypoint: ["/init-master.sh"]
 
   rpc:
@@ -577,7 +580,7 @@ services:
       - NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
     dns: ${SF_NET_VPN_DNS_IP}
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - nginx
     volumes:
       - "${SF_BASEDIR:-.}/config/${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}/tor/hidden:/var/lib/tor/hidden"
@@ -597,7 +600,7 @@ services:
     cap_add:
       - NET_ADMIN # need to set default route via sf-router
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - router
     environment:
       - SF_SSH_PORT=${SF_SSH_PORT:-22}
@@ -627,7 +630,7 @@ services:
       - SYS_PTRACE # needed for debugging (/bin/sf_trace)
     pid: host # Move non-priv sshd to guest's network NameSpace.
     depends_on:
-      - dnsmasq
+      - dnscrypt
       - router
       - sf-encfsd
     init: true
@@ -636,6 +639,7 @@ services:
     environment:
       - SF_CG_PARENT=${SF_CG_PARENT:-sf-guest.slice}
       - SF_DNS=${SF_NET_VPN_DNS_IP}  # passed to sf-guest
+      - SF_SSHD_IP=${SF_SSHD_IP}
       - SF_TOR_IP=${SF_TOR_IP}
       - SF_BASEDIR=${SF_BASEDIR}
       - SF_SHMDIR=${SF_SHMDIR:-/dev/shm/sf}
@@ -683,6 +687,46 @@ services:
       - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/sec:slave,ro"
       - "${SF_BASEDIR:-.}/config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
 
+  bootup:
+    build: master
+    image: sf-master
+    hostname: sf-master
+    container_name: sf-bootup
+    restart: ${SF_RESTART:-on-failure}:1  # Try 1 restart
+    cgroup_parent: sf.slice
+    depends_on:
+      - segfault
+    network_mode: none
+    dns: ${SF_NET_VPN_DNS_IP}
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN   # For nsenter
+      # - SYSLOG      # For dmesg
+    pid: "host"     # For nsenter
+    devices:
+      - "/dev/net/tun:/dev/net/tun"
+    environment:
+      - SF_DEBUG
+      - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
+      - SF_RPC_IP=${SF_RPC_IP:?}
+      - SF_TOR_IP=${SF_TOR_IP:?}
+      - SF_NET_ONION=${SF_NET_ONION:?}
+      - SF_DNS=${SF_NET_VPN_DNS_IP}
+      - SF_NET_LG_ROUTER_IP=${SF_NET_LG_ROUTER_IP:?}
+      - SF_NET_LG=${SF_NET_LG:?}
+      - SF_NET_VPN_ROUTER_IP=${SF_NET_VPN_ROUTER_IP:?}
+      - SF_HOST_MTU=${SF_HOST_MTU:-1500}
+      - SF_GUEST_MTU=${SF_GUEST_MTU:-1420}
+    volumes:
+      - "${SF_SHMDIR:-/dev/shm/sf}:/dev/shm/sf"
+      - "${SF_BASEDIR:-.}/config/db:/config/db"
+      - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
+      - "${SF_BASEDIR:-.}/config/etc/sf:/config/host/etc/sf:ro"
+      - "${SF_BASEDIR:-.}/sfbin:/sf/bin:ro"
+      - "/sys/fs/cgroup/sf.slice/sf-guest.slice:/sf-cgroup"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    entrypoint: ["/finish-bootup.sh"]
+  
 networks:
   # Force docker0 
   default:
@@ -729,15 +773,6 @@ networks:
     ipam:
       config:
         - subnet: ${SF_NET_DMZ:?}
-
-  dns-doh-net:
-    name: sf-dns-doh
-    driver: bridge
-    driver_opts:
-      com.docker.network.driver.mtu: ${SF_HOST_MTU:-1500}
-    ipam:
-      config:
-        - subnet: ${SF_NET_DOH:?}
 
   # User's shell
   guest-net:

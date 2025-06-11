@@ -58,6 +58,7 @@ sv_startx()
 	PID_F=$(startonce "${DESKTOP}")
 	PID_V=$(startonce x11vnc "${VNC_OPTS[@]}")
 	trap "" SIGHUP
+	[ -n "$SF_FORCE" ] && return
 	jobs -p
 	while [[ -d /proc/$PPID && -d /proc/$PID_V ]]; do
 		sleep 5

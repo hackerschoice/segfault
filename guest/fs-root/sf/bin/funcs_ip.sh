@@ -36,7 +36,8 @@ dns() {
 }
 
 rdns() {
-    curl -m10 -fsSL "https://ip.thc.org/api/v1/download?ip_address=${1:?}&limit=10&apex_domain=${2}" | column -t -s,
+    # curl -m10 -fsSL "https://ip.thc.org/api/v1/download?ip_address=${1:?}&limit=10&apex_domain=${2}" | column -t -s,
+    curl -m10 -fsSL "https://ip.thc.org/${1:?}?limit=20&f=${2}"
 }
 
 resolv() {
@@ -63,7 +64,7 @@ xhost() {
 ptr() {
     io "${1:?}"
     io2 "$1"
-    shodan host "$1" 2>/dev/null
+    timeout 10 shodan host "$1" 2>/dev/null
     rdns "$1"
     dns "$1"
     xhost "$1"

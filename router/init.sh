@@ -262,7 +262,7 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_DIRECT}" -p tcp -d "${SSHD_IP}" --dport 22 -j ACCEPT 
 
 	# SNAT in use: 172.22.0.22 -> 172.28.0.1
-	# Inconing from 172.22.0.22 -> 172.22.0.254 (MASQ)
+	# Incoming from 172.22.0.22 -> 172.22.0.254 (MASQ)
 	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_DIRECT}" -p tcp --sport 22 -j ACCEPT
 	# -----END DIRECT SSH-----
 
@@ -271,9 +271,20 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_LG}" ! -s "${NET_LG}" -p tcp -j REJECT --reject-with tcp-reset
 	iptables -A FORWARD -i "${DEV_LG}" ! -s "${NET_LG}" -j REJECT
 
+	# LG to SSHD
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_ACCESS}" -p tcp -d "${SSHD_IP}" --dport 22 -j ACCEPT
+	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_LG}" -p tcp -s "${SSHD_IP}" --sport 22 -j ACCEPT 
+
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_ONION}" -j ACCEPT
-	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_VPN_DNS_IP}" -j ACCEPT
-	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${MULLVAD_ROUTE}" -j ACCEPT
+	# Allow DNS requests to our DNS resolver (but no other traffic)
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p udp --dport 53 -d "${NET_VPN_DNS_IP}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p icmp -d "${NET_VPN_DNS_IP}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_VPN_DNS_IP}" -j DROP
+
+	# Allow traffic to Mullvad's Proxies (but no other ports):
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p tcp --dport 1080 -d "${MULLVAD_ROUTE}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p icmp -d "${MULLVAD_ROUTE}" -j ACCEPT
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${MULLVAD_ROUTE}" -j DROP
 	for ip in "${BAD_ROUTES[@]}"; do
 		iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${ip}" -j DROP
 	done
@@ -447,8 +458,11 @@ ipt_mark_ret "722" -t mangle -A PREROUTING -i "${DEV_DIRECT}" -p tcp -d "${NET_D
 ip rule add fwmark 722 table 207
 ip route add default via "${SSHD_IP}" dev "${DEV_ACCESS}" table 207
 
-# Any return traffic from the SSHD shall go out (directly) to the Internet or to TOR (if arrived from TOR)
+# Any return traffic from the SSHD shall go directly to TOR (if arrived from TOR)
 iptables -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${SSHD_IP}" --sport 22 -d "${TOR_IP}" -j RETURN
+# Any return traffic from the SSHD shall go directly to LG (if arrived from LG)
+iptables -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${SSHD_IP}" --sport 22 -d "${NET_LG}" -j RETURN
+# Any OTHER turn traffic: mess with it.
 ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${SSHD_IP}" --sport 22
 ip rule add fwmark 22 table 201
 ip route add default via "${NET_DIRECT_BRIDGE_IP}" dev "${DEV_DIRECT}" table 201
@@ -528,6 +542,9 @@ ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -d "${NET_LG_ROU
 # a friendly VPN provider to send them through.
 # fwmark does not support multipath routing. Instead take the last 2 bits of the DNS transaction ID
 # and use this to decide for packet routing.
+
+# Do not mangle with DNS traffic to SF's own DNS server:
+iptables -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -d "${NET_VPN_DNS_IP}" -j ACCEPT
 # table 053, 153, 253, 353
 for n in 0 1 2 3; do
 	ip rule add fwmark "${n}53" table "${n}53"
@@ -546,8 +563,6 @@ ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_ACCESS}" -p tcp -s "${GSNC_I
 # Dont MASQ LG's. FORWARD instead. They are MASQ'ed at VPN endpoints.
 iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -j ACCEPT
 
-# MASQ DNSMASQ as it does not know a route to LG
-iptables -t nat -A POSTROUTING -s "${NET_LG}" -d "${NET_VPN_DNS_IP}" -o "${DEV_GW}" -j MASQUERADE
 # MASQ traffic from TOR to DMZ (nginx) as DMZ does not know about TOR_IP.
 iptables -t nat -A POSTROUTING -o "${DEV_DMZ}" -j MASQUERADE
 

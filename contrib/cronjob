@@ -34,7 +34,7 @@ backend socks-out
   default-server check observe layer4 error-limit 3 on-error mark-down inter 3600s downinter 60s rise 1
 EOF
     shuf <"${SF_MV_RELAY_FN}" | while read -r str; do
-        ips="$(dig +short "${str%:*}")" || continue
+        ips="$(dig +short "${str%:*}" | grep -v ^';;')" || continue
         [[ -z $ips ]] && continue
         echo "  server s${n} ${ips}:${str##*:} #$str"
         ((n++))

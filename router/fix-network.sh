@@ -1,5 +1,7 @@
 #! /bin/bash
 
+# Executed on HOST network namespace.
+
 # shellcheck disable=SC1091 # Do not follow
 source "/sf/bin/funcs.sh"
 source "/sf/bin/funcs_net.sh"

@@ -238,12 +238,8 @@ cmd_vpnup()
 # [PROVIDER]
 cmd_vpndown()
 {
-	local provider
-	local res
-	local lid
+	local provider res lid LG_PID C_IP
 	local ipport
-	# local value
-	local files
 	provider="$1"
 
 	DEBUGF "VPN DOWN ${provider}"
@@ -255,24 +251,25 @@ cmd_vpndown()
 		# [LID] [PORT]
 		lid="${res%% *}"
 		ipport="${res##* }"
-		[[ -z $ipport ]] && break
+		[ -z "$ipport" ] && break
 
-		files+=("/config/self-for-guest/lg-${lid}/reverse_ip")
-		files+=("/config/self-for-guest/lg-${lid}/reverse_port")
-
-		# Normally that's 1 member per lg but the lg may have multple
+		[ -f "/config/self-for-guest/lg-${lid}/reverse_port" ] && {
+			rm -f "/config/self-for-guest/lg-${lid}/reverse_ip" "/config/self-for-guest/lg-${lid}/reverse_port" &>/dev/null
+			unset LG_PID
+			source "/sf/run/users/lg-${lid}/config.txt"
+			# Bump port to make it stop listen. Jump via sf-master for nsenter.
+			[ -n "$LG_PID" ] && timeout 5 docker exec sf-master nsenter.u1000 --setuid 0 --setgid 0  -n -t "${LG_PID}" bash -c ":>/dev/tcp/0/${ipport##*:}"
+			# [ -n "$pid" ] && timeout 5 docker exec sf-master nsenter.u1000 --setuid 0 --setgid 0  -n -t "${pid}" fuser -s -k "${ipport##*:}/tcp" 2>/dev/null
+		}
+		# Normally that's 1 member per lg but the lg may have multiple
 		# port forwards assigned to it.
 		# Remove Lid's key/value for this port forward.
 		red SREM "portd:assigned-${lid}" "${provider} ${ipport}" >/dev/null
 		value+=("${provider} ${ipport}")
 	done
 
-
 	# Remove from portd:ports
 	red SREM "portd:ports" "${value[@]}" >/dev/null
-
-	# Delete container files
-	rm -f "${files[@]}" &>/dev/null
 
 	# Remove ports from assigned list
 	red DEL "portd:assigned-${provider}" >/dev/null
@@ -285,7 +282,6 @@ cmd_vpndown()
 cmd_fillstock()
 {
 	local in_stock
-	local ifs_old
 	local IFS
 	IFS=$'\n'
 
@@ -326,7 +322,7 @@ cmd_fillstock()
 		done
 
 		# Stop if there is no more good provider
-		[[ ${#good[@]} -le 0 ]] && break
+		[[ ${#good[@]} -eq 0 ]] && break
 		arr=("${good[@]}")
 	done
 

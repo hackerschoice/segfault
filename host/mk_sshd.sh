@@ -18,7 +18,8 @@ cd /src/dev
 [[ ! -d "$SRCDIR" ]] && {
 	# Cloudflare to often returns 503 - "BLOCKED"
 	# wget -O- https://cloudflare.cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.2p1.tar.gz | tar xfz -
-	wget "https://artfiles.org/openbsd/OpenSSH/portable/openssh-${VER}.tar.gz"
+	rm -rf "openssh-${VER}-orig" 2>/dev/null
+	[ ! -f "openssh-${VER}.tar.gz" ] && wget "https://artfiles.org/openbsd/OpenSSH/portable/openssh-${VER}.tar.gz"
 	tar xfz "openssh-${VER}.tar.gz"
 	mv "openssh-${VER}" "openssh-${VER}-orig"
 	tar xfz "openssh-${VER}.tar.gz"
@@ -27,6 +28,8 @@ cd /src/dev
 	cd "$SRCDIR"
 
 	patch -p1 <"/src/sf-sshd.patch"
+	# musl 9.8p1 bug
+	# sed 's|fd, \&addr|fd, (struct sockaddr *)\&addr|' -i "${SRCDIR}/openbsd-compat/port-linux.c"
 }
 cd "$SRCDIR"
 ./configure --prefix=/usr --sysconfdir=/etc/ssh --with-libs=-lcap \
@@ -43,10 +46,14 @@ cd "$SRCDIR"
 
 make sshd sshd-session
 strip sshd sshd-session
+# make sshd sshd-session sshd-auth
+# strip sshd sshd-session sshd-auth
 [[ ! -d "${DSTDIR}" ]] && mkdir -p "${DSTDIR}"
 [[ ! -d "${DSTLBX}" ]] && mkdir -p "${DSTLBX}"
 cp sshd "${DSTBIN}"
 cp sshd-session "${DSTLBX}"
 chmod 755 "${DSTBIN}" "${DSTLBX}/sshd-session"
+# cp sshd-session sshd-auth "${DSTLBX}"
+# chmod 755 "${DSTBIN}" "${DSTLBX}/sshd-session" "${DSTLBX}/sshd-auth"
 # rm -rf "${SRCDIR:?}"
 

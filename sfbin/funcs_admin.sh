@@ -1,6 +1,7 @@
 #! /bin/bash
 
-[[ $(basename -- "$0") == "funcs_admin.sh" ]] && { echo "ERROR. Use \`source $0\` instead."; exit 1; }
+[ -z "$BASH_VERSION" ] && { echo >&2 "ERROR: Use bash"; return; exit 1; }
+[[ $(basename -- "$0") == "funcs_admin.sh" ]] && { echo "ERROR. Use \`source $0\` instead."; return; exit 1; }
 _basedir="$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)"
 # shellcheck disable=SC1091 # Do not follow
 # source "${_basedir}/funcs.sh"
@@ -16,21 +17,26 @@ _sf_dbdir="${_sf_basedir}/config/db"
 unset _sf_isinit
 _sf_region="$(hostname)"
 
-_sf_deinit()
-{
+_sf_deinit() {
+	[ -n "$SF_NOINIT" ] && return
 	unset CY CG CR CC CB CF CN CDR CDG CDY CDB CDM CDC CUL
 	# Can not unset hash-maps here as those cant be declared inside a function.
 	unset _sf_now _sf_isinit _sf_p2lid _sf_quota
 }
 
-_sf_init()
-{
+_sf_init() {
+	local fn
+	[ -n "$SF_NOINIT" ] && return
+
 	_sf_now=$(date '+%s' -u)
 	[[ -n $_sf_isinit ]] && return
 
 	unset _sfquota _sf_p2lid
 	declare -Ag _sfquota
 	declare -Ag _sf_p2lid
+
+	fn="${_sf_basedir}/config/.env_tg"
+	[ -z "$TG_TOKEN" ] && [ -f "${fn}" ] && source "$fn"
 
 	_sf_isinit=1
 
@@ -103,7 +109,7 @@ _sf_xrm()
 
 _sfcg_forall()
 {
-	local IFS
+	local IFS=$'\n'
 	local arr
 	local l
 	local a
@@ -115,13 +121,13 @@ _sfcg_forall()
 	skip_token="$1"
 
 	set -o noglob
-	IFS=$'\n' arr=($(docker ps --format "{{.Names}}"  --filter 'name=^lg-' 2>/dev/null))
+	mapfile -t arr < <(docker ps --format "{{.Names}}"  --filter 'name=^lg-' 2>/dev/null)
 
 	for l in "${arr[@]}"; do
 		ts=2147483647
 		[[ -n "$skip_token" ]] && [[ -e "${_sf_dbdir}/user/${l}/token" ]] && continue
 		fn="${_sf_dbdir}/user/${l}/created.txt"
-		[[ -f "$fn" ]] && ts=$(date +%s -u -r "$fn")
+		[[ -f "$fn" ]] && ts="$(date +%s -u -r "$fn")"
 		a+=("$ts $l")
 	done
 	echo "${a[*]}" | sort -n | cut -f2 -d" "
@@ -130,20 +136,16 @@ _sfcg_forall()
 # [LG-LID]
 _sfcg_psarr()
 {
-	local found
-	local lglid
-	local match
-	local str
+	local found=0
+	local lglid="$1"
+	local match="$2"
 	local IFS
-	lglid="$1"
-	match="$2"
-	found=0
 	[[ -z $match ]] && found=1 # empty string => Show all
 
-	str=$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd 2>/dev/null)
-	[[ -n $str ]] && [[ -n $match ]] && [[ "$str"$'\n' =~ $match ]] && found=1
+	SF_G_PS="$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd 2>/dev/null)"
+	[[ -n $SF_G_PS ]] && [[ -n $match ]] && [[ "$SF_G_PS"$'\n' =~ $match ]] && found=1
 
-	echo "$str"
+	echo "$SF_G_PS"
 	return $found
 }
 
@@ -159,46 +161,51 @@ _sf_lastlog()
 	echo $((_sf_now - age))
 }
 
-_sfcfg_printlg()
-{
-		local lglid
-		local geoip
-		local ip
-		local fn
-		local hn
-		local age
-		local age_str
-		local str
-		local days
-		lglid=$1
+_sf_loaduserinfo() {
+	local lglid="${1:?}"
+	local fn age days str color
 
-		age=$(_sf_lastlog "$lglid")
-		if [[ $age -eq 0 ]]; then
-			age_str="${CG}-online--"
-		elif [[ $age -lt 3600 ]]; then
-			# "59m59s"
-			str="${age}     "
-			age_str="${CY}   ${str:0:5}s"
-		elif [[ $age -lt 86400 ]]; then
-			age_str="${CDY}   $(date -d @"$age" -u '+%Hh%Mm')"
-		else
-			days=$((age / 86400))
-			age_str="${CDR}${days}d $(date -d@"$age" -u '+%Hh%Mm')"
-		fi
+	age=$(_sf_lastlog "$lglid")
+	if [[ $age -eq 0 ]]; then
+		age_str_nc="-online--"
+		color="${CG}"
+	elif [[ $age -lt 3600 ]]; then
+		# "59m59s"
+		str="${age}     "
+		age_str_nc="   ${str:0:5}s"
+	elif [[ $age -lt 86400 ]]; then
+		age_str_nc="   $(date -d @"$age" -u '+%Hh%Mm')"
+	else
+		days=$((age / 86400))
+		age_str_nc="${days}d $(date -d@"$age" -u '+%Hh%Mm')"
+		color="${CDR}"
+	fi
+	age_str="${color:-${CY}}${age_str_nc}"
 
-		[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
-		ip="${ip}                      "
-		ip="${ip:0:16}"
-		[[ -f "${_sf_dbdir}/user/${lglid}/hostname" ]] && hn=$(<"${_sf_dbdir}/user/${lglid}/hostname")
-		hn="${hn}                      "
-		hn="${hn:0:16}"
-		[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
-		fn="${_sf_dbdir}/user/${lglid}/created.txt"
-		[[ -f "${fn}" ]] && t_created=$(date '+%F' -u -r "${fn}")
-		[[ -f "${_self_for_guest_dir}/${lglid}/c_ip" ]] && cip=$(<"${_self_for_guest_dir}/${lglid}/c_ip")
-		cip+="                         "
-		cip=${cip:0:16}
-		echo -e "${CDY}====> ${CDC}${t_created:-????-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CF}${cip}${CDG}${geoip}${CN}"
+	[[ -f "${_self_for_guest_dir}/${lglid}/ip" ]] && ip=$(<"${_self_for_guest_dir}/${lglid}/ip")
+	[[ -f "${_sf_dbdir}/user/${lglid}/hostname" ]] && hn=$(<"${_sf_dbdir}/user/${lglid}/hostname")
+	hn="${hn}                      "
+	hn="${hn:0:16}"
+	[[ -f "${_self_for_guest_dir}/${lglid}/geoip" ]] && geoip=" $(<"${_self_for_guest_dir}/${lglid}/geoip")"
+
+
+	fn="${_sf_dbdir}/user/${lglid}/created.txt"
+	[[ -f "${fn}" ]] && t_created=$(date '+%F' -u -r "${fn}")
+	[[ -f "${_self_for_guest_dir}/${lglid}/c_ip" ]] && cip=$(<"${_self_for_guest_dir}/${lglid}/c_ip")
+	cip+="                         "
+	cip=${cip:0:16}
+}
+
+_sfcfg_printlg() {
+	local lglid="${1:?}"
+	local geoip ip hn age_str t_created cip
+
+	# sets age_str, ip, hn, cip, geoip
+	_sf_loaduserinfo "${lglid}"
+	ip="${ip}                      "
+	ip="${ip:0:16}"
+
+	echo -e "${CDY}====> ${CDC}${t_created:-????-??-??} ${age_str}${CN} ${CDM}${lglid} ${CDB}${hn} ${CG}${ip} ${CF}${cip}${CDG}${geoip}${CN}"
 }
 
 # Show overlay2 usage by container REGEX match.
@@ -253,9 +260,7 @@ _sf_mkp2lid()
 {
 	local dst
 	local l
-	local IFS
 	local all
-	local str
 	local -
 
 	[[ ${#_sf_p2lid[@]} -gt 0 ]] && return # Already loaded
@@ -264,11 +269,8 @@ _sf_mkp2lid()
 	dst=$1
 	[[ -z $dst ]] && dst="lg-*"
 
-	IFS=""
-	str=$(cd "${_sf_basedir}/data/user"; lsattr -dp "./"${dst})
+	mapfile -t all < <(cd "${_sf_basedir}/data/user" && lsattr -dp "./"${dst})
 	set -o noglob
-	IFS=$'\n'
-	all=($str)
 	# Create hash-map to translate PRJID to LID name
 	for l in "${all[@]}"; do
 		# Trim whitespace from beginning.
@@ -287,6 +289,7 @@ _sf_load_xfs_usage()
 	local IFS
 	local l
 	local lid
+	local is_warn_once
 	local -
 
 	[[ ${#_sfquota[@]} -gt 0 ]] && return
@@ -294,16 +297,23 @@ _sf_load_xfs_usage()
 	echo >&2 "Loading XFS Quota DB..."
 	set -o noglob
 
-	IFS=$'\n'
-	all=($(xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data"))
+	mapfile -t all < <(xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data")
 	echo >&2 "Entries XFS: ${#all[@]}"
 	unset IFS
 	for l in "${all[@]}"; do
 		[[ -z $l ]] && continue
 		arr=($l)
-		prjid=${arr[0]##*#}
+		prjid=${arr[0]:1} # Remove leading '#'
+		{ [ -z "$prjid" ] || [ "$prjid" = "0" ]; } && continue
 		# [[ -z ${_sf_p2lid[$prjid]} ]] && { echo >&2 "$l: prjid=${prjid} on has not LID?"; continue; }
-		[[ -z ${_sf_p2lid["$prjid"]} ]] && continue;
+		[[ -z ${_sf_p2lid["$prjid"]} ]] && {
+			[ "${arr[1]}" -ne 0 ] && {
+					[ -z "$is_warn_once" ] && { echo >&2 "WARN: These project-ids have no LID but consumes blocks (docker overlays?)."; is_warn_once=1; }
+					# FIXME: These are likely mounted docker volumes
+					echo "$l"
+			}
+			continue;
+		}
 		lid="${_sf_p2lid["$prjid"]}"
 
 		# Check if quota is missing (and force to 100.00%)
@@ -324,8 +334,8 @@ _lgclean() {
 	local arr
 	local l
 
-    arr=($(find "${_sf_dbdir:?}/user" -maxdepth 2 -name is_logged_in))
-	IFS=$'\n'
+    mapfile -t arr < <(find "${_sf_dbdir:?}/user" -maxdepth 2 -name is_logged_in)
+	# IFS=$'\n'
 	for l in "${arr[@]}"; do
 		l="${l%/is_logged_in}"
 		l="${l##*/lg-}"
@@ -377,29 +387,26 @@ lgpurge()
 	age_naughty=$((ndays * 24 * 60 * 60))
 
 	## Check that data/user/lg-* and config/db/user/lg-* is syncronized
-	IFS=" "
-	arr=($(cd "${_sf_basedir}/data/user/"; echo lg-*))
+	IFS=' ' read -r -a arr <  <(cd "${_sf_basedir}/data/user/" && echo lg-*)
 	{ [[ ${#arr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/data/user/lg-*" ]]; } && { echo >&2 "WARN1: No lg's found"; return; }
-	dbr=($(cd "${_sf_basedir}/config/db/user/"; echo lg-*))
+	IFS=' ' read -r -a dbr <  <(cd "${_sf_basedir}/config/db/user/" && echo lg-*)
 	{ [[ ${#dbr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/config/db/user/lg-*" ]]; } && { echo >&2 "WARN2: No lg's found"; return; }
 	[[ ${#arr[@]} -ne ${#dbr[@]} ]] && {
 		echo >&2 "WARN: data/user/lg-* (${#arr[@]}) and config/db/user/lg-* (${#dbr[@]}) differ."
 		[[ -z $SF_FORCE ]] && echo -e >&2 "Set ${CDC}SF_FORCE=1${CN} to delete"
 		# Note: This should never really happen unless encfs fails?
-		[[ -n $SF_FORCE ]] && {
-			str=${arr[*]}
-			for l in "${dbr[@]}"; do
-				[[ "${str}" == *"$l"* ]] && continue
-				echo "[$l] Not found in data/user/$l"
-				_sf_lgrm "$l"
-			done
-			str="${dbr[*]}"
-			for l in "${arr[@]}"; do
-				[[ "${str}" == *"$l"* ]] && continue
-				echo "[$l] Not found in config/db/user/$l"
-				_sf_lgrm "$l"
-			done
-		}
+		str=${arr[*]}
+		for l in "${dbr[@]}"; do
+			[[ "${str}" == *"$l"* ]] && continue
+			echo "[$l] Not found in data/user/$l"
+			[ -n "$SF_FORCE" ] && _sf_lgrm "$l"
+		done
+		str="${dbr[*]}"
+		for l in "${arr[@]}"; do
+			[[ "${str}" == *"$l"* ]] && continue
+			echo "[$l] Not found in config/db/user/$l"
+			[ -n "$SF_FORCE" ] && _sf_lgrm "$l"
+		done
 	}
 	unset dbr
 
@@ -461,14 +468,14 @@ lgdf()
 	local blocks
 	local fn
 	local info
+	local totalb=0
 
 	_sf_init
 
 	dst="$1"
 	if [[ -z $dst ]]; then
-		IFS=" "
-		arr=($(cd "${_sf_basedir}/data/user/"; echo lg-*))
-		{ [[ ${#arr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/data/user/l-*" ]]; } && { echo >&2 "WARN: No lg's found"; return; }
+		IFS=' ' read -r -a arr <  <(cd "${_sf_basedir}/data/user/" && echo lg-*)
+		{ [[ ${#arr[@]} -eq 0 ]] || [[ ${arr[0]} == "${_sf_basedir}/data/user/lg-*" ]]; } && { echo >&2 "WARN: No lg's found"; return; }
 	else
 		arr=("$dst")
 	fi
@@ -478,6 +485,7 @@ lgdf()
 	while [[ $i -lt ${#arr[@]} ]]; do
 		l=${arr[$i]}
 		((i++))
+		totalb=$((totalb + _sfquota["${l}-blocks"]))
 		str="${_sfquota["${l}-blocks"]}             "
 		blocks="${str:0:10} "
 		perctt=${_sfquota["${l}-blocks-perctt"]}
@@ -492,6 +500,7 @@ lgdf()
 		[[ -f "$fn" ]] && info+=" [$(<"$fn")]"
 		echo "${blocks} ${str:0:5}% ${pin}% ${info}"
 	done
+	echo >&2 "Total: ${totalb} blocks, $((totalb * 4 / 1024 / 1024 )) GB"
 
 	_sf_deinit
 }
@@ -520,7 +529,6 @@ _sf_lgrm()
 	_sf_xrmdir "${_sf_basedir}/data/user/${l}"
 	_sf_xrm "${_sf_dbdir}/cg/${l}.txt"
 	_sf_xrmdir "${_sf_dbdir}/user/${l}"
-
 }
 
 lgrm()
@@ -537,6 +545,7 @@ lgban()
 	local ip
 	local msg
 	local lglid="${1}"
+	local err
 
 	_sf_init
 	shift 1
@@ -558,10 +567,11 @@ lgban()
 		echo "Banned: $ip"
 	}
 
-	lgstop "${lglid}" "$@"
+	lgstop "${lglid}" "$@" || err=255
 	#_sf_lgrm "${lglid}" # Dont lgrm here and give user chance to explain to re-instate his server.
 
 	_sf_deinit
+	return "${err:-0}"
 }
 # FIXME: check if net-a.b.c should be created instead to ban entire network.
 
@@ -584,15 +594,93 @@ lgstop()
 	docker stop "${1}"
 }
 
+_lgshot() {
+    local lg="${1:?}"
+    local pid
+	local geoip ip hn age_str t_created cip age_str_nc
+	local data d
+	local disp=()
 
+    pid="$(docker inspect -f '{{.State.Pid}}' "${lg}")" || return
+	{ [ -z "$TG_TOKEN" ] || [ -z "$TG_CHATID" ]; } && { echo >&2 "WARN: TG_TOKEN= and TG_CHATID= not set. Not sending screenshot"; return 0; }
+	
+	[ -e "${_sf_dbdir}/user/${lg}/token" ] && [ -z "$SF_FORCE" ] && {
+		echo -e >&2 "${CDR}ERROR:${CN} ${lg} has a TOKEN and is likely a valued user. Set ${CDC}SF_FORCE=1${CN} to force-send screenshot."
+		return
+	}
+	_sf_loaduserinfo "$lg"
+	command -v xwd >/dev/null || { echo -e >&2 "ERROR: xwd not found. Try ${CDC}apt-get install x11-apps${CN}"; return 255; }
+	command -v convert >/dev/null || { echo -e >&2 "ERROR: convert not found. Try ${CDC}apt-get install imagemagick${CN}"; return 255; }
+	[ -n "$DISPLAY" ] && disp=("$DISPLAY")
+	[ "${#disp[@]}" -eq 0 ] && disp=(":10" ":1" ":0")
+	for d in "${disp[@]}"; do
+		data="$(nsenter -n -t "${pid}" xwd -silent -root -display "${d:?}" 2>/dev/null | base64 -w0)"
+		[ -n "$data" ] && break
+	done
+	[ -z "$data" ] && {
+		echo -e >&2 "[$lg] No X11/VNC running. Not sending screenshot."
+		return 250
+	}
+
+	echo "$data" | base64 -d | convert xwd:- "png:-" | curl -s -F "chat_id=${TG_CHATID}" -F caption="${t_created:-????-??-??} ${age_str_nc}"$'\n'"${lg} ${hn}"$'\n'"${ip} ${geoip}" -F "photo=@-" "https://api.telegram.org/bot${TG_TOKEN}/sendPhoto" >/dev/null
+}
+
+lgshot() {
+	local ret
+	_sf_init
+	_lgshot "$@"
+	ret="$?"
+	_sf_deinit
+
+	return "$ret"
+}
+
+
+_lgvnc() {
+	local lg="${1:?}"
+	local pid
+	local disp=()
+	local opts=()
+
+	[ -e "${_sf_dbdir}/user/${lg}/token" ] && [ -z "$SF_FORCE" ] && {
+		echo -e >&2 "${CDR}ERROR:${CN} ${lg} has a TOKEN and is likely a valued user. VNC is not permittted."
+		return
+	}
+	command -v socat >/dev/null || { echo -e >&2 "${CDR}ERROR:${CN} Need ${CDC}socat${CN}"; return; }
+	command -v x11vnc >/dev/null || { echo -e >&2 "${CDR}ERROR:${CN} Need ${CDC}x11vnc${CN}"; return; }
+    pid="$(docker inspect -f '{{.State.Pid}}' "${lg}")" || return
+
+	pidof socat-vnc >/dev/null || ( bash -c "exec -a socat-vnc socat TCP-LISTEN:5669,bind=127.0.0.1,reuseaddr,fork UNIX-CONNECT:'${_sf_shmdir}/run/.x11vnc'" &>/dev/null &)
+
+	[ -n "$DISPLAY" ] && disp=("$DISPLAY")
+	[ "${#disp[@]}" -eq 0 ] && disp=(:10 :20 :1 :0 :2 :3 :4 :5 :6 :7 :8 :9)
+	# Allow to manipulate VNC sessions if SF_FORCE is set. Otherwise it's View-Only
+	[ -z "$SF_FORCE" ] && { opts=("-viewonly"); echo -e "Use ${CDC}SF_FORCE=1${CN} to disable View-Only-Mode"; }
+	echo -e "Use ${CDC}-L5669:127.0.0.1:5669${CN} to vnc to ${lg}. Press Ctrl-C to stop..."
+	for d in "${disp[@]}"; do
+		echo "Attempting $d"
+		nsenter -n -i -t "${pid}" x11vnc -display "${d}" -shared -xkb -timeout 3600 -forever -norc -nopw "${opts[@]}" -unixsock "${_sf_shmdir}/run/.x11vnc" -noipv4 -nolookup -noipv6 -rfbport 0 -quiet 2>/dev/null && break
+	done
+	[ $? -ne 0 ] && echo -e >&2 "[${CDM}$lg${CN}] ${CDR}ERROR:${CN} No X11 running."
+}
+
+lgvnc() {
+	local ret
+	_sf_init
+	_lgvnc "$@"
+	ret="$?"
+	_sf_deinit
+
+	return "$ret"
+}
 
 lgls()
 {
-    local IFS
+    # local IFS
 	local arr
 
 	_sf_init
-    IFS=$'\n' arr=($(_sfcg_forall))
+    mapfile -t arr < <(_sfcg_forall)
 	for lglid in "${arr[@]}"; do
         _sfcfg_printlg "$lglid"
 	done
@@ -610,7 +698,6 @@ lgps()
 	local stoparr
 	local msg
 	local is_stop
-	local str
 	local IFS
 	match=$1
 	msg="$3"
@@ -619,15 +706,15 @@ lgps()
 
 	_sf_init
 	stoparr=()
-	IFS=$'\n' arr=($(_sfcg_forall))
+	mapfile -t arr < <(_sfcg_forall)
 	for lglid in "${arr[@]}"; do
-		IFS= str=$(_sfcg_psarr "$lglid" "$match") && continue
+		_sfcg_psarr "$lglid" "$match" && continue
 
 		_sfcfg_printlg "$lglid"
 		if [[ -z $match ]]; then
-			echo "$str"
+			echo "$SF_G_PS"
 		else
-			echo "$str" | grep -E "${match:?}"'|$'
+			echo "$SF_G_PS" | grep -E "${match:?}"'|$'
 		fi
 		[[ -n $msg ]] && lgwall "${lglid}" "$msg"
 		[[ -n $is_stop ]] && stoparr+=("${lglid}")
@@ -640,23 +727,37 @@ lgps()
 lgx()
 {
 	local lglid
-	local match
-	local skip_token
+	local match="$1"
+	local skip_token="$2"
     local IFS
-	match="$1"
-	skip_token="$2"
 
 	_sf_init
 	[[ -z $match ]] && return
 
-    IFS=$'\n' arr=($(_sfcg_forall "$skip_token"))
+    mapfile -t arr < <(_sfcg_forall "$skip_token")
 	for lglid in "${arr[@]}"; do
 		_sfcg_psarr "$lglid" "$match" >/dev/null && continue
 		echo "$lglid "
-        echo >&2 $(_sfcfg_printlg "$lglid")
+        _sfcfg_printlg "$lglid" >&2
 	done
 
 	_sf_deinit
+}
+
+lgxcall() {
+	local arr
+	local lglid
+	local match="$1"
+	local skip_token="$2"
+	local cb_func="$3"
+	shift 3
+
+	[ -z "$cb_func" ] && { echo >&2 "ERROR: No callback function given"; return 255; }
+    mapfile -t arr < <(_sfcg_forall "$skip_token")
+	for lglid in "${arr[@]}"; do
+		_sfcg_psarr "$lglid" "$match" >/dev/null && continue
+		"${cb_func}" "$lglid" "$@"
+	done
 }
 
 lgiftop()
@@ -679,20 +780,20 @@ lg_cleaner()
 {
 	local is_stop
 	local max
-	local IFS
+	# local IFS
 	local -
 	max="$1"
 	is_stop="$2"
 	[[ -z $max ]] && max=3
 	set -o noglob
-	IFS=$'\n'
-	real=($(pgrep docker-exec-sig -a | awk '{print $5;}'))
-	all=($(docker ps -f name=^lg- --format "table {{.Names}}"))
+	# IFS=$'\n'
+	mapfile -t real < <(pgrep docker-exec-sig -a | awk '{print $5;}')
+	mapfile -t all < <(docker ps -f name=^lg- --format "table {{.Names}}")
 	for x in "${all[@]}"; do
 		[[ ! $x =~ ^lg- ]] && continue
 		[[ "${real[*]}" =~ $x ]] && continue
 		# check how many processes are running:
-		arr=($(docker top "${x}" -o pid ))
+		mapfile -t arr < <(docker top "${x}" -o pid)
 		n=${#arr[@]}
 		[[ ! $n -gt 1 ]] && n=1
 		((n--))
@@ -783,4 +884,6 @@ sftop()
 	docker run --rm -ti --name=ctop --volume /var/run/docker.sock:/var/run/docker.sock:ro   quay.io/vektorlab/ctop:latest
 }
 
-_sf_usage
+[ -z "$SF_NOINIT" ] && _sf_usage
+# Might be sourced. Make $? to 0
+:

@@ -1,10 +1,13 @@
-VER := 0.5.7rc1
+VER := 0.5.8rc2
 
 all:
+	make -C base
 	make -C router
 	make -C tools/cg
 	make -C tools/logpipe
 	make -C master
+	make -C dnscrypt
+	make -C wgvpn
 	make -C host
 	make -C tor
 	make -C encfsd
@@ -12,9 +15,9 @@ all:
 	make -C guest
 	docker pull redis
 	docker pull nginx
-	docker pull hackerschoice/cryptostorm
-	docker pull 4km3/dnsmasq:2.85-r2
-	docker pull crazymax/cloudflared
+
+FILES_BASE += "segfault-$(VER)/base/Dockerfile"
+FILES_BASE += "segfault-$(VER)/base/Makefile"
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/gitconfig-stub"
@@ -40,6 +43,8 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/proxychains.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/xdg/nvim/sysinit.vim"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/ssh/ssh_config.d/segfault.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/etc/redsocks-1040.conf"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/etc/tmux.conf"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/asnl"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-motd.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/funcs.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/funcs_extra.sh"
@@ -60,7 +65,6 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/d"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/str2mnemonic"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/xssh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/transfer"
-FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/asn"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sshj"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/shred"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/rshell"
@@ -72,10 +76,12 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/dns"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/rdns"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/ptr"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/resolv"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/supervise"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/find_subdomains"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/exfil"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/pkg-install.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/proxy"
+FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/iptables"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/rc.local-example"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/vim/vimrc.local"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/apt/apt.conf.d/01norecommend"
@@ -102,6 +108,8 @@ FILES_MASTER += "segfault-$(VER)/master/Makefile"
 FILES_MASTER += "segfault-$(VER)/master/init-master.sh"
 FILES_MASTER += "segfault-$(VER)/master/dict.txt"
 FILES_MASTER += "segfault-$(VER)/master/ready-lg.sh"
+FILES_MASTER += "segfault-$(VER)/master/teardown-lg.sh"
+FILES_MASTER += "segfault-$(VER)/master/finish-bootup.sh"
 FILES_MASTER += "segfault-$(VER)/master/cgi-bin/rpc"
 
 FILES_HOST += "segfault-$(VER)/host/Dockerfile"
@@ -123,6 +131,13 @@ FILES_HOST += "segfault-$(VER)/host/fs-root/etc/english.txt"
 FILES_TOR += "segfault-$(VER)/tor/Dockerfile"
 FILES_TOR += "segfault-$(VER)/tor/Makefile"
 FILES_TOR += "segfault-$(VER)/tor/fs-root/sf-tor.sh"
+
+FILES_WGVPN += "segfault-$(VER)/wgvpn/Dockerfile"
+FILES_WGVPN += "segfault-$(VER)/wgvpn/Makefile"
+FILES_WGVPN += "segfault-$(VER)/wgvpn/setup.sh"
+FILES_WGVPN += "segfault-$(VER)/wgvpn/run.sh"
+FILES_WGVPN += "segfault-$(VER)/wgvpn/fs-root/getkey.sh"
+FILES_WGVPN += "segfault-$(VER)/wgvpn/fs-root/check_vpn.sh"
 
 FILES_PROVISION += "segfault-$(VER)/provision/funcs_aws.sh"
 FILES_PROVISION += "segfault-$(VER)/provision/funcs_al2.sh"
@@ -147,11 +162,15 @@ FILES_ROUTER += "segfault-$(VER)/router/fix-network.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init-wg.sh"
 FILES_ROUTER += "segfault-$(VER)/router/init-novpn.sh"
-FILES_ROUTER += "segfault-$(VER)/router/user-limit.sh"
+FILES_ROUTER += "segfault-$(VER)/router/ready-lg-router.sh"
 
 FILES_GSNC += "segfault-$(VER)/gsnc/Makefile"
 FILES_GSNC += "segfault-$(VER)/gsnc/Dockerfile"
 FILES_GSNC += "segfault-$(VER)/gsnc/sf-gsnc.sh"
+
+FILES_DNSCRYPT += "segfault-$(VER)/dnscrypt/Makefile"
+FILES_DNSCRYPT += "segfault-$(VER)/dnscrypt/Dockerfile"
+FILES_DNSCRYPT += "segfault-$(VER)/dnscrypt/start.sh"
 
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx.conf"
 FILES_CONFIG += "segfault-$(VER)/config/etc/nginx/nginx-rpc.conf"
@@ -165,6 +184,8 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/loginmsg-all.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/logoutmsg-all.sh-example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/logpipe/config.yaml"
 FILES_CONFIG += "segfault-$(VER)/config/etc/ssh/banner_example"
+FILES_CONFIG += "segfault-$(VER)/config/etc/dnscrypt/dnscrypt-proxy.toml"
+FILES_CONFIG += "segfault-$(VER)/config/etc/dnscrypt/forwarding-rules.txt"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/ChangeLog"
@@ -197,9 +218,9 @@ FILES_CLEANER += "segfault-$(VER)/tools/logpipe/metrics.go"
 FILES_CONTRIB += "segfault-$(VER)/contrib/sfwg"
 FILES_CONTRIB += "segfault-$(VER)/contrib/cronjob"
 
-FILES += $(FILES_CLEANER) $(FILES_MASTER) $(FILES_ROOT) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION) $(FILES_CONTRIB)
+FILES += $(FILES_BASE) $(FILES_CLEANER) $(FILES_MASTER) $(FILES_DNSCRYPT) $(FILES_ROOT) $(FILES_WGVPN) $(FILES_GSNC) $(FILES_CONFIG) $(FILES_ROUTER) $(FILES_TOR) $(FILES_ENCFSD) $(FILES_GUEST) $(FILES_HOST) $(FILES_PROVISION) $(FILES_CONTRIB)
 TARX = $(shell command -v gtar 2>/dev/null)
-ifndef TARX
+ifeq ($(TARX),)
 	TARX := tar
 endif
 
@@ -207,7 +228,7 @@ install:
 	@ echo "Try provision/init-ubuntu.sh"
 
 dist:
-	rm -f segfault-$(VER) 2>/dev/null
+	rm -rf segfault-$(VER) 2>/dev/null
 	ln -sf . segfault-$(VER)
 	$(TARX) cfz segfault-$(VER).tar.gz --owner=0 --group=0  $(FILES)
 	rm -f segfault-$(VER)

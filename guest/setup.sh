@@ -141,6 +141,10 @@ command  -v a2enmod >/dev/null && a2enmod php8.2
 # 2024-08-02 bug when 'apt upgrade' starts 'telinit' and it consumes 100% cpu power FOREVER. 
 [[ -e /usr/sbin/telinit ]] && rm -f /usr/sbin/telinit
 
+# Made NodeJS crappy code us a better malloc allocation that releases
+# memory to the kernel more aggressively than glibc.
+[ -f /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 ] && [ -f /usr/bin/node ] && command -v patchelf && patchelf --add-needed /usr/lib/x86_64-linux-gnu/libjemalloc.so.2 /usr/bin/node
+
 # Output warnings and wait (if there are any)
 [[ ${#WARNS[@]} -gt 0 ]] && {
 	while [[ $i -lt ${#WARNS[@]} ]]; do
@@ -150,5 +154,9 @@ command  -v a2enmod >/dev/null && a2enmod php8.2
 	echo "Continuing in 5 seconds..."
 	sleep 5
 }
+
+# Fix curl-impersonate to use exec instead of forking and waiting...
+(cd /usr/bin
+[ -e curl_edge101 ] && for  x in curl_*; do sed -i -E 's|^"\$dir(.*)|exec "\$dir(\1)|g' "$x"; done)
 
 exit 0

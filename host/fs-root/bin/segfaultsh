@@ -35,21 +35,43 @@ CF="\e[2m"    # faint
 CUL="\e[4m"
 CRY="\e[0;33;41m"  # YELLOW on RED (warning)
 }
+XCY="\e[1;33m" # yellow
+XCDY="\e[0;33m" # yellow
+XCR="\e[1;31m" # red
+XCB="\e[1;34m" # blue
+XCC="\e[1;36m" # cyan
+XCG="\e[1;32m" # green
+XCDG="\e[0;32m" # green
+XCDC="\e[0;36m" # cyan
+XCDR="\e[0;31m" # red
+XCDB="\e[0;34m" # blue
+XCDM="\e[0;35m" # magenta
+XCN="\e[0m"    # none
+XCW="\e[1;37m" # white
+XCF="\e[2m"    # faint
+XCUL="\e[4m"
+XCRY="\e[0;33;41m"  # YELLOW on RED (warning)
+
 
 SSH_SF_DEBUG="${SF_DEBUG}" # Set by SSH client
 eval "$(cat /dev/shm/env.txt || echo false)" || exit
 [[ -z $SF_DEBUG ]] && SF_DEBUG="${SSH_SF_DEBUG}"
 unset SSH_SF_DEBUG
+# Needed when executing segfaultsh-debug (because PPID then no longer points to sshd)
+export SSHD_PID="${SSHD_PID:-$PPID}"
+# Start experimental segfaultsh for testing...
+[ -z "$SF_DEBUG_SH" ] && [ -n "$SF_DEBUG" ] && [ -f "/bin/segfaultsh-debug" ] && { SF_DEBUG_SH=1 bash -c 'exec /bin/segfaultsh-debug "$@"' -- "$@"; exit; }
 eval "$(cat /sf/bin/funcs_redis.sh || echo false)" || exit
 # Debug Trace. see sf_trace-DISABLED
 [[ -f /bin/sf_trace ]] && eval "$(</bin/sf_trace)"
+
 
 # [PREFIX] [MSG]
 _log()
 {
 	local str
 	local p
-	p=$1
+	p="$1"
 	shift 1
 
 	[[ -z $IS_LOGGING ]] && return
@@ -57,30 +79,36 @@ _log()
 	# Replace ' with '"'"'
 	str="${*//\'/\'\"\'\"\'}"
 	# NOTE: segfault.log must be owned 1000:1000
-	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }'; echo -e '[${CDM}${LID}${CN}] $str';} 2>/dev/null >>'${SF_RUN_DIR}/logs/segfault.log'"
+	bash -c "{ echo -en '[$(date '+%F %T' -u)]${p:- }[${XCDM}${LID}${XCN}] '; echo -e '$str';} 2>/dev/null >>'${SF_RUN_DIR}/logs/segfault.log'"
 }
 
 LOG(){ _log "" "$@"; }
-LOG_E() { _log " ${CR}ERROR${CN} " "$@";}
-LOG_W() { _log " ${CDY}WARN${CN} " "$@";}
+LOG_E() { _log " ${XCR}ERROR${XCN} " "$@";}
+LOG_W() { _log " ${XCDY}WARN${XCN} " "$@";}
 
-ERREXIT()
-{
-	local code
-	code="$1"
-	[[ -z $code ]] && code=99
+do_exit() {
+	sem_release
+	logout
+	exit "${1:-0}"
+}
+
+ERREXIT() {
+	local code="$1"
 
 	LOG_E "$@"
 	shift 1
-	[[ -n $1 ]] && echo -e >&2 "💥 ${CR}ERROR:${CN} $*"
+	[[ -n $1 ]] && echo -e >&2 "💥 ${CR}ERROR:${CN} $*${CN}"
 
-	sem_release
-	logout
-	exit "$code"
+	# Clean up if server was just created.
+	# Note: This function might be called before SF_USER_DB_DIR is set.
+	[ -n "$SF_USER_DB_DIR" ] && [ -n "$SF_IS_NEW_SERVER" ] && {
+		[ -d "${SF_USER_DB_DIR:?}" ] && rm -rf "${SF_USER_DB_DIR}"
+	}
+
+	do_exit "${code:-99}"
 }
 
-STOPEXIT()
-{
+STOPEXIT() {
 	local l
 	l="$1"
 
@@ -88,7 +116,6 @@ STOPEXIT()
 	exec_devnull docker stop "lg-${l}"
 	ERREXIT "$@"
 }
-
 
 # NOTE: This function might get called from ERREXIT and before all variables are set.
 logout()
@@ -136,9 +163,10 @@ sem_wait()
 sem_release()
 {
 	[[ -z $IS_SEM_WAIT ]] && return
-	echo -e "DEL '${LG_SEM}'\nRPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
-	echo -e "DEL 'sema:destructor'\nRPUSH 'sema:destructor' 1" | red1 || LOG_E "Could not release lock: sema:destructor"
+	# unset _before_ potential call to ERREXIT().
 	unset IS_SEM_WAIT
+	echo "DEL '${LG_SEM}'"$'\n'"RPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
+	echo "DEL 'sema:destructor'"$'\n'"RPUSH 'sema:destructor' 1" | red1 || LOG_E "Could not release lock: sema:destructor"
 }
 
 if [[ -z $SF_DEBUG ]]; then
@@ -258,8 +286,6 @@ init_emu()
 	SF_CONFIG_DIR="${SF_BASEDIR}/emu/config"
 	SF_ETCSF_DIR="${SF_BASEDIR}/config/etc/sf"
 	SF_HOST_FS_ROOT="${SF_BASEDIR}/host/fs-root"
-	# SF_WWW_ROOT_DIR="${SF_EMU_DIR}/encfs-sec/www-root"
-
 
 	[[ ! -d $SF_EMU_DIR ]] && mkdir "${SF_EMU_DIR}"
 
@@ -298,7 +324,6 @@ init_defaults()
 {
 	[[ -z $SF_BASEDIR ]] && ERREXIT 1 "SF_BASEDIR= not set"
 	SF_SEC_DIR="/sec/www-root"
-	# SF_WWW_ROOT_DIR="/sec/www-root"
 	SF_CONFIG_DIR="/config/host"
 	SF_ETCSF_DIR="/config/host/etc/sf"
 	SF_ETCMSG_DIR="/config/host/etc/msg"
@@ -306,7 +331,6 @@ init_defaults()
 	SF_GUEST_SELFDIR="${SF_SHMDIR}/self-for-guest"    # Mounted to /config/self
 	SF_ENCFS_SEC_DIR="${SF_SHMDIR}/encfs-sec"
 }
-
 
 # shellcheck disable=SC2317 # Not reachable
 cb_sighup()
@@ -330,22 +354,6 @@ init_vars()
 	init_defaults
 	init_emu
 
-
-	NOW="$(date +%s)"
-	[[ -z $YOUR_IP ]] && {
-		YOUR_IP="${SSH_CONNECTION%%[[:space:]]*}"
-		YOUR_IP="${YOUR_IP//[^0-9.:]/}"
-		[[ -z $YOUR_IP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
-	}
-	YOUR_IP_DISPLAY="$YOUR_IP"
-	[[ -n $SF_HIDEIP ]] && YOUR_IP_DISPLAY="${YOUR_IP%%.*}.0.0.333"
-
-	# Do not store IP addresses. Hash it with a secret (SEED) instead.
-	local str
-	str="$(echo -n "IP-${YOUR_IP}-${SF_SEED}" | sha512sum)"
-	YOUR_IP_HASH="${str:0:16}"
-	[[ -z $YOUR_IP_HASH ]] && ERREXIT 2 "YOUR_IP_HASH= not set"
-
 	[[ -z $SF_FQDN ]] && SF_FQDN="this"
 	db_dir="${SF_CONFIG_DIR}/db"
 	SF_USER_DB_DIR="${db_dir}/user/lg-${LID}"
@@ -362,6 +370,30 @@ init_vars()
 	TS_LOGIN_FILE="${SF_USER_DB_DIR}/ts_login"
 	TS_RUN_FILE="${SF_USER_DB_DIR}/ts_run"
 	IS_LOGGED_IN_FILE="${SF_USER_DB_DIR}/is_logged_in"
+
+	NOW="$(date +%s)"
+	[[ -z $YOUR_IP ]] && {
+		YOUR_IP="${SSH_CONNECTION%%[[:space:]]*}"
+		YOUR_IP="${YOUR_IP//[^0-9.:]/}"
+		[[ -z $YOUR_IP ]] && ERREXIT 255 "SSH_CONNECTION= is is not set. segfaultsh not started via sshd?"
+		# Check if connecting FROM LG: STOP HERE: How can i translate internal IP to lg to then get the international IP?
+		[ "${YOUR_IP:0:6}" = "${SF_NET_LG_ROUTER_IP:0:6}" ] && {
+			# Your-IP looks very similar to SF_NET_LG. let's confirm with a redis request:
+			local arr
+			IFS=" " read -r -a arr < <(redr GET "ip:${YOUR_IP}")
+			local fn="${SF_RUN_DIR}/ips/lg-${arr[0]}.ip"
+			[ -s "${fn}" ] && str="$(<"${fn}")"
+			[ -n "$str" ] && YOUR_IP="${str}"
+		}
+	}
+	YOUR_IP_DISPLAY="$YOUR_IP"
+	[ -n "$SF_HIDEIP" ] && YOUR_IP_DISPLAY="${YOUR_IP%%.*}.0.0.333"
+
+	# Do not store IP addresses. Hash it with a secret (SEED) instead.
+	local str
+	str="$(echo -n "IP-${YOUR_IP}-${SF_SEED}" | sha512sum)"
+	YOUR_IP_HASH="${str:0:16}"
+	[[ -z $YOUR_IP_HASH ]] && ERREXIT 2 "YOUR_IP_HASH= not set"
 
 	# Set the number of CPU's a guest can use up to a max of 4.
 	# Min is 1 or NPROC / 4 to a max of 4.
@@ -444,9 +476,9 @@ print_goodbye()
 -------> The encrypted filesystem in /sec will remain accessible until
 -------> the last shell exits or all background processes terminate.
 -------> Log back in and type ${CC}halt${CN} instead to stop this server.
--------> This will also make /sec unavailabe until your next log in."
+-------> This will also make /sec unavailable until your next log in."
 	fi
-	echo -en "\r"
+	echo -n $'\r'
 	sysmsg "/config/host/etc/logoutmsg-all.sh"
 
 	echo -e "\
@@ -497,19 +529,19 @@ echo_pty() { :;}
 
 sshd_to_ns()
 {
-	# local upid
 	local str
 
 	[[ -z $IS_SSHD_NS_NET ]] && return  # Already in LG's network namespace?
 
 	# Load PID of container's init process (uid=1000)
 	[[ -z $LG_PID ]] && {
-		LG_PID=$(<"${LG_PID_DIR}/lg-${LID}.pid")
+		# Source:
+		eval "$(<"${LG_RUN_DIR}/config.txt")"
 		[[ -z $LG_PID ]] && ERREXIT 222 "Init PID not found."
 	}
-	ln -sf "/proc/${LG_PID}/ns/net" "/dev/shm/ns-net-${PPID}"
-	DEBUGF "Moving SSHD(=$PPID) to net-NS(=$LG_PID)"
-	kill -USR1 "$PPID" || ERREXIT 221 "Oops. Could not signal SSHD ($PPID)."
+	ln -sf "/proc/${LG_PID}/ns/net" "/dev/shm/ns-net-${SSHD_PID}"
+	DEBUGF "Moving SSHD(=$SSHD_PID) to net-NS(=$LG_PID)"
+	kill -USR1 "${SSHD_PID:?}" || ERREXIT 221 "Oops. Could not signal SSHD ($SSHD_PID)."
 }
 
 spawn_shell_exit()
@@ -563,6 +595,7 @@ mk_hostname()
 
 	SF_HOSTNAME="${english[$m]}"
 	SF_HOSTNAME+="${english[$n]}"
+	SF_FQ_HOSTNAME="${SF_FQDN%%\.*}-${SF_HOSTNAME}"
 	unset NUM
 	unset english
 }
@@ -602,7 +635,7 @@ load_limits()
 	local str
 	local name
 	local dst
-	local arr
+	local ar arr
 	local IFS
 	# Set the default values.
 	# No default for ROOT_FS limit. Should be set in sf.conf or if not set
@@ -680,8 +713,9 @@ load_limits()
 	[[ -n $SF_NEED_TOKEN ]] && {
 		fn="${SF_ETCMSG_DIR}/token-needed-${SF_NEED_TOKEN//[^a-z._]}"
 		# Display a message if TOKEN is needed
-		echo -e "💥 ${$CR}ERROR${CN}: A TOKEN is needed to use the system. Please contact a SysCop to get one."
-		[[ -e "${fn} " ]] && source "${fn}"
+		echo -e "💥 ${CR}ERROR${CN}: A TOKEN is needed to use the system. Please contact a SysCop to get one."
+		[[ -e "${fn} " ]] && eval "$(<"$fn")"
+
 		exit 255
 	}
 
@@ -715,15 +749,14 @@ load_limits()
 	[[ -n $SF_USER_DEV_KVM ]] && [[ -n $SF_HAS_DEV_KVM ]] && DOCKER_ARGS+=("--device=/dev/kvm")
 
 	# Mount external filesystem into LG (for android builders who dont need encryption but high IO)
-	[[ -n $SF_USER_FS_EXT ]] && {
-		IFS=: read -ra arr <<<"$SF_USER_FS_EXT"
-
-		name=${arr[0]//[^a-z0-9A-Z]}
+	IFS=' ' read -ra ar <<<"$SF_USER_FS_EXT"
+	for str in "${ar[@]}"; do
+		IFS=: read -ra arr <<<"$str"
+		name=${arr[0]//[^a-z0-9A-Z\/]}
 		dst=${arr[1]//[^a-z0-9A-Z\/]}
 		str=${arr[2]//[^a-z,]}
-		[[ -n $str ]] && str=":${str}"
-		[[ -n $name ]] && [[ -n $dst ]] && [[ -e "/sf/ext/${name}" ]] && DOCKER_ARGS+=("-v${SF_BASEDIR}/data/ext/${name}:${dst}${str}")
-	}
+		[[ -n $name ]] && [[ -n $dst ]] && [[ -e "/sf/ext/${name}" ]] && DOCKER_ARGS+=("-v${SF_BASEDIR}/data/ext/${name}:${dst}${str:+:$str}")
+	done
 
 	if [[ -z $SF_USER_ROOT_FS_SIZE ]]; then
 		DOCKER_ARGS+=("--read-only")
@@ -810,11 +843,11 @@ check_banned()
 	[[ -z $blfn ]] && [[ -e "${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}" ]] && blfn="${SF_BLACKLIST_DIR}/net-${YOUR_IP%\.*}"
 	[[ -z $blfn ]] && return
 
-	LOG_W "BANNED (${YOUR_IP}) (${CDY}$(<"$blfn")${CN})"
+	LOG_W "[${GEOSTR}] ${XCDR}BANNED${XCN} (${YOUR_IP}) [$(echo "${*//\\/\\\\}")]\n${CDY}$(<"$blfn")${CN}"
 	sleep 10
-	echo -e "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
+	echo -e >&2 "${CR}@@@@@ YOUR IP (${YOUR_IP}) HAS BEEN BANNED. Contact us if you feel that this is wrong. @@@@@${CN}"
 	if [[ -s "$blfn" ]]; then
-		cat "$blfn"
+		cat "$blfn" >&2
 	fi
 	sleep 120
 	exit 255
@@ -871,7 +904,7 @@ wait_for_load()
 		echo -e >&2 "[${CY}SF${CN}] Waiting for load to go down..."
 		sleep 5
 		((n++))
-		[[ $n -ge 20 ]] && ERREXIT 255 "giving up."
+		[[ $n -ge 20 ]] && ERREXIT 255 "giving up (load to high)."
 	done
 }
 
@@ -983,7 +1016,8 @@ if we got this wrong or try one of the following:
 }
 
 # Server does not exist _AND_ not an interactive shell.
-ERR_NOTEXIT() {
+ERR_NOTEXIST() {
+	LOG_W "${XCDG}${SF_HOSTNAME}${XCN} [${GEOSTR}] No such server [${XCDC}${XCF}$(echo "${*//\\/\\\\}")${XCN}]"
 	sleep 5
 	echo -e >&2 "\
 💥 The server ${CDM}${SF_FQDN%%\.*}-${SF_HOSTNAME}${CN} does not exist
@@ -996,8 +1030,8 @@ Please supply the correct ${CDY}SECRET${CN}:
 
    ${CDY}ssh -o SetEnv SECRET=ChangeMeSecretHere root@${SF_FQDN}${CN}"
 
-	sleep 5
-	ERREXIT 203
+	sleep 55
+	do_exit 203
 }
 
 do_new_server_human() {
@@ -1032,7 +1066,7 @@ do_new_server_delay() {
 
     echo -en "\
 ${CDB}----------------------------------------------------------------------${CN}
-You are using the ${CDY}FREE TIER${CN} without ${CDY}TOKEN${CN}. Various ${CR}restrictions${CN}
+You are using the ${CDY}FREE TIER${CN} without a ${CDY}TOKEN${CN}. Various ${CR}restrictions${CN}
 apply:
 
 - You have to wait ${CDG}${SF_NEW_SERVER_DELAY}${CN} seconds ❤️
@@ -1058,7 +1092,7 @@ ${CDB}----------------------------------------------------------------------${CN
 ...or GET A TOKEN: ${CB}${CUL}https://thc.org/sf/token${CN}
 "
         sleep 15
-        ERREXIT 205
+        ERREXIT 205 "[${GEOSTR}] ETIME: User did not press key within 10 seconds"
     }
 	echo ""
 }
@@ -1116,8 +1150,8 @@ check_limit_server_by_ip()
 	## Eyy, good idea to check if they are idle?
 	[[ "$n" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && {
 		print_to_many_servers
-		LOG_W "TO MANY SERVERS FOR ${YOUR_IP}"
-		ERREXIT 254
+		LOG_W "[${GEOSTR}] TO MANY SERVERS FOR ${YOUR_IP}"
+		do_exit 254
 	}
 
 	[[ "$((n+1))" -ge "${SF_LIMIT_SERVER_BY_IP}" ]] && [[ -z $HUSHLOGIN ]] && [[ -n $IS_LOGIN ]] && IS_SHOW_LAST_SERVER="$((n+1))"
@@ -1168,6 +1202,7 @@ mk_geoip()
 	elif [[ -n $city ]] || [[ -n $country ]]; then
 		YOUR_GEOIP="${city}${country}" # Either one but not both
 	fi
+	GEOSTR="${XCF}${YOUR_IP_HASH}${XCN}/${XCDY}${YOUR_COUNTRY_ISO}${XCN}/${XCDM}${YOUR_CONTINENT_CODE}${XCN}"
 }
 
 sysmsg()
@@ -1285,7 +1320,7 @@ mk_geoip "${YOUR_IP}"
 # Load CPU/PID/OOM limits (systemwide or user specific)
 load_limits
 # Check if IP is banned
-check_banned
+check_banned "$@"
 
 mk_hostname
 
@@ -1322,7 +1357,7 @@ if [[ -d "${SF_USER_DB_DIR}" ]]; then
 	echo_pty -en "${S:0:65}"
 	touch "${HNLID_FILE}"
 else
-	[[ -z "$IS_LOGIN" ]] && ERR_NOTEXIT
+	[[ -z "$IS_LOGIN" ]] && ERR_NOTEXIST "$@"
 	print_disclaimer
 	sysmsg "/config/host/etc/loginmsg-new.sh"
 	do_new_server_limit
@@ -1353,13 +1388,14 @@ fi
 
 DEBUGF "LID=${LID} SF_HOSTNAME=${SF_HOSTNAME}"
 unset str
-[[ -n $SF_LOG_IP ]] && str="[${CDY}${YOUR_IP}${CN}] "
-str+="${CDG}${SF_HOSTNAME}"
-[[ -n $SF_PRJ ]] && str+="/${CW}${SF_PRJ}"
-LOG "${str}${CN} [${CF}${YOUR_IP_HASH}${CN}/${CDY}${YOUR_COUNTRY_ISO}${CN}/${CDM}${YOUR_CONTINENT_CODE}${CN}] ${CDC}$*${CN}"
+[[ -n $SF_LOG_IP ]] && str="[${XCDY}${YOUR_IP}${XCN}] "
+str+="${XCDG}${SF_HOSTNAME}"
+[[ -n $SF_PRJ ]] && str+="/${XCW}${SF_PRJ}"
+LOG "${str}${XCN} [${GEOSTR}] ${XCDC}$(echo "${*//\\/\\\\}")${XCN}"
+unset str
 
 # Record which SSHD process is connect to guest LG.
-tofile "SSHD_PID=$PPID
+tofile "SSHD_PID=${SSHD_PID}
 LID=$LID" "${LG_PID_FILE}"
 touch "${TS_LOGIN_FILE}"
 touch "${IS_LOGGED_IN_FILE}"
@@ -1423,7 +1459,7 @@ write_guest_limits
 # exec_devnull docker run --runtime=sysbox-runc \
 exec_devnull docker run \
 	"${SYSBOX_ARGS[@]}" \
-	--hostname "${SF_FQDN%%\.*}-${SF_HOSTNAME}" \
+	--hostname "${SF_FQDN%%.*}-${SF_HOSTNAME}" \
 	"${DOCKER_ARGS[@]}" \
 	--rm \
 	--init \
@@ -1439,9 +1475,14 @@ exec_devnull docker run \
 	--add-host dns:"${SF_DNS}"                              `# No effect when /etc/hosts is mounted read-only` \
 	--add-host rpc:"${SF_RPC_IP}"                           `# No effect when /etc/hosts is mounted read-only` \
 	--add-host sf:"${SF_RPC_IP}"                            `# No effect when /etc/hosts is mounted read-only` \
+	--add-host segfault:"${SF_SSHD_IP:?}"                   `# No effect when /etc/hosts is mounted read-only` \
+	--add-host segfault.net:"${SF_SSHD_IP}"                 `# No effect when /etc/hosts is mounted read-only` \
+	--add-host "${SF_FQDN}:${SF_SSHD_IP}"                   `# No effect when /etc/hosts is mounted read-only` \
+	--add-host "${SF_FQDN%%.*}:${SF_SSHD_IP}"               `# No effect when /etc/hosts is mounted read-only` \
 	--dns "${SF_USER_DNS:-BAD}" \
 	--env SF_SEC="${SF_SEC}" \
 	--env SF_TOR_IP="${SF_TOR_IP}" \
+	--env TOR="${SF_TOR_IP}:9050" \
 	--env SF_USER="${SF_USER}" \
 	--env SF_FQDN="${SF_FQDN}" \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
@@ -1487,30 +1528,41 @@ done
 echo_pty -n ".."
 # LOG "Container started & RUNNING..."
 
-arr=($(docker inspect -f '{{.Id}} {{.State.Pid}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "lg-${LID}"))
+arr=($(docker inspect -f '{{.Id}} {{.State.Pid}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}} {{ (index .NetworkSettings.Networks "sf-guest").MacAddress }}' "lg-${LID}"))
 CID=${arr[0]}
 LG_PID=${arr[1]}
 C_IP=${arr[2]}
-[[ -z $C_IP ]] && ERREXIT 249 "Could not get container's IP address."
-tofile "${LG_PID:?}" "${LG_PID_DIR}/lg-${LID}.pid"
+LG_MAC=${arr[3]}
+[[ -z $C_IP ]] && ERREXIT 249 "[${LID}] ${SF_FQ_HOSTNAME} Could not get container's IP address."
+
+IDX=$((0x${YOUR_IP_HASH} % 1024))
+[[ $IDX -lt 0 ]] && IDX=$((IDX * -1))
+tofile "\
+SYN_LIMIT='${SF_USER_SYN_LIMIT}'
+SYN_BURST='${SF_USER_SYN_BURST}'
+LG_IP_HASH='${YOUR_IP_HASH}'
+IDX='${IDX}'
+USER_DL_RATE='${SF_USER_DL_RATE}'
+USER_UL_RATE='${SF_USER_UL_RATE}'
+CID='${CID}'
+LG_PID='${LG_PID:?}'
+LG_MAC='${LG_MAC:?}'
+C_IP='$C_IP'" "${LG_RUN_DIR:?}/config.txt"
 
 # Set up Root FS / inode limits and move encfsd to lg's cgroup
-setup_encfsd || STOPEXIT "${LID}" 244 "Could not set FS quota."
+setup_encfsd || STOPEXIT "${LID}" 244 "[${LID}] ${SF_FQ_HOSTNAME} Could not set FS quota."
 echo_pty -n ".."
 
 # Store LG information in Redis
-res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || STOPEXIT "$LID" 252 "Failed to set LID in Redis"
-
-# Set FW rules for this container
-exec_devnull docker exec sf-router /user-limit.sh "${LID}" "${YOUR_IP_HASH}" "${YOUR_IP}" "${C_IP}" "$SF_USER_SYN_LIMIT" "$SF_USER_SYN_BURST" || STOPEXIT "${LID}" 251 "Failed to set syn-limit...";
+res=$(red SET "ip:${C_IP}" "${LID} ${CID} ${LG_PID}") || STOPEXIT "$LID" 252 "[${LID}] ${SF_FQ_HOSTNAME} Failed to set LID in Redis"
 
 # Ready container
-exec_devnull docker exec sf-master /ready-lg.sh "${LID}" "${C_IP}" "${LG_PID}" "${SF_USER_DL_RATE}" "${SF_USER_UL_RATE}" "${CID}" || STOPEXIT "${LID}" 246 "Failed-#3 to ready guest container..."
+exec_devnull docker exec sf-master /ready-lg.sh "${LID}" || STOPEXIT "${LID}" 246 "[${LID}] ${SF_FQ_HOSTNAME} Failed-#3 to ready guest container..."
 
 # Setup container (within container's namespace)
 unset WGNAME_UP
 [[ -s "${SF_USER_DB_DIR}/wg/name_up" ]] && WGNAME_UP="$(<"${SF_USER_DB_DIR}/wg/name_up")"
-exec_devnull timeout 5 docker exec --user 0:0 --env SF_IS_NEW_SERVER="${SF_IS_NEW_SERVER}" --env WGNAME_UP="${WGNAME_UP}" "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "Failed-#2 to set up guest container..."
+exec_devnull timeout 5 docker exec --user 0:0 --env SF_IS_NEW_SERVER="${SF_IS_NEW_SERVER}" --env WGNAME_UP="${WGNAME_UP}" "lg-${LID}" /sf/bin/sf-setup.sh || STOPEXIT "${LID}" 247 "[${LID}] ${SF_FQ_HOSTNAME} Failed-#2 to set up guest container..."
 touch "/config/self-for-guest/lg-${LID}/THIS-DIRECTORY-IS-IN-MEMORY-ONLY"
 tofile "${C_IP:?}" "/config/self-for-guest/lg-${LID}/c_ip"
 

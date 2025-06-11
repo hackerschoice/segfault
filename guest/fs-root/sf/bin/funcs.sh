@@ -23,10 +23,11 @@ CDM="\e[0;35m" # magenta
 CUL="\e[4m"
 
 CRY="\e[0;33;41m"  # YELLOW on RED (warning)
+CERR="💥 \e[0;31mERROR"
 }
 
 ERREXIT() {
-	[[ -n $1 ]] && echo -e >&2 "${CR}ERROR:${CN} $*"
+	[[ -n $1 ]] && echo -e >&2 "${CERR}${CN}: $*"
 	exit 255
 }
 

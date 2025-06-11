@@ -127,7 +127,7 @@ cmd_fwport()
 	done
 	[[ $? -ne 0 ]] && { echo "iptables failed with $?."; return 255; }
 
-	LOG "${lid}" "Forwarding ${r_ip}:${port} -> ${c_ip}:${port}"
+	LOG "${lid}" "${CW}Forwarding${CN} ${r_ip}:${port} -> ${c_ip}:${CDY}${port}${CN}"
 	return 0
 }
 

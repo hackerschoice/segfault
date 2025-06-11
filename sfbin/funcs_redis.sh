@@ -16,7 +16,7 @@ redr()
 	return 0
 }
 
-# Quiete retrieve
+# Quiet retrieve
 redq()
 {
 	local res

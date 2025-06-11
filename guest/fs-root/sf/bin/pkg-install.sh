@@ -3,6 +3,7 @@
 export DEBIAN_FRONTEND=noninteractive
 export PIPX_HOME=/usr
 export PIPX_BIN_DIR=/usr/bin
+export GNUPGHOME=/tmp
 COPTS=("-SsfL" "--connect-timeout" "7" "-m900" "--retry" "3")
 
 [[ -n $BESTEFFORT ]] && force_exit_code=0
@@ -59,7 +60,7 @@ xmv() {
 
 # Download & Extract
 # [URL] [asset] <dstdir> <destination asset>
-dlx()
+_dlx()
 {
 	local url
 	local asset
@@ -135,6 +136,10 @@ dlx()
 	esac
 }
 
+dlx() {
+	_dlx "$@" || { echo >&2 "ERROR $*"; return 255; }
+}
+
 ghlatest()
 {
 	local loc
@@ -171,13 +176,11 @@ ghbin()
 {
 	local url
 	local asset
-	local dstdir
-	local dass
+	local dstdir="$4"
+	local dass="$5"
     local src
     src=$(dearch "$2") || exit 0
 	asset=$(dearch "$3") || exit 0
-	dstdir="$4"
-	dass="$5"
 
 	url=$(ghlatest "$1" "$src")
 
@@ -192,9 +195,9 @@ ghbin()
 ghdir()
 {
 	local url
-    local src
+	local src
 	local dst="$3"
-    src=$(dearch "$2") || exit 0
+	src=$(dearch "$2") || exit 0
 
 	url=$(ghlatest "$1" "$src")
 
@@ -208,12 +211,16 @@ bin()
 {
 	local url
 	local asset="$2"
+	local dstdir="$3"
+	local dass="$4"
 
-    url=$(dearch "$1") || exit 0
+	url=$(dearch "$1") || exit 0
 
 	shift 1
 	shift 1
-	dlx "$url" "$asset" '' '' "$@"
+	shift 1
+	shift 1
+	dlx "$url" "$asset" "$dstdir" "$dass" "$@"
 }
 
 TAG="${1^^}"
@@ -222,9 +229,13 @@ shift 1
 # Can not use Dockerfile 'ARG SF_PACKAGES=${SF_PACKAGES:-"MINI BASE NET"}'
 # because 'make' sets SF_PACKAGES to an _empty_ string and docker thinks
 # an empty string does not warrant ':-"MINI BASE NET"' substititon.
-[[ -z $SF_PACKAGES ]] && SF_PACKAGES="MINI BASE NET"
+[ -z "$SF_PACKAGES" ] && {
+	SF_PACKAGES="MINI BASE NET"
+	# if executed on segfault shell then assume ALL packages.
+	[ -n "$SF_LID" ] && SF_PACKAGES="ALLALL"
+}
 
-[[ -n $SF_PACKAGES ]] && {
+[ -n "$SF_PACKAGES" ] && {
 	SF_PACKAGES="${SF_PACKAGES^^}" # Convert to upper case
 	[[ "$TAG" == *DISABLED* ]] && { echo "Skipping Packages: $TAG [DISABLED]"; exit; }
 	[[ "$TAG" == ALLALL ]] && {

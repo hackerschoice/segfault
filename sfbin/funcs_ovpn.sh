@@ -121,6 +121,7 @@ vpn_read_config() {
         [[ ${key} == proto ]] && {
             str="${l##* }"
             [[ ${str,,} == "tcp"* ]] && VPN_CFG_PROTO="tcp"
+            [[ ${str,,} == "udp"* ]] && VPN_CFG_PROTO="udp"
             continue
         }
 
@@ -164,13 +165,14 @@ vpn_read_config() {
             str="${str//[^0-9]}"
             [[ -n "$str" ]] && VPN_CFG_REMOTE_PORT="$str"
             [[ ${arr[3]} == "tcp"* ]] && VPN_CFG_PROTO="tcp"
+            [[ ${arr[3]} == "udp"* ]] && VPN_CFG_PROTO="udp"
             unset arr
             continue
         }
 
-        [[ "${key}" == "route" ]] && [[ ${#R_ROUTE_ARR[@]} -le 0 ]] && {
+        [[ "${key}" == "route" ]] && [[ ${#R_ROUTE_ARR[@]} -eq 0 ]] && {
             #FIXME: Auto-convert route from netmask to cidr and add to R_ROUTE_ARR+=(...)
-            echo -e "${ICON_WARN}${R}WARN:${N} Ignoring ${Y}${l}${N}. Used ${C}-d network/cidr${N} instead."
+            echo -e "${ICON_WARN}${R}WARN:${N} Ignoring ${Y}${l}${N}. Used ${C}-droute=network/cidr${N} instead."
             continue
         }
 
@@ -241,9 +243,10 @@ vpn_read_config() {
     [[ -z "$VPN_CFG_DATA_CIPHERS" ]] && VPN_CFG_DATA_CIPHERS="$VPN_CFG_CIPHER"
     [[ -n "$VPN_CFG_DATA_CIPHERS" ]] && VPN_CFG+="data-ciphers ${VPN_CFG_DATA_CIPHERS}"$'\n'
     [[ -n "$VPN_CFG_CIPHER" ]] && VPN_CFG+="data-ciphers-fallback $VPN_CFG_CIPHER"$'\n'
-    [[ -z $VPN_CFG_CIPHER ]] && [[ -z $VPN_CFG_DATA_CIPERS ]] && echo -e "${ICON_WARN}${R}WARN:${N} No ${Y}cipher${N} or ${Y}data-ciphers${N}. Try ${Y}cipher AES-256-CBC${N}."
-    [[ -z $is_remote_cert_tls ]] && echo -e "${ICON_WARN}${R}WARN:${N} Adding ${Y}remote-cert-tls server${N}."
-    VPN_CFG+="remote-cert-tls server"$'\n'
+    [[ -z $VPN_CFG_CIPHER ]] && [[ -z $VPN_CFG_DATA_CIPHERS ]] && echo -e "${ICON_WARN}${R}WARN:${N} No ${Y}cipher${N} or ${Y}data-ciphers${N}. Try ${Y}cipher AES-256-CBC${N}."
+    [[ -z $is_remote_cert_tls ]] && echo -e "${ICON_WARN}${R}WARN:${N} Consider adding ${Y}remote-cert-tls server${N}"
+    # VPN_CFG+="remote-cert-tls server"$'\n'
+    [[ "$VPN_CFG" != *"@SECLEVEL=0"* ]] && echo -e "${ICON_WARN}${R}WARN:${N} Consider adding ${Y}tls-cipher \"TLS-DHE-RSA-WITH-AES-128-CBC-SHA:DEFAULT:@SECLEVEL=0\""
 
     echo -e "Remote  : ${B}${VPN_CFG_REMOTE} ${F}${VPN_CFG_REMOTE_PORT}/${VPN_CFG_PROTO}${N}"
 
@@ -253,9 +256,9 @@ vpn_read_config() {
 vpn_stop() {
     killall "openvpn-${LID:?}" 2>/dev/null
     rm -rf "/tmp/lg-$LID" 2>/dev/null 
-    nsenter.u1000 --setuid 0 --setgid 0 -t "${PID:?}" -n ip link delete dev "vpnEXIT" 2>/dev/null
-    nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables -F OUTPUT 2>/dev/null
-    nsenter.u1000 --setuid 0 --setgid 0 -t "${PID}" -n iptables -F FORWARD 2>/dev/null
+    nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID:?}" -n ip link delete dev "vpnEXIT" 2>/dev/null
+    nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n iptables -F OUTPUT 2>/dev/null
+    nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n iptables -F FORWARD 2>/dev/null
 }
 
 cmd_ovpn_show() {
@@ -276,7 +279,6 @@ cmd_ovpn_up() {
 
     [[ -z "$R_CONFIG" ]] && cmd_ovpn_help
     WG_DEV="vpnEXIT"
-    # echo "PID=$PID"
 
     # Stop if it is already running
     vpn_stop
@@ -341,12 +343,12 @@ cmd_ovpn_up() {
     # we use the --up script to set the static/32 route to the remote VPN PEER:
     unset OPTS
     OPTS+=(--config conn.ovpn)
-    OPTS+=(--script-security 2 --up "/sf/bin/ovpn_up.sh" --setenv PID "$PID" --setenv LID "$LID" --setenv SF_NET_LG_ROUTER_IP "$SF_NET_LG_ROUTER_IP")
+    OPTS+=(--script-security 2 --up "/sf/bin/ovpn_up.sh" --setenv LG_PID "$LG_PID" --setenv LID "$LID" --setenv SF_NET_LG_ROUTER_IP "$SF_NET_LG_ROUTER_IP")
 
     # We could create the TUN beforehand but this is no longer needed:
-    # nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n ip tuntap add mode tun "${WG_DEV}"
+    # nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n ip tuntap add mode tun "${WG_DEV}"
     # the MTU size is overwritten by OpenVPN when it set's the device.
-    # nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n ip link set mtu 1233 up dev "${WG_DEV}"
+    # nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n ip link set mtu 1233 up dev "${WG_DEV}"
 
     umask 077
     mkdir -p "/tmp/lg-${LID}/conf"
@@ -379,14 +381,14 @@ cmd_ovpn_up() {
 
     ln -sf /usr/sbin/openvpn "/tmp/lg-${LID}/conf/openvpn-${LID}"
 
-    (nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n -C "./openvpn-${LID}" "${OPTS[@]}" 2>&1 | dd bs=256 count=200 of="/tmp/lg-${LID}/ovpn.log" 2>/dev/nulll &)
+    (nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n -C "./openvpn-${LID}" "${OPTS[@]}" 2>&1 | dd bs=256 count=200 of="/tmp/lg-${LID}/ovpn.log" 2>/dev/nulll &)
 
     # Block all network traffic beside the one to the OpenVPN PEER (we dont know the IP yet
     # so we block the port instead.
-    nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n iptables -I OUTPUT -o eth0 -p "${VPN_CFG_PROTO}" --dport "${VPN_CFG_REMOTE_PORT}" -j ACCEPT
-    nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n iptables -I OUTPUT -o eth0 -d "${SF_RPC_IP:?}" -j ACCEPT
-    nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n iptables -I OUTPUT -o eth0 -d "${SF_DNS:?}" -j ACCEPT
-    nsenter.u1000 --setuid 0 --setgid 0 -t "$PID" -n iptables -A OUTPUT -o eth0 -j DROP
+    nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n iptables -I OUTPUT -o eth0 -p "${VPN_CFG_PROTO}" --dport "${VPN_CFG_REMOTE_PORT}" -j ACCEPT
+    nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n iptables -I OUTPUT -o eth0 -d "${SF_RPC_IP:?}" -j ACCEPT
+    nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n iptables -I OUTPUT -o eth0 -d "${SF_DNS:?}" -j ACCEPT
+    nsenter.u1000 --setuid 0 --setgid 0 -t "$LG_PID" -n iptables -A OUTPUT -o eth0 -j DROP
 
     set_route_pre_up
     str="${R_CONFIG##*/}"

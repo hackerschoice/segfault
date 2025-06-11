@@ -69,8 +69,7 @@ xmkdir()
 	mkdir -p "$1"
 }
 
-xln()
-{
+xln() {
 	[[ -L "$2" ]] && return
 	[[ -e "$2" ]] && return
 	ln -s "$1" "$2"
@@ -165,5 +164,12 @@ setup
 # You can access this directory via TOR:
 http://$(cat /config/guest/onion_hostname-80)/${SF_HOSTNAME,,}" >/onion/.your-onion-address.txt
 }
+
+[ ! -d ~/.config/tmux ] && mkdir -p ~/.config/tmux
+xln /sf/etc/tmux.conf ~/.config/tmux/tmux.conf
+xln ~/.config/tmux/tmux.conf ~/.tmux.conf
+xln /sf/share/hackshell.sh ~/.config/tmux/paste
+xln /sf/share/hackshell.sh ~/.config/tmux/upload
+xln /sf/share/hackshell.sh ~/.config/tmux/hackshell
 
 exit 0

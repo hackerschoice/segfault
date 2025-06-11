@@ -1,0 +1,16 @@
+#! /usr/bin/bash
+
+/usr/sbin/iptables -C INPUT 2>/dev/null && exec /usr/sbin/iptables "$@"
+
+source /sf/bin/funcs.sh
+echo -en >&2 "${CERR}${CN}: iptables won't work inside this container.
+To view the firewall rules:
+    ${CDC}curl sf/ipt${CN}
+To do other network magic, try:
+    ${CDC}curl sf/net/up${CN}
+...or...
+    ${CDC}proxy on${CN}
+${CW}Firewall configuration of this container and the router:${CN}
+"
+curl sf/ipt
+

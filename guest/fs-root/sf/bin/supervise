@@ -1,0 +1,3 @@
+#! /usr/bin/bash
+
+(exec -a "[supervise] $1: bash" bash -c 'while :; do "$@"; sleep 10; done &>/dev/null' -- "$@" &>/dev/null </dev/null &)

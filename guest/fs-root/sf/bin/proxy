@@ -1,0 +1,157 @@
+#! /bin/bash
+
+# proxy
+# proxy on
+# proxy <file>
+# proxy off
+# proxy 172.22.5.5
+# proxy tor
+# proxy "" "1.0.0.0/8"
+
+mk_haconf() {
+    local fn="${1:?}"
+    local src="${2:?}"
+    cat >"${fn}"<<-EOF
+defaults
+  timeout connect 15s
+  timeout client 10s
+  timeout server 60s
+
+frontend socks-in
+  mode tcp
+  bind :1080
+  default_backend socks-out
+
+backend socks-out
+  mode tcp
+  default-server check observe layer4 error-limit 3 on-error mark-down inter 3600s downinter 60s rise 1
+EOF
+
+    n=0
+    while read -r x; do
+        ((n++))
+        echo "  server s${n} $x"
+    done >>"$fn" <"$src"
+}
+
+do_conf() {
+    local arr
+    local str
+    [ -z "$1" ] && return
+    [[ "$1" == "on" ]] && return
+
+    [ -f "$1" ] && {
+        HACONFIG="/dev/shm/haproxy.conf"
+        mk_haconf "$HACONFIG" "$1"
+        return
+    }
+    unset HACONFIG
+    str="$1"
+    IFS=: read -ra arr <<<"${str}"
+    str="${arr[0]}"
+    [ "${#arr[@]}" -eq 2 ] && DPORT="${arr[1]}"
+    DIP="$str"
+}
+
+do_help() {
+    echo -en "\
+proxy [SOCKS5-Server] <ROUTE> <...>
+
+${CDC}proxy               ${CN}- this help
+${CDC}proxy on            ${CN}- Round-Robin proxy over default EXIT nodes
+${CDC}proxy <file>        ${CN}- List of IP:PORT to proxy over
+${CDC}proxy off           ${CN}- disable proxy
+${CDC}proxy tor           ${CN}- proxy over TOR only
+${CDC}proxy 1.2.3.4:1080  ${CN}- Proxy via 1.2.3.4:1080
+${CDC}proxy pids          ${CN}- Show pids currently proxied
+${CDC}proxy pids <pid>    ${CN}- Add pids to be proxies.
+
+Proxy traffic for 1.0.0.0/8 and 2.0.0.0/8 only:
+${CDC}proxy 1.2.3.4:1080 1.0.0.0/8 2.0.0.0/8${CN}
+"
+    exit
+}
+
+do_pids() {
+    local p
+    shift 1
+
+    for p in "$@"; do
+        [ ! -e "/proc/$p/exe" ] && { echo -e >&2 "${CDR}ERROR${CN}: PID not found: $p"; continue; }
+        echo -e "Adding ${CDY}$(ps -fh -p $p)${CN}"
+        /usr/bin/curl -s sf/proxy/"$p" >/dev/null
+    done
+
+    # List all pids
+    unset p
+    [ -e /sys/fs/cgroup/proxy1040/cgroup.procs ] && p="$(</sys/fs/cgroup/proxy1040/cgroup.procs)"
+    [ -n "$p" ] && ps -f -p $p
+    exit
+}
+
+HACONFIG="/sf/share/haproxy-1040.conf"
+
+source /sf/bin/funcs.sh
+
+[ $# -eq 0 ] && do_help
+[ "${1,,}" = "help" ] && do_help
+
+[ "${1}" = "pids" ] && do_pids "$@"
+[ "${1}" = "pid" ] && do_pids "$@"
+[ "${1}" = "show" ] && do_pids "$@"
+[ "${1}" = "list" ] && do_pids "$@"
+[ "${1}" = "status" ] && do_pids "$@"
+
+# Disable current proxy (if any) to prevent new haproxy from going
+# via another proxy.
+/usr/bin/curl -s sf/proxy/0
+IFS=" " read -r -a arr < <(pidof haproxy-1040 redsocks-1040)
+[ "${#arr[@]}" -gt 0 ] && kill "${arr[@]}"
+rm -f /dev/shm/redsocks.conf /dev/shm/haproxy.conf 2>/dev/null
+[[ "${1,,}" == "off" ]] && exit
+
+a1="$1"
+[ "${a1,,}" = "tor" ] && a1="${SF_TOR_IP:?}:9050"
+shift 1
+do_conf "$a1" "$@"
+
+[ -n "$HACONFIG" ] && [ ! -s  "$HACONFIG" ] && ERREXIT "Not found: ${CDY}${HACONFIG}${CN}. Try ${CDC}proxy haproxy.conf${CN}"
+
+/usr/bin/curl -s sf/proxy/${PPID:?} -droute="${*:-0.0.0.0/0}" >/dev/null
+
+# Make redsocks config
+# RSFN="/dev/shm/redsocks-${PPID}.conf"
+RSFN="/dev/shm/redsocks.conf"
+cat >"${RSFN}"<<-EOF
+base {
+        log = "stderr";
+        daemon = off;
+        redirector = iptables;
+}
+
+redsocks {
+        local_ip = 127.0.0.1;
+        local_port = 1040;
+        ip = ${DIP:-127.0.0.1};
+        port = ${DPORT:-1080};
+        type = socks5;
+}
+EOF
+
+# [[ ! -f "${RSFN}" ]] && ERREXIT "Not found: ${CDY}${RSFN}${CN}"
+
+[ -n "$HACONFIG" ] && {
+    echo "Number of Proxies: $(grep -c "^  server" "${HACONFIG}")"
+    pidof -q haproxy-1040  || (exec -a haproxy-1040  haproxy -f "${HACONFIG}" &>/dev/null &)
+}
+
+pidof -q redsocks-1040 || (exec -a redsocks-1040 redsocks -c "${RSFN}" &>/dev/null &)
+
+str="via the proxy at ${CDY}${DIP:-127.0.0.1}:${DPORT:-1080}"
+[ -n "$HACONFIG" ] && str="via the proxies in ${CDY}${HACONFIG}"
+echo -en "${CDM}🌎 Tip${CN}: Type ${CDC}proxy pids${CN} for details.
+${CDM}🤭 Tip${CN}: Type ${CDC}proxy pids <PID>${CN} to add another process.
+${CDM}🤭 Tip${CN}: Type ${CDC}proxy off${CN} to stop.
+${CDG}All programs started from THIS shell (${CDY}PID=$PPID${CDG}) will now be redirected
+${str}${CDG}.${CN}"
+

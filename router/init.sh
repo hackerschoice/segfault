@@ -275,7 +275,13 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_ACCESS}" -p tcp -d "${SSHD_IP}" --dport 22 -j ACCEPT
 	iptables -A FORWARD -i "${DEV_ACCESS}" -o "${DEV_LG}" -p tcp -s "${SSHD_IP}" --sport 22 -j ACCEPT 
 
+	# LG to TOR proxy:9050
+	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -j ACCEPT
+	# iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p tcp -d "${TOR_IP}" --dport 9050 -j ACCEPT
+
+	# LG to ONION address space
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${NET_ONION}" -j ACCEPT
+
 	# Allow DNS requests to our DNS resolver (but no other traffic)
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p udp --dport 53 -d "${NET_VPN_DNS_IP}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p icmp -d "${NET_VPN_DNS_IP}" -j ACCEPT
@@ -285,9 +291,13 @@ ipt_set()
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p tcp --dport 1080 -d "${MULLVAD_ROUTE}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -p icmp -d "${MULLVAD_ROUTE}" -j ACCEPT
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${MULLVAD_ROUTE}" -j DROP
+
+	# Block all bad routes.
 	for ip in "${BAD_ROUTES[@]}"; do
 		iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -d "${ip}" -j DROP
 	done
+
+	# Allow all traffic from LG to VPN Gateway
 	iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_GW}" -j ACCEPT
 	iptables -A FORWARD -o "${DEV_LG}" -i "${DEV_GW}" -j ACCEPT
 
@@ -573,13 +583,14 @@ iptables -t nat -A POSTROUTING -o "${DEV_DIRECT}" -m mark --mark 22 -m state --s
 iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_DIRECT}" -p tcp -m mark --mark 22 -j ACCEPT
 iptables -A FORWARD -i "${DEV_DIRECT}" -o "${DEV_LG}" -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-# TOR traffic (169.254.240.0/21) always goes to TOR (transparent proxy)
+# TOR traffic (10.111.0.0/16) always goes to TOR (transparent proxy)
 ip route add "${NET_ONION}" via "${TOR_IP}"
 
 # blacklist_routes
 # Everything else REJECT with RST or ICMP
 iptables -A FORWARD -p tcp -j REJECT --reject-with tcp-reset
 iptables -A FORWARD -j REJECT
+
 set +e
 LOG "FW" "SUCCESS"
 

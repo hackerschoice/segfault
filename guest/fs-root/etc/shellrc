@@ -46,6 +46,9 @@ command -v neofetch >/dev/null || {
 }
 #[ -f /usr/bin/asn ] && alias asn='asn -n'
 
+alias tcurl='curl -x socks5h://${TOR}'
+alias curl_tor='curl -x socks5h://${TOR}'
+
 # Warning for script kiddies
 [[ -t 0 ]] && [[ ! -e "${HOME}/.nokiddie" ]] && {
 	_nokiddie_warning()
@@ -235,20 +238,24 @@ urldecode() { : "${*//+/ }"; echo -e "${_//\%/\\x}"; }
 	# curl's -v/-I goes to STDERR and needs special treatment.
 	_curlhl() {
 		local suffix="$1"
+		local opts=()
 		shift 1
 		{ [ -n "$NOCOLOR" ] || [[ "$1" == "sf/"* ]] || [[ "$2" == "sf/"* ]]; } && { /usr/bin/curl "$@"; return; }
+		opts=("--proto-default" "https")
+		# Make .onion work again (screw RFC 7686). >> OVERWRITES opts() <<
+		[[ "$*" == *".onion"* ]] && [ -z "$http_proxy" ] && opts=("--socks5-hostname" "${TOR}")
 		[ -t 2 ] && {
 			# HERE: stderr is a TTY. Pipe stderr through grcat
 			# Add -s to not show progress meter (cURL defaults to show progress if stdout is not a TTY)
 			if [ -t 1 ]; then
-				{ "/usr/bin/curl${suffix}" --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
+				{ "/usr/bin/curl${suffix}" "${opts[@]}" -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2 | hl
 			else
-				{ "/usr/bin/curl${suffix}" --proto-default https -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
+				{ "/usr/bin/curl${suffix}" "${opts[@]}" -s "$@" 2>&1 1>&- 1>&3 3>&- | /usr/bin/grcat conf.curl; } 3>&- 3>&1 1>&- 1>&2
 			fi
 			return
 		}
-		[ ! -t 1 ] && { "/usr/bin/curl${suffix}" --proto-default https "$@"; return; }
-		"/usr/bin/curl${suffix}" --proto-default https -s "$@" | hl
+		[ ! -t 1 ] && { "/usr/bin/curl${suffix}" "${opts[@]}" "$@"; return; }
+		"/usr/bin/curl${suffix}" "${opts[@]}" -s "$@" | hl
 	}
 
 	# Be gay and color it all. #OneLove

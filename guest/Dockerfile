@@ -80,6 +80,7 @@ RUN pkg-install.sh DEVEL apt-get install -y --no-install-recommends \
 		gdb \
 		hexedit \
 		html2text \
+		inotify-tools \
 		libc-devtools \
 		libevent-dev \
 		libev-dev \
@@ -870,6 +871,8 @@ RUN pkg-install.sh HACK bin 'https://github.com/milio48/serveo/raw/refs/heads/ma
 RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update
+RUN pkg-install.sh HACK bash -c '{ curl -fL https://github.com/pixelb/scripts/raw/refs/heads/master/scripts/ansi2html.sh | sed "/^pre { white-.*/d" >/usr/bin/ansi2html \
+		&& chmod 755 /usr/bin/ansi2html; }'
 
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*

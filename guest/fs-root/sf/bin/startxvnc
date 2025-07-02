@@ -16,8 +16,8 @@ cleanup()
 unset VNC_OPTS
 VNC_OPTS+=("-shared")
 VNC_OPTS+=("-xkb")
-VNC_OPTS+=("-timeout" "3600")
-[[ -n $PASSWORD ]] && VNC_OPTS+=("-usepw")
+[ -z "$SF_FORCE" ] && VNC_OPTS+=("-timeout" "3600")
+[ -n "$PASSWORD" ] && VNC_OPTS+=("-usepw")
 VNC_OPTS+=("-forever")
 VNC_OPTS+=("-localhost")
 #VNC_OPTS+=("-wirecopyrect" "-scrollcopyrect")
@@ -81,7 +81,7 @@ sv_startx $PPID &>/dev/null &
 disown
 
 [[ -n $PASSWORD ]] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"
-echo -e "Keep this shell open and log in again using:
+echo -e "Keep this shell running and open a SECOND ssh connection from your workstation:
 
     ${CDC}ssh -L5900:0:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
 

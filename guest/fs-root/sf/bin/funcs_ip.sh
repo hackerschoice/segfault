@@ -44,13 +44,13 @@ resolv() {
     local r
     local x
     while [[ $# -gt 0 ]]; do
-        r="$(getent hosts "$1")" && echo "${r%% *}"$'\t'"${1}"
+        x="$1"
+        getent ahostsv4 "$x" | while read -r r; do [[ "$r" != *"STREAM"* ]] && continue; echo "${r%% *}"$'\t'"${x}"; done
         shift 1
+        [ $# -eq 0 ] && return
     done
-    [ -t 0 ] && return
     while read -t5 -r x; do
-        r="$(getent hosts "$x")" || continue
-        echo "${r%% *}"$'\t'"${x}"
+        getent ahostsv4 "$x" | while read -r r; do [[ "$r" != *"STREAM"* ]] && continue; echo "${r%% *}"$'\t'"${x}"; done
     done
 }
 

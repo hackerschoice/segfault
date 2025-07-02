@@ -1,3 +1,6 @@
+0.5.9 - 2025-
+    * curl fix for silly RFC 7686 (.onion killer).
+
 0.5.8 - 2025-06-11
     * New command 'proxy' 
     * 'exfil' to support complex find .. -print0 input

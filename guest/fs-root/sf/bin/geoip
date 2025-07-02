@@ -2,35 +2,59 @@
 
 source "${0%/*}/funcs.sh" || exit
 
-ip=$1
-[[ -z $ip ]] && { echo >&2 "$0 [IP-Address]"; exit 255; }
-
 db="/sf/share/GeoLite2-City.mmdb"
 [[ -f "/sf/share/dbip-city-lite.mmdb" ]] && db="/sf/share/dbip-city-lite.mmdb"
 
-res=$(mmdbinspect --db "$db" "$ip" 2>/dev/null) || { [[ -z $GEOCOL ]] && exit; }
-city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
-country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
+_geoip() {
+	local ip="$1"
+	local res
+	local city
+	local country
 
-unset YOUR_GEOIP
-if [[ -z $GEOCOL ]]; then
-	if [[ -n $city ]] && [[ -n $country ]]; then
-		YOUR_GEOIP="${city}/${country}"
-	elif [[ -n $city ]] || [[ -n $country ]]; then
-		YOUR_GEOIP="${city}${country}" # Either one but not both
-	fi
-
-	[[ -z $YOUR_GEOIP ]] && {
-		echo >&2 "NOT FOUND"
-		exit 255
+	res=$(mmdbinspect -jsonl --db "$db" "$ip" 2>/dev/null) || { [[ -z $GEOCOL ]] && return; }
+	#city=$(echo "$res" | jq -r '.[0].Records[0].Record.city.names.en | select(. != null)')
+	#country=$(echo "$res" | jq -r '.[0].Records[0].Record.country.names.en | select(. != null)')
+	city=$(echo "$res" | jq -r '.record.city.names.en | select(. != null)')
+	country=$(echo "$res" | jq -r '.record.country.names.en | select(. != null)')
+	[ -z "$country" ] && {
+		country="$(echo "$res" | jq -r '.record.registered_country.names.en | select(. != null)')"
+		[ -n "$country" ] && country="${country} (registered)"
 	}
-else
+
+	unset YOUR_GEOIP
+	if [[ -z $GEOCOL ]]; then
+		if [[ -n $city ]] && [[ -n $country ]]; then
+			YOUR_GEOIP="${city}/${country}"
+		elif [[ -n $city ]] || [[ -n $country ]]; then
+			YOUR_GEOIP="${city}${country}" # Either one but not both
+		fi
+
+		[[ -z $YOUR_GEOIP ]] && {
+			echo >&2 "NOT FOUND"
+			return 255
+		}
+		echo "${YOUR_GEOIP}"
+		return
+	fi
 	str=${city// /_}
 	str="${str:----}                            "
 	YOUR_GEOIP="${str:0:18}"
 	str=${country// /_}
 	str="${str:----}                         "
 	YOUR_GEOIP+=" ${str:0:18}"
-fi
 
-echo "${YOUR_GEOIP}"
+	echo "${YOUR_GEOIP}"
+}
+_geoip 188.114.96.3
+
+[ $# -gt 0 ] && {
+	for ip in "$@"; do
+		_geoip "$ip"
+	done
+	exit
+}
+
+while read -t5 -r ip; do
+	_geoip "$ip"
+done
+

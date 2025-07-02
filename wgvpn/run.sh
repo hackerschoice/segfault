@@ -309,7 +309,7 @@ wg_up()
   id="$3"
 
   unset WG_EP_PORT
-  unset WG_DNS
+#   unset WG_DNS
   unset END_POINT
   unset EP_IP
   unset PUBLIC_KEY
@@ -354,19 +354,19 @@ wg_up()
       GEOIP="${str:8}"
     }
 
-    WG_DNS="$(grep ^DNS "${cf}")"
-    WG_DNS="${WG_DNS##* }"
+    # WG_DNS="$(grep ^DNS "${cf}")"
+    # WG_DNS="${WG_DNS##* }"
   else
     nordvpn_select "${sname,,}"
     sname="${AUTO_SERVER}(${sname##*=})"
     # NordVPN's DNS servers
-    WG_DNS="103.86.96.100,103.86.99.100"
+    # WG_DNS="103.86.96.100,103.86.99.100"
   fi
 
   # HERE: NordVPN, Mullvad, CryptoStorm
 
   # Use default if no DNS supplied in Templates.
-  [[ -z $WG_DNS ]] && WG_DNS="1.1.1.1,8.8.8.8"
+#   [[ -z $WG_DNS ]] && WG_DNS="1.1.1.1,8.8.8.8"
 
   [[ -n $EP_PORT ]] && WG_EP_PORT="${EP_PORT}"
   WG_EP_PORT="${WG_EP_PORT:-51820}"
@@ -379,7 +379,7 @@ wg_up()
 #   iptables -A OUTPUT -o eth0 -p udp -m udp -d "${EP_IP}" --dport "${WG_EP_PORT}" -j ACCEPT
 
   # Force user supplied DNS (if specified)
-  [[ -n $DNS ]] && WG_DNS="$DNS"
+#   [[ -n $DNS ]] && WG_DNS="$DNS"
 
   unset psk_str
   [[ -n $PSK ]] && psk_str="Presharedkey = ${PSK}"$'\n'
@@ -388,7 +388,6 @@ wg_up()
 [Interface]
 PrivateKey = ${PRIVATE_KEY}
 Address = ${ADDRESS}
-DNS = ${WG_DNS}
 PreUp = ${PRE_UP}
 PostUp = ${POST_UP}
 PreDown = ${PRE_DOWN}

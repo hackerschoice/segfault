@@ -17,5 +17,5 @@ then
 	export PATH="/usr/local/bin:/usr/bin:/bin:/usr/games"
 fi
 
-[[ -z $XDG_MENU_PREFIX ]] && export XDG_MENU_PREFIX="kf5-"
+#[ -z $XDG_MENU_PREFIX ] && export XDG_MENU_PREFIX="kf5-"
 export SHELL=/bin/zsh

@@ -158,6 +158,11 @@ wait_for_handshake "${DEV}" || { echo -e "Handshake did not complete"; exit 255;
 [ "$OP" = "up" ] && {
 	# wg_route_up "${DEV}"
 	check_vpn "${PROVIDER}" "${DEV}" || { echo -e "VPN Check failed"; exit 255; }
+	[ "${PROVIDER,,}" = "cryptostorm" ] && {
+		# Check if internal CS systems are operational:
+		curl -fs --retry 3 --max-time 10 http://10.13.37.7/fwd >/dev/null || { echo -e "CS PortForward down"; exit 255s; }
+	}
+
 	up
 	exit
 }

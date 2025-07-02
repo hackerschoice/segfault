@@ -25,11 +25,11 @@ wait_for_handshake()
 # check_vpn [mullvad/cryptostorm]
 check_vpn()
 {
-	# local provider
-	# provider="${1,,}"
+	# local provider="${1,,}"
 	local n
 	local dev
-	err=0
+	# local bad
+	local err=0
 	local sleep_timer
 	sleep_timer=5
 	dev="${2:-wg0}"

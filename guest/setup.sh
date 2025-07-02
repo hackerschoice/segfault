@@ -159,4 +159,6 @@ command  -v a2enmod >/dev/null && a2enmod php8.2
 (cd /usr/bin
 [ -e curl_edge101 ] && for  x in curl_*; do sed -i -E 's|^"\$dir(.*)|exec "\$dir(\1)|g' "$x"; done)
 
+ln -s xfce-applications.menu /etc/xdg/menus/applications.menu
+
 exit 0

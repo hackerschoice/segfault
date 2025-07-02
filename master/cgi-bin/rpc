@@ -1052,8 +1052,8 @@ wg_net_init
 	lgns -t "${LG_PID}" -n ip -4 address add "${WG_IP}" dev "${WG_DEV}"
 	err=$(lgns -t "${LG_PID}" -n ip -6 address add "${WG_IP6}" dev "${WG_DEV}" 2>&1) || echo >&2 "${RR}ERROR${N}: ip -6: $err"
 	# This can happen if an sshd-session gets stuck and the namespace for that IP is kept alive
-	# lsns -t net | awk '{print $4;}' | anew | while read -r PID; do echo XXX${LG_PID}; nsenter -t "${LG_PID}" -n wg show; done | less
-	err=$(lgns -t "${LG_PID}" -n ip link set mtu $((SF_HOST_MTU - 80)) up dev "${WG_DEV}" 2>&1) || BAIL "${err} - port already used? Report to SysCops please."
+	# lsns -t net | awk '{print $4;}' | anew | while read -r PID; do echo XXX${PID}; nsenter -t "${PID}" -n wg show; done | less
+	err=$(lgns -t "${LG_PID}" -n ip link set mtu $((SF_HOST_MTU - 80)) up dev "${WG_DEV}" 2>&1) || BAIL "${err} - port already used? Report to SysCops please (sshd-session stuck?)."
 
 	set_route
 

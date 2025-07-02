@@ -230,6 +230,7 @@ vpn_read_config() {
     VPN_CFG_TLS=${VPN_CFG_TLS//[^a-zA-Z0-9+-/$'\n']}
     VPN_CFG_TLSCRYPT=${VPN_CFG_TLSCRYPT//[^a-zA-Z0-9+-/$'\n']}
     [[ $VPN_CFG_PROTO == "tcp" ]] && VPN_CFG_PROTO_SIZE=20
+    VPN_CFG+="providers legacy default"$'\n'
 
     unset err
     [[ -n "$VPN_CFG_CERT" ]] && err=1
@@ -241,8 +242,8 @@ vpn_read_config() {
     # Old <2.5 config specifying 'cipher XXX'
     # Odd: To connect a 2.5 client to a 2.4 server I need to set "data-ciphers" and "data-ciphers-fallback"
     [[ -z "$VPN_CFG_DATA_CIPHERS" ]] && VPN_CFG_DATA_CIPHERS="$VPN_CFG_CIPHER"
+    [[ -n "$VPN_CFG_CIPHER" ]] && VPN_CFG+="providers legacy default"$'\n'"data-ciphers-fallback $VPN_CFG_CIPHER"$'\n'
     [[ -n "$VPN_CFG_DATA_CIPHERS" ]] && VPN_CFG+="data-ciphers ${VPN_CFG_DATA_CIPHERS}"$'\n'
-    [[ -n "$VPN_CFG_CIPHER" ]] && VPN_CFG+="data-ciphers-fallback $VPN_CFG_CIPHER"$'\n'
     [[ -z $VPN_CFG_CIPHER ]] && [[ -z $VPN_CFG_DATA_CIPHERS ]] && echo -e "${ICON_WARN}${R}WARN:${N} No ${Y}cipher${N} or ${Y}data-ciphers${N}. Try ${Y}cipher AES-256-CBC${N}."
     [[ -z $is_remote_cert_tls ]] && echo -e "${ICON_WARN}${R}WARN:${N} Consider adding ${Y}remote-cert-tls server${N}"
     # VPN_CFG+="remote-cert-tls server"$'\n'

@@ -89,8 +89,8 @@ Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 	command -v puredns    >/dev/null && puredns(){    _nokiddie_warning "puredns" ""                                    "$@"; }
 	command -v masscan    >/dev/null && masscan(){    _nokiddie_warning "masscan" ""                                    "$@"; }
 	command -v shuffledns >/dev/null && shuffledns(){ _nokiddie_warning "shuffledns" ""                                 "$@"; }
-	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei" "-rl 15 -c 4 -bs 4 -hbs 2 -headc 2"    "$@"; }
-	command -v httpx      >/dev/null && httpx(){      _nokiddie_warning "httpx"  "-rl 15"                               "$@"; }
+	command -v nuclei     >/dev/null && nuclei(){     _nokiddie_warning "nuclei" "-rl" "15" "-c" "4" "-bs" "4" "-hbs" "2" "-headc" "2"    "$@"; }
+	command -v httpx      >/dev/null && httpx(){      _nokiddie_warning "httpx"  "-rl" "15"                             "$@"; }
 	command -v ffuf       >/dev/null && ffuf(){       _nokiddie_warning "ffuf"    ""                                    "$@"; }
 	command -v naabu      >/dev/null && naabu(){      _nokiddie_warning "naabu"   ""                                    "$@"; }
 	command -v zmap       >/dev/null && zmap(){       _nokiddie_warning "zmap"    ""                                    "$@"; }

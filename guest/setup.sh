@@ -119,7 +119,7 @@ mk_hook /usr/share/code code
 [[ -f /usr/share/code/bin/code.orig ]] && sed 's/PATH\/code\"/PATH\/code.orig\"/' -i /usr/share/code/bin/code.orig
 
 # Apache needs to enable modules
-command  -v a2enmod >/dev/null && a2enmod php8.2
+command  -v a2enmod >/dev/null && a2enmod php8.4
 
 # link SRC -> DST
 # link chaos chaos-client

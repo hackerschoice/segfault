@@ -56,11 +56,10 @@ alias curl_tor='curl -x socks5h://${TOR}'
 		local cmd="$1"
 		local sargs="$2"
 		shift 2
-		local is_show
-		is_show=1
+		local is_show=1
 
-		[[ -s "/config/self/wgname" ]] && { unset is_show; unset _XARGS; }
-		[[ -e "${HOME}/.nokiddie" ]] && unset is_show
+		[[ -s "/config/self/wgname" ]] && unset is_show
+		[[ -e "${HOME}/.nokiddie" ]] && unset is_show sargs
 		[[ -n $is_show ]] && {
 			echo -e >&2 "\
 ${CDC}${cmd}${CN} does not work well via VPN providers. The uplink VPN providers
@@ -73,15 +72,24 @@ Read how the pros do it: ${CB}${CUL}https://thc.org/segfault/faq/nokiddie${CN}"
 			fi
 		}
 
-		if [[ -z $sargs ]]; then
+		if [ -z "$sargs" ]; then
 			command "$cmd" "$@"  # Might not exist and fail nicely here
 		else
-			[[ -z $is_show ]] && {
+			[ -z "$is_show" ] && {
+				# HERE: No warning was shown yet. Assume user uses his own EXIT
 				echo -e "Adding ${CDC}${sargs}${CN} to your command. To override type:"
 				echo -e "    ${CC}command ${CDC}${cmd} $*${CN}\n"
 				sleep 2 
 			}
-			command "$cmd" "$@" $sargs # allow word splitting
+			[ -n "$BASH_VERSION" ] && {
+				# BASH: allow word splitting
+				# shellcheck disable=SC2086
+				command "$cmd" "$@" ${sargs} # allow word splitting
+			} || {
+				# ZSH: no word splitting, so use ${=sargs}
+				# shellcheck disable=SC2086
+				command "$cmd" "$@" ${=sargs} # allow word splitting
+			}
 		fi
 	}
 

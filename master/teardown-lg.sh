@@ -21,7 +21,7 @@ LID="'"${LID}"'"
 CHAIN="SYN-${SYN_LIMIT}-${SYN_BURST}-${IDX}"
 iptables -D FORWARD -i "${DEV_LG:?}" -s "${C_IP:?}" -j "FW-${LID}"
 iptables -F "FW-${LID}"
-iptables -X "FW-${LID}"
+iptables -X "FW-${LID}" || { iptables -F "FW-${LID}"; sleep 1; iptables -X "FW-${LID}"; }
 iptables -nL "$CHAIN" | grep -qm1 "^Chain.*0 references" && {
     iptables -F "$CHAIN"
     iptables -X "$CHAIN"

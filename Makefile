@@ -1,4 +1,4 @@
-VER := 0.5.8rc2
+VER := 0.5.9a1
 
 all:
 	make -C base

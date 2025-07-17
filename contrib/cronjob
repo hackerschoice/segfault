@@ -10,6 +10,8 @@ SF_MV_RELAY_FN="${SF_DATADIR}/share/proxies.txt"
 SF_HA_CONF="${SF_DATADIR}/share/haproxy-1040.conf"
 SF_TOR_EXIT_FN="${SF_DATADIR}/share/tor-exit-nodes.txt"
 
+[ "$PATH" != *"sbin" ] && PATH=/usr/sbin:/usr/local/sbin:$PATH
+
 # SF_GLOBAL_EXIT_FN="/sf/config/etc/relay-exit-nodes-global.txt" # Provided by Blind Mouse
 # aka curl -H "Auth: hAV2fDFN..." http://92.x.x.x:50613 >/sf/config/etc/relay-exit-nodes-global.txt
 
@@ -121,8 +123,11 @@ str="$*"
 [[ $str == *tor* ]] && { mk_tor_relays; is_ran=1; }
 # [[ $str == *global* ]] && { mk_global_relays; is_ran=1; }
 
-source "${SF_BASEDIR}/sfbin/funcs_admin.sh" >/dev/null
+source "${SF_BASEDIR:?}/sfbin/funcs_admin.sh" >/dev/null
 lgpurge
+
+fn="/dev/shm/sf/run/logs/segfault.log"
+[ -f "$fn" ] && :>"${fn:?}"
 
 [[ -n $is_ran ]] && exit
 

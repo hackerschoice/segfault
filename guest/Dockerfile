@@ -578,26 +578,26 @@ RUN pkg-install.sh WEB bash -c '{ apt-get remove -y pelican; true; }' \
 	&& pkg-install.sh WEB pipx install 'tiny-http-server' 'uploadserver'
 RUN pkg-install.sh    LARGE pipx install gdown \
 	&& pkg-install.sh LARGE pipx install udocker
-RUN pkg-install.sh DEVEL pip install --break-system-packages \
-		cryptocode \
-		ipaddress \
-		mmh3   `# FavFreak` \
-		pyTelegramBotAPI \
-		tgcrypto
-RUN pkg-install.sh DEVEL pip install --break-system-packages \
-		`# aiogram YANKED kali2024` \
-		booru \
-		discum \
-		disnake \
-		`### donna25519, gcc error when compiling` \
-		heroku3 \
-		`# lastversion YANKED kali2024` \
-		libgen_api \
-		pyrogram \
-		python-json-logger \
-		timer
-RUN pkg-install.sh HACK pip install --break-system-packages --no-deps --force-reinstall art git+https://github.com/Revoltsecurities/Subdominator \
-	&& pkg-install.sh HACK pip install --break-system-packages xortool `#pipx install yields No module named 'importlib_metadata'`
+# RUN pkg-install.sh DEVEL pip install --break-system-packages \
+# 		cryptocode \
+# 		ipaddress \
+# 		mmh3   `# FavFreak` \
+# 		pyTelegramBotAPI \
+# 		tgcrypto
+# RUN pkg-install.sh DEVEL pip install --break-system-packages \
+# 		`# aiogram YANKED kali2024` \
+# 		`# booru YANED aiohttp errors` \
+# 		discum \
+# 		disnake \
+# 		`### donna25519, gcc error when compiling` \
+# 		heroku3 \
+# 		`# lastversion YANKED kali2024` \
+# 		libgen_api \
+# 		pyrogram \
+# 		python-json-logger \
+# 		timer
+# RUN pkg-install.sh HACK pip install --break-system-packages --no-deps --force-reinstall art git+https://github.com/Revoltsecurities/Subdominator \
+	# && pkg-install.sh HACK pip install --break-system-packages xortool `#pipx install yields No module named 'importlib_metadata'`
 RUN pkg-install.sh    LARGE apt-get install -y --no-install-recommends \
 		python3-nmap \
 		python3-openai \
@@ -632,7 +632,7 @@ RUN pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gobjc++-mingw-w64-i686-posix gobjc++-mingw-w64-i686-win32 gobjc-mingw-w64-i686-posix gobjc-mingw-w64-i686-win32 \
 		maven \
 		rust-src
-RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan%arch:x86_64=:aarch64=_arm64%$' fscan \
+RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'linux_%arch:x86_64=x64:aarch64=arm64%$' fscan \
 	&& pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
 	&& pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest \
 		&& mkdir -p /usr/share/gf \
@@ -670,7 +670,7 @@ RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan%arch:x86_64=:aarch64=_arm64
 	&& pkg-install.sh HACK bin 'https://github.com/projectdiscovery/mapcidr/releases/download/v1.1.9/mapcidr_1.1.9_linux_%arch1%.zip' mapcidr   `# often missing binary assets.` \
 	&& pkg-install.sh HACK ghbin glebarez/cero               'linux-amd64'                                cero      `# x86_64 only` \
 	&& pkg-install.sh HACK ghbin dwisiswant0/crlfuzz         'inux_%arch:x86_64=amd64:aarch64=arm64%'     crlfuzz \
-	&& pkg-install.sh HACK ghbin hahwul/dalfox               'inux_%arch:x86_64=amd64:aarch64=arm64%'     dalfox \
+	&& pkg-install.sh HACK ghbin hahwul/dalfox               'inux-%arch:x86_64=amd64:aarch64=arm64%'     'dalfox*' "" dalfox \
 	&& pkg-install.sh HACK ghbin pwnesia/dnstake             'linux_%arch:x86_64=amd64:aarch64=arm64%'    dnstake \
 	&& pkg-install.sh HACK ghbin KathanP19/Gxss              'inux_x86_64'                                Gxss      `# x86_64 only` \
 	&& pkg-install.sh HACK ghbin qsocket/qs-netcat           'linux_%arch:x86_64=amd64:aarch64=arm64%'    qs-netcat \
@@ -774,8 +774,7 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
 RUN pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                                                       fq \
 	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/nitefood/asn/master/asn                         asn2 \
-	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr \
-	&& pkg-install.sh HACK ghbin hahwul/dalfox  '_linux_%arch1%'                                                 dalfox
+	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr
 RUN pkg-install.sh HACK ghbin ginuerzh/gost                     'linux[_-]%arch:x86_64=amd64:aarch64=arm64%.*gz$' gost                          \
 	&& pkg-install.sh HACK ghbin tulir/gomuks                      'linux-%arch1%'                                gomuks                        \
 	&& pkg-install.sh HACK ghbin Snawoot/hola-proxy                'linux-%arch1%'                                hola-proxy                    \

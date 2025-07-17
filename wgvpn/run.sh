@@ -333,7 +333,7 @@ wg_up()
     cf="${dir}/${sname}.conf"
 
     [[ ! -f "${cf}" ]] && {
-      ERR "Server '${PROVIDER}/${sname}' not known ¯\_(⊙︿⊙)_/¯."
+      ERR "Not found: ${cf} ¯\_(⊙︿⊙)_/¯."
       return 255
     }
     [[ -z $END_POINT ]] && {

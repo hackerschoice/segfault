@@ -143,6 +143,7 @@ services:
     image: sf-dnscrypt
     container_name: sf-dnscrypt
     restart: ${SF_RESTART:-on-failure}
+    mem_limit: 1024M
     cgroup_parent: sf.slice
     cap_add:
       - NET_ADMIN

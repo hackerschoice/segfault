@@ -341,7 +341,7 @@ WARN_ENTER
 
 [ ! -d "${SF_BASEDIR}/config/db/private/dnscrypt" ] && mkdir -p "${SF_BASEDIR}/config/db/private/dnscrypt"
 for f in allowed-ips.txt allowed-names.txt blocked-ips.txt blocked-names.txt cloaking-rules.txt; do
-	[ -e "${SF_BASEDIR}/config/db/private/dnscrypt/${f}" ] && continue
+	[ -e "${SF_BASEDIR:?}/config/db/private/dnscrypt/${f}" ] && continue
 	touch "${SF_BASEDIR}/config/db/private/dnscrypt/${f}"
 done
 

@@ -45,7 +45,6 @@ _geoip() {
 
 	echo "${YOUR_GEOIP}"
 }
-_geoip 188.114.96.3
 
 [ $# -gt 0 ] && {
 	for ip in "$@"; do

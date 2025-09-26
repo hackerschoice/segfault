@@ -145,7 +145,6 @@ _sfcg_psarr()
 	SF_G_PS="$(docker top "${lglid}" -e -o pid,bsdtime,rss,start_time,comm,cmd 2>/dev/null)"
 	[[ -n $SF_G_PS ]] && [[ -n $match ]] && [[ "$SF_G_PS"$'\n' =~ $match ]] && found=1
 
-	echo "$SF_G_PS"
 	return $found
 }
 
@@ -708,7 +707,7 @@ lgps()
 	stoparr=()
 	mapfile -t arr < <(_sfcg_forall)
 	for lglid in "${arr[@]}"; do
-		_sfcg_psarr "$lglid" "$match" && continue
+		_sfcg_psarr "$lglid" "$match" >/dev/null && continue
 
 		_sfcfg_printlg "$lglid"
 		if [[ -z $match ]]; then

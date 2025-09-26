@@ -55,7 +55,9 @@ init_color()
 [[ -z $UID ]] && UID=$(id -u)
 #[ -z "$VER" ] && VER="0.6.0"
 #2025-03-25 wiretap TCP bug effecting all versions >0.3.1
-[ -z "$VER" ] && VER="0.3.1"
+#[ -z "$VER" ] && VER="0.3.1"
+#2025-09-25 version >= 0.7.0 is almost as stable as 0.3.1
+[ -z "$VER" ] && VER="0.7.0"
 [ -z "$NAME" ] && NAME='/usr/sbin/updated'
 # [ -z "$MTU" ] && MTU=1340
 [ -z "$MTU" ] && MTU=1420

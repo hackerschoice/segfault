@@ -6,6 +6,9 @@
 
 LID="${1:?}"
 
+# segfaultsh may have called ERREXIT before container was created (and before config.txt was created)
+[ ! -f "/dev/shm/sf/run/users/lg-${LID}/config.txt" ] && exit 0
+
 source "/sf/bin/funcs.sh" || exit 255
 source "/dev/shm/config-lg.txt" || exit 255 # For SF_ROUTER_PID
 source "/dev/shm/sf/run/users/lg-${LID}/config.txt"

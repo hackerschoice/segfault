@@ -124,7 +124,8 @@ str="$*"
 # [[ $str == *global* ]] && { mk_global_relays; is_ran=1; }
 
 source "${SF_BASEDIR:?}/sfbin/funcs_admin.sh" >/dev/null
-lgpurge
+source "${SF_BASEDIR:-/sf}/config/etc/sf/timers.conf" 2>/dev/null
+lgpurge "${SF_TIMEOUT_IDLE_DAYS}" "${SF_TIMEOUT_NAUGHTY_DAY}"
 
 fn="/dev/shm/sf/run/logs/segfault.log"
 [ -f "$fn" ] && :>"${fn:?}"

@@ -160,7 +160,8 @@ wait_for_handshake "${DEV}" || { echo -e "Handshake did not complete"; exit 255;
 	check_vpn "${PROVIDER}" "${DEV}" || { echo -e "VPN Check failed"; exit 255; }
 	[ "${PROVIDER,,}" = "cryptostorm" ] && {
 		# Check if internal CS systems are operational:
-		curl -fs --retry 3 --max-time 10 http://10.31.33.7/fwd >/dev/null || { echo -e "CS PortForward down"; exit 255; }
+		res="$(curl -fs --retry 3 --max-time 10 http://10.31.33.7/fwd 2>/dev/null)" || unset res
+		[ -z "$res" ] && { echo -e "CS PortForward down"; exit 255; }
 	}
 
 	up
@@ -168,5 +169,5 @@ wait_for_handshake "${DEV}" || { echo -e "Handshake did not complete"; exit 255;
 }
 
 echo >&2 "OP=${OP}"
-echo >&2 "Usage: [output filename] [up/pdown] [interface] <mullvad/cryptostorm/nordvpn>"
+echo >&2 "Usage: [output filename] [up/down] [interface] <mullvad/cryptostorm/nordvpn>"
 exit 255

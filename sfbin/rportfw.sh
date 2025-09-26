@@ -215,7 +215,7 @@ cmd_moreports()
 		[[ "$cur" == *":${port}"* ]] && continue # Port colission.
 
 		res=$(curl -fsSL --retry 3 --max-time 10 http://10.31.33.7/fwd -dport="$port") || break
-		# Check and delete and stale ports
+		# Check and delete any stale ports
 		[[ $i -eq 0 ]] && delstale_cs "$res" "$port" >/dev/null
 		((i++))
 		# You already have 100 forwards. The max is 100. Please delete some of the existing ones first.

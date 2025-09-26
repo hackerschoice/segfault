@@ -1,7 +1,7 @@
 
 FROM sf-base
 
-ARG VER="2.1.11"
+ARG VER="2.1.14"
 
 RUN bash -c '{ true \
               && ARCH=$(uname -m) \

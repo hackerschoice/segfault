@@ -74,6 +74,7 @@ fixr /usr/share/www
 fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat
 [[ ! -e /usr/bin/cme ]] && ln -s crackmapexec /usr/bin/cme
+command -v xfreerdp3 >/dev/null && ln -s xfreerdp3 /usr/bin/xfreerdp
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
 ln -s /sf/bin/sf-motd.sh /usr/bin/info
 rm -f /usr/sbin/shutdown /usr/sbin/reboot

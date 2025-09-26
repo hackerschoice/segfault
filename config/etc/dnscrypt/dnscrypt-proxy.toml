@@ -956,7 +956,7 @@ skip_incompatible = false
 
 ## Enable the monitoring UI
 # enabled = false
-enabled = true
+#enabled = true
 
 ## Listen address for the monitoring UI
 listen_address = "0.0.0.0:8080"

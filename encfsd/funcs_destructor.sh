@@ -4,7 +4,6 @@
 stop_lg()
 {
 	local is_encfs
-	local is_container
 	local lid
 	local ts_born
 	local msg="$5"
@@ -18,7 +17,7 @@ stop_lg()
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
 
 	# Teardown LG
-	docker exec sf-master /teardown-lg.sh "${lid}" #"${C_IP}" "${LG_PID}" 
+	docker exec sf-master /teardown-lg.sh "${lid}"
 
 	# Remove files
 	rm -f 	"/sf/run/encfsd/user/lg-${lid}"\

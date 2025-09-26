@@ -581,23 +581,22 @@ spawn_shell_exit()
 # Generate a mnemonic hostname from LID (e.g. ButterflyCat)
 mk_hostname()
 {
-	NUM=$(echo "$LID" | md5sum)
-	NUM=${NUM%% *}
-	NUM=$((16#${NUM:0:15}))
+	local num english
+	num=$(echo "$LID" | md5sum)
+	num=${num%% *}
+	num=$((16#${num:0:15}))
 	# Oops. bash max integer is (2^63)-1, so limit to 15 hex.
-	# NUM=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
+	# num=$(echo "ibase=16; $(echo "$LID" | md5sum | cut -f1 -d" " | tr 'a-z' A-Z)" | bc)
 	readarray -t english <"${SF_HOST_FS_ROOT}/etc/english.txt"
 	SF_HOSTNAME="UnknownUnknown"
 	[[ "${#english[@]}" -lt 2048 ]] && ERREXIT 2 "english.txt bad"
-	m=$((NUM % 2048))
-	n=$(( (NUM / 2048) % 2048))
+	m=$((num % 2048))
+	n=$(( (num / 2048) % 2048))
 	SF_NUM="$((m * 2048 + n))"
 
 	SF_HOSTNAME="${english[$m]}"
 	SF_HOSTNAME+="${english[$n]}"
 	SF_FQ_HOSTNAME="${SF_FQDN%%\.*}-${SF_HOSTNAME}"
-	unset NUM
-	unset english
 }
 
 # 1. Set INODE limit per container. Docker does not support this via any

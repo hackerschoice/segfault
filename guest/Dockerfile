@@ -872,7 +872,9 @@ RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get update
 RUN pkg-install.sh HACK bash -c '{ curl -fL https://github.com/pixelb/scripts/raw/refs/heads/master/scripts/ansi2html.sh | sed "/^pre { white-.*/d" >/usr/bin/ansi2html \
 		&& chmod 755 /usr/bin/ansi2html; }'
-
+RUN pkg-install.sh GUI apt-get install -y --no-install-recommends \
+		libqt5scripttools5 \
+	&& pkg-install.sh GUI ghbin horsicq/DIE-engine "Kali_20"
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*
 

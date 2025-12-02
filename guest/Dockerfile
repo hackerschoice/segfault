@@ -862,8 +862,11 @@ RUN pkg-install.sh HACK bash -c '{ cd /tmp \
 		&& apt-get update; }' \
 	&& pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		google-cloud-cli \
+		yggdrasil \
 	&& pkg-install.sh HACK ghbin lfaoro/ssm 'linux_%arch%' ssm
-	
+RUN pkg-install.sh BASE bash -c '{ true \
+		&& curl -sfL -o /usr/bin/systemctl   https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py \
+		&& curl -sfL -o /usr/bin/journalctl  https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/refs/heads/master/files/docker/journalctl3.py; }'
 RUN pkg-install.sh HACK bin 'https://github.com/milio48/serveo/raw/refs/heads/master/serveo.sh' serveo \
 	&& pkg-install.sh HACK bin 'https://github.com/nitefood/asn/raw/refs/heads/master/asn' asn \
 	&& pkg-install.sh HACK bin 'https://download.mikrotik.com/routeros/winbox/4.0beta21/WinBox_Linux.zip' WinBox '' winbox
@@ -874,6 +877,7 @@ RUN pkg-install.sh HACK bash -c '{ curl -fL https://github.com/pixelb/scripts/ra
 		&& chmod 755 /usr/bin/ansi2html; }'
 RUN pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		libqt5scripttools5 \
+		sxiv \
 	&& pkg-install.sh GUI ghbin horsicq/DIE-engine "Kali_20"
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*

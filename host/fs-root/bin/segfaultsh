@@ -1019,15 +1019,16 @@ ERR_NOTEXIST() {
 	LOG_W "${XCDG}${SF_HOSTNAME}${XCN} [${GEOSTR}] No such server [${XCDC}${XCF}$(echo "${*//\\/\\\\}")${XCN}]"
 	sleep 5
 	echo -e >&2 "\
-💥 The server ${CDM}${SF_FQDN%%\.*}-${SF_HOSTNAME}${CN} does not exist
-at the domain ${CDM}${SF_FQDN}${CN}.
+   ERROR: ${SF_HOSTNAME} does not exist when attempting ssh remote command execution.
 
-Please check that you are connecting to the correct domain where your
-server has been created (it was not at ${SF_FQDN}).
+You used ${XCDC}ssh root@${SF_FQDN} <command>${XCN} but the server
+does not yet exist at the domain ${XCDM}${SF_FQDN}${XCN}.
 
-Please supply the correct ${CDY}SECRET${CN}:
+1. Please connect to the correct domain where your server has been
+created (it was not at ${XCDM}${SF_FQDN}${XCN}).
 
-   ${CDY}ssh -o SetEnv SECRET=ChangeMeSecretHere root@${SF_FQDN}${CN}"
+2. Alternatively, create a new server HERE by typing
+${XCDY}ssh root@${SF_FQDN}${XCN}"
 
 	sleep 55
 	do_exit 203

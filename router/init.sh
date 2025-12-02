@@ -361,6 +361,9 @@ ipt_direct()
 		ipset_add_ip "$ip" || ERR "IP=$ip"
 	done
 
+	# PROTON drive
+	# ipset_add_domain zrh-storage.proton.me
+
 	# Do not add Fastly
 	# ipset_add_domain pypi.python.org
 	# ipset_add_domain pypi.org

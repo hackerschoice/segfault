@@ -759,14 +759,19 @@ lgxcall() {
 	done
 }
 
-lgiftop()
-{
+lgiftop() {
 	_sf_init
+	local pid
+	local dev
 
 	echo -e "==> ${CDY}Press t & s after startup.${CN}"
 	echo "Press enter to continue."
 	read -r
-	TERM=xterm-256color nsenter -t $(docker inspect -f '{{.State.Pid}}' sf-router) -n iftop -Bn -i eth3
+	pid=$(docker inspect -f '{{.State.Pid}}' sf-router)
+	dev=$(nsenter -t "${pid}" -m grep ^DEV_LG= /dev/shm/net-devs.txt)
+	dev="${dev##*=}"
+	dev="${dev//\"/}"
+	TERM=xterm-256color nsenter -t "${pid}" -n iftop -Bn -i "${dev}"
 
 	_sf_deinit
 }

@@ -6,6 +6,13 @@ export BASH_ENV="/etc/shellrc"
 [[ -n $BASH ]] && export SHELL="/bin/bash" # user on zsh and did `bash`
 # shellcheck disable=SC1091
 source "/sf/bin/funcs.sh" 2>/dev/null
+[ -n "$ZSH_NAME" ] && {
+	# ZSH specific config
+	setopt INC_APPEND_HISTORY
+	setopt EXTENDED_HISTORY
+	hgrep() { fc -Dlim "*$**" 0 | grep -F "$*"; }
+	alias history='history -iD 0'
+}
 
 alias l='ls -Alh'
 alias lt='ls -Alhrt'
@@ -299,11 +306,6 @@ urldecode() { : "${*//+/ }"; echo -e "${_//\%/\\x}"; }
 	unset -f _grcset _grcenable
 }
 
-[ -f /usr/bin/zoxide ] && {
-	eval "$(zoxide init "$(basename "$SHELL")")"
-	alias cd='z'
-}
-
 # After 'alias ls=lsd...'
 lsg() {
 	[[ ! -t 1 ]] && { ls -Alh | grep -i -E "$*"; return; }
@@ -379,4 +381,9 @@ apt-get() {
 SHELLNAME="${SHELL##*/}"
 [[ -f "${HOME}/.gf/gf-completion.${SHELLNAME}" ]] && source "${HOME}/.gf/gf-completion.${SHELLNAME}"
 unset SHELLNAME
+
+[ -f /usr/bin/zoxide ] && {
+	eval "$(zoxide init "$(basename "$SHELL")")"
+	alias cd='z'
+}
 

@@ -98,7 +98,7 @@ GetFormVars()
 		[[ ${key} == "keypass"* ]] && R_KEYPASS="${val//[^[:print:]]}"
 		[[ ${key} == "route" ]] && [[ ${#R_ROUTE_ARR[@]} -lt 10 ]] && {
 			local arr2
-            IFS="/" read -r -a arr2 <<<"$val"
+			IFS="/" read -r -a arr2 <<<"$val"
 			a=${arr2[0]//[^0-9.]}
 			[[ -z $a ]] && continue
 			b=${arr2[1]//[^0-9]}
@@ -119,6 +119,7 @@ GetFormVars()
 		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:13}"; }
 		[[ ${key} == "token" ]] && { val="${val//[^a-zA-Z0-9@]}"; val="${val##*@}"; TOKEN_NAME="${val:0:64}"; }
 		### wgOUT
+		[[ ${key} == "fw" ]] && { val="${val//[^[:alnum:]]}"; FW="${val:0:10}"; }
 		[[ ${key} == "psk" ]] && R_OUT_PSK="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "public"    ]] && key="peer"  # Alias
 		[[ ${key} == "publickey" ]] && key="peer"  # Alias
@@ -725,10 +726,12 @@ ${G}👾 Your reverse Port is ${Y}${ipport%%:*} ${ipport##*:}${N} ${F}[${ipport%
 cmd_ipt() {
 	load_lg
 	load_config
-	echo -e "${CDM}====NAT ${CF}(YOUR server)${CN}"
+	echo -e "${CDM}====Your server${CN}"
+	lgns -t "${LG_PID:?}" -n iptables -vnL --line-numbers 
+	echo -e "${CDM}====Your server ${CF}NAT${CN}"
 	lgns -t "${LG_PID:?}" -n iptables -t nat -vnL OUTPUT --line-numbers | grep -Ev '(DOCKER)'
 	lgns -t "${LG_PID:?}" -n iptables -t nat -vnL "OUT-PROXY-${LID}" --line-numbers 2>/dev/null
-	echo -e "${CDM}====FORWARD ${CF}(SF-ROUTER)${CN}"
+	echo -e "${CDM}====SF-Router ${CF}FORWARD${CN}"
 	nsenter -t "${SF_ROUTER_PID}" -m -n sh -c "iptables -L \"\$(cat \"/dev/shm/ipt-syn-chain-${C_IP}.saved\")\" -vn"
 	nsenter -t "${SF_ROUTER_PID:?}" -n iptables -vnL "FW-${LID:?}"
 }
@@ -751,6 +754,7 @@ cmd_proxy() {
 				nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -F "OUT-PROXY-${LID}"
 				nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -X "OUT-PROXY-${LID}"
 			}
+			[[ -n "$SF_MULLVAD_ROUTE" ]] && nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -D OUTPUT -p tcp -d "$SF_MULLVAD_ROUTE" -j RETURN
 
 			# Move all processes back to normal cgroup
 			# cgroup needs an EOF after each write => Use a while loop
@@ -762,7 +766,9 @@ cmd_proxy() {
 		# Did not exit. 
 		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -N "OUT-PROXY-${LID}"
 		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUTPUT" -j "OUT-PROXY-${LID}"
-		[[ -n "$SF_MULLVAD_ROUTE" ]] && nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp -d "$SF_MULLVAD_ROUTE" -j RETURN
+		[[ -n "$SF_MULLVAD_ROUTE" ]] && {
+			nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -C OUTPUT -p tcp -d "$SF_MULLVAD_ROUTE" -j RETURN 2>/dev/null || nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A OUTPUT -p tcp -d "$SF_MULLVAD_ROUTE" -j RETURN
+		}
 		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -m addrtype --dst-type LOCAL -j RETURN
 		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -p tcp -d "${SF_RPC_IP:?}" -j RETURN
 		nsenter.u1000 -t "${LG_PID}" -n iptables -t nat -A "OUT-PROXY-${LID}" -p tcp -d "${SF_TOR_IP:?}" -j RETURN
@@ -873,6 +879,7 @@ Use ${C}curl sf/wg/up -d endpoint=<Server's IP Address, e.g. 1.2.3.4:51820> \\
                   -d Address=<Client's IPv4, e.g. 1.2.3.4> \\
                   -d Addres6=<Client's IPv6, e.g. fd:16::1> \\
                   -d psk=<Pre-Shared-Secret> \\ ${F}# optional${C}
+                  -d fw=open                   ${F}# optional${C}${N}
                   -d name=<A cool Name>        ${F}# optional${C}${N}
 Use ${C}curl sf/wg/down${N} to disconnect.
 Use ${C}curl sf/wg/show${N} to check WireGuard connetion."

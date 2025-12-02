@@ -75,6 +75,17 @@ set_route_pre_up() {
 	[[ -n $SF_MULLVAD_ROUTE ]] && nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n ip route add "${SF_MULLVAD_ROUTE}" via "${SF_NET_LG_ROUTER_IP}" dev eth0 2>/dev/null
 }
 
+lgipt() {
+	local arr=("$@")
+
+	shift 1
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n iptables  -C "$@" &>/dev/null || \
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n iptables  "${arr[@]}" 2>&1
+	
+	nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n ip6tables -C "${@}" &>/dev/null || \
+		nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n ip6tables "${arr[@]}"
+}
+
 set_route_post_up() {
 	local str
 
@@ -96,10 +107,17 @@ set_route_post_up() {
 
 	# Packets to 172.16.0.3 should not be forwarded back to 172.16.0.3
 	# Can not use 'sysctl net.ipv4.conf.wgExit.forwarding=1' because /proc is mounted ro
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n iptables  -C FORWARD -i "${WG_DEV}" -j DROP &>/dev/null || \
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n iptables  -I FORWARD -i "${WG_DEV}" -j DROP
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n ip6tables -C FORWARD -i "${WG_DEV}" -j DROP &>/dev/null || \
-	nsenter.u1000 --setuid 0 --setgid 0 -t "${LG_PID}" -n ip6tables -I FORWARD -i "${WG_DEV}" -j DROP
+	lgipt -I FORWARD -i "${WG_DEV}" -j DROP
+
+	if [ "$FW" = "open" ]; then
+		:
+	else
+		# By default, deny all stray packets. This is needed to connect to a WG EP
+		# when another user is already connected using the same credentials: Traffic for him
+		# would stray into our WG connection and our system would reply with RSTs.
+		lgipt -A INPUT -i "${WG_DEV}" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+		lgipt -A INPUT -i "${WG_DEV}" -j DROP
+	fi
 }
 
 # sf-master, wg/vpn

@@ -139,9 +139,22 @@ cmdout() {
     shift 1
     shift 1
     [ -n "$DRYRUN" ] && {
-        echo -e "${CDC}$*${CF} >$o 2>$e${CN}"
+        echo -e "${CDC}$*${CF}${o:+ >$o}${e:+ >$e}${CN}"
         return
     }
+    [ -z "$o" ] && [ -z "$e" ] && {
+        "$@"
+        return
+    }
+    [ -z "$o" ] && {
+        "$@" 2>"$e"
+        return
+    }
+    [ -z "$e" ] && {
+        "$@" 1>"$o"
+        return
+    }
+
     "$@" >"$o" 2>"$e"
 }
 
@@ -154,7 +167,7 @@ ipt()
     first=$2
 
     shift 2
-    cmdout "&1" "/dev/null" iptables -t "$table" -D "$@" # Delete old rule.
+    cmdout "" "/dev/null" iptables -t "$table" -D "$@" # Delete old rule.
     cmd iptables -t "$table" "$first" "$@"
 }
 
@@ -166,7 +179,7 @@ ipt6()
     first=$2
 
     shift 2
-    cmdout "&1" "/dev/null" ip6tables -t "$table" -D "$@" # Delete old rule.
+    cmdout "" "/dev/null" ip6tables -t "$table" -D "$@" # Delete old rule.
     cmd ip6tables -t "$table" "$first" "$@"
 }
 
@@ -253,13 +266,14 @@ wg_up()
     cmdout "/dev/null" "/dev/null" ip link del "${WG_DEV:?}"
     cmd ip link add "${WG_DEV}" type wireguard || return 255
 
-    fn="/dev/shm/private.$$"
-    cmdout "${fn}" "&2" echo "$PRIV"
+    # fn="/dev/shm/private.$$"
+    # cmdout "${fn}" "" echo "$PRIV"
     addr="${PEER_ADDRESS}"
     [[ -n $WITH_IPV6 ]] && addr+=",${PEER_ADDRES6}"
     # addr="0.0.0.0/0"
-    cmd wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || { ip link del "${WG_DEV}"; return 255; }
-    cmd rm -f "${fn}"
+    # cmd wg set "${WG_DEV}" private-key "${fn}" peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || { ip link del "${WG_DEV}"; return 255; }
+    cmd wg set "${WG_DEV}" private-key <(echo "$PRIV") peer "$PEER" allowed-ips "${addr}" endpoint "${EP}" persistent-keepalive 25 || { ip link del "${WG_DEV}"; return 255; }
+    # cmd rm -f "${fn}"
 
     cmd ip -4 address add "${ADDRESS}" dev "${WG_DEV}" || { ip link del "${WG_DEV}"; return 255; }
     [[ -n $WITH_IPV6 ]] && { cmd ip -6 address add "${ADDRES6}" dev "${WG_DEV}" || unset WITH_IPV6; }
@@ -295,6 +309,8 @@ Check the connection on your server:
     return 0
 }
 
+memexec(){ exec perl '-e$^F=255;for(319,279,385,4314,4354){($f=syscall$_,$",0)>0&&last};open($o,">&=".$f);print$o(<STDIN>);exec{"/proc/$$/fd/$f"}"'"${NAME}"'",@ARGV;exit 255' -- "$@";}
+
 # Download wiretap
 wt_dl()
 {
@@ -313,29 +329,30 @@ wt_dl()
         url="https://github.com/sandialabs/wiretap/releases/download/v${VER}/wiretap_${VER}_${OS}_armv6.tar.gz"
     fi
 
-    command -v curl >/dev/null && DL_CMD="curl -fsSL '$url' | tar xfz - wiretap"
-    [ -z "$DL_CMD" ] && command -v wget >/dev/null && DL_CMD="wget -qO- '$url' | tar xfz - wiretap"
+    command -v curl >/dev/null && DL_CMD="curl -fsSL '$url' | tar xfzO - wiretap"
+    [ -z "$DL_CMD" ] && command -v wget >/dev/null && DL_CMD="wget -qO- '$url' | tar xfzO - wiretap"
 
-    [ -n "$DRYRUN" ] && {
-        echo -e "${CDC}${DL_CMD} \\"$'\n'"&& chmod 700 wiretap${CN}"
-        IS_DOWNLOADED=1
-        return
-    }
-    [[ -f wiretap ]] && rm -f wiretap
-    touch wiretap 2>/dev/null || {
-        cd /dev/shm || ERREXIT 255 "Change to a writeable directory"
-        touch wiretap || ERREXIT 255 "Change to a writeable directory."
-    }
-    rm -f wiretap
-    echo -e "Downloading ${CDM}Wiretap${CN}..."
-    sh -c "$DL_CMD" && { IS_DOWNLOADED=1; return; }
+    return
+#     [ -n "$DRYRUN" ] && {
+#         echo -e "${CDC}${DL_CMD} \\"$'\n'"&& chmod 700 wiretap${CN}"
+#         IS_DOWNLOADED=1
+#         return
+#     }
+#     [[ -f wiretap ]] && rm -f wiretap
+#     touch wiretap 2>/dev/null || {
+#         cd /dev/shm || ERREXIT 255 "Change to a writeable directory"
+#         touch wiretap || ERREXIT 255 "Change to a writeable directory."
+#     }
+#     rm -f wiretap
+#     echo -e "Downloading ${CDM}Wiretap${CN}..."
+#     sh -c "$DL_CMD" && { IS_DOWNLOADED=1; return; }
 
-    [[ -f wiretap ]] && rm -f wiretap &>/dev/null # stale file
+#     [[ -f wiretap ]] && rm -f wiretap &>/dev/null # stale file
 
-    ERREXIT 255 "Failed to download ${CDM}Wiretap${CN}. Download it from
-${CDB}${CUL}https://github.com/sandialabs/wiretap/releases${CN}
-and start is manually:
-    ${CDC}wiretap serve --private \"${PRIV}\" --public \"${PEER}\" --endpoint \"${EP}\"${CN}"
+#     ERREXIT 255 "Failed to download ${CDM}Wiretap${CN}. Download it from
+# ${CDB}${CUL}https://github.com/sandialabs/wiretap/releases${CN}
+# and start is manually:
+#     ${CDC}wiretap serve --private \"${PRIV}\" --public \"${PEER}\" --endpoint \"${EP}\"${CN}"
 }
 
 addenv()
@@ -388,12 +405,13 @@ wt_up()
         "${cmd_checkrunning[@]}" && ERREXIT 255 "${CDM}Wiretap${CN} is already running. To stop: ${CDC}killall '${killname}'${CN}"
     fi
         
-    [[ -d wiretap ]] && { ERR "Directory ${CDY}./wiretap${CN} is in the way"; return 255; }
-    if [[ -f wiretap ]]; then
-        WARN "Using existing ${CDM}./wiretap${CN}"
-    else
-        wt_dl
-    fi
+    # [[ -d wiretap ]] && { ERR "Directory ${CDY}./wiretap${CN} is in the way"; return 255; }
+    # if [[ -f wiretap ]]; then
+    #     WARN "Using existing ${CDM}./wiretap${CN}"
+    # else
+    #     wt_dl
+    # fi
+    wt_dl
     peer_addr="${PEER_ADDRESS}"
     [[ -n $WITH_IPV6 ]] && peer_addr+=",${PEER_ADDRES6}"
 
@@ -419,18 +437,16 @@ wt_up()
     [ -n "$MTU"  ] && addenv WIRETAP_RELAY_INTERFACE_MTU  "$MTU"
 
     [ -n "$DRYRUN" ] && {
-        str=$'\n'"sleep 1 && rm -f wiretap"
-        [ -z "$IS_DOWNLOADED" ] && str=$'\n'"${CF}# sleep 1 && rm -f wiretap"
-        echo -e "${CDC}(PATH=.:\$PATH \\"$'\n'"${ENVSTR}bash -c 'exec -a ${NAME} wiretap serve -q ${opts[*]}' &>/dev/null &)${str}${CN}"
+        echo -e "${CDC}($(declare -f memexec)\n$DL_CMD \\"$'\n'"| PATH=.:\$PATH \\"$'\n'"NAME='$NAME' \\"$'\n'"${ENVSTR}memexec serve -q ${opts[*]} &>/dev/null &)${str}${CN}"
         return
     }
 
     if [[ -z $SF_DEBUG ]]; then
-        PATH=".:$PATH" exec -a "${NAME}" wiretap serve -q "${opts[@]}" &>/dev/null &
+        sh -c "$DL_CMD" | memexec serve -q "${opts[@]}" &>/dev/null &
         pid=$!
         disown "$pid"
     else
-        PATH=".:$PATH" wiretap serve "${opts[@]}"
+        sh -c "$DL_CMD" | memexec serve -q "${opts[@]}"
     fi
     [[ ${#cmd_checkrunning[@]} -gt 0 ]] && {
         n=0
@@ -446,12 +462,12 @@ wt_up()
         else
             WARN "Failed to start wiretap."
             echo -e "To run in the foreground:"
-            [[ -n $IS_DOWNLOADED ]] && echo -e "${CDC}${DL_CMD:-<download wiretap>}${CN}"
+            echo -e "${CDC}${DL_CMD:-<download wiretap>}${CN}"
             echo -e "${CDC}${ENVSTR}./wiretap serve" "${opts[@]}" "${CN}"
         fi
     }
     
-    [[ -n $IS_DOWNLOADED ]] && rm -f wiretap
+    # [[ -n $IS_DOWNLOADED ]] && rm -f wiretap
     [[ -n $err ]] && return
 
     # problem with gVisor DNAT & wt <=0.3.0 TCP mixup

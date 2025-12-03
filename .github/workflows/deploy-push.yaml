@@ -1,11 +1,12 @@
 name: Auto upload sfwg[*|.ps1] to thc.org/sfwg*
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - contrib/sfwg.ps1
-      - contrib/sfwg
+#  push:
+#    branches:
+#      - main
+#    paths:
+#      - contrib/sfwg.ps1
+#      - contrib/sfwg
+#      2025-12-03 - disabled. Use github-url instead.
   workflow_dispatch:
 
 jobs:

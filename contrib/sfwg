@@ -57,7 +57,7 @@ init_color()
 #2025-03-25 wiretap TCP bug effecting all versions >0.3.1
 #[ -z "$VER" ] && VER="0.3.1"
 #2025-09-25 version >= 0.7.0 is almost as stable as 0.3.1
-[ -z "$VER" ] && VER="0.7.0"
+[ -z "$VER" ] && VER="0.8.0"
 [ -z "$NAME" ] && NAME='/usr/sbin/updated'
 # [ -z "$MTU" ] && MTU=1340
 [ -z "$MTU" ] && MTU=1420
@@ -437,7 +437,7 @@ wt_up()
     [ -n "$MTU"  ] && addenv WIRETAP_RELAY_INTERFACE_MTU  "$MTU"
 
     [ -n "$DRYRUN" ] && {
-        echo -e "${CDC}($(declare -f memexec)\n$DL_CMD \\"$'\n'"| PATH=.:\$PATH \\"$'\n'"NAME='$NAME' \\"$'\n'"${ENVSTR}memexec serve -q ${opts[*]} &>/dev/null &)${str}${CN}"
+        echo -e "${CDC}($(declare -f memexec)\n$DL_CMD >${NAME##*/} \\"$'\n'"chmod 700 ${NAME##*/} \\"$'\n'"| PATH=.:\$PATH \\"$'\n'"NAME='$NAME' \\"$'\n'"${ENVSTR}memexec serve -q ${opts[*]} &>/dev/null &)${str}${CN}"
         return
     }
 
@@ -462,7 +462,7 @@ wt_up()
         else
             WARN "Failed to start wiretap."
             echo -e "To run in the foreground:"
-            echo -e "${CDC}${DL_CMD:-<download wiretap>}${CN}"
+            echo -e "${CDC}${DL_CMD:-<download wiretap>} >${NAME##*/}\nchmod 700 ${NAME##*/}${CN}"
             echo -e "${CDC}${ENVSTR}./wiretap serve" "${opts[@]}" "${CN}"
         fi
     }

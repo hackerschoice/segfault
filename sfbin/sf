@@ -171,7 +171,7 @@ grep -qFm1 "${SF_TOR_IP}:5353" "${SF_BASEDIR}/config/etc/dnscrypt/forwarding-rul
 
 [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ "${MAXMIND_KEY,,}" != "skip" ]] && {
 	WARN "Not found: data/share/GeoLite2-City.mmdb"
-	echo -e "Try ${CDC}curl -fL 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'${CN}."
+	echo -e "Try ${CDC}curl -fL 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C '${SF_DATADIR}/share/' 'GeoLite2-City.mmdb'${CN}"
 	echo -e "Try ${CDC}MAXMIND_KEY=skip${CN} to disable. This will also disable limits by GEOIP and disable user tools like geoip and geoiphn."
 }
 
@@ -182,7 +182,15 @@ grep -qFm1 "${SF_TOR_IP}:5353" "${SF_BASEDIR}/config/etc/dnscrypt/forwarding-rul
 
 [ ! -f "${SF_DATADIR}/share/hackshell.sh" ] && curl -SsfL "https://github.com/hackerschoice/hackshell/raw/main/hackshell.sh" -o "${SF_DATADIR}/share/hackshell.sh"
 
+[ ! -d "${SF_DATADIR}/share/tmux" ] && {
+	curl -SsfL https://github.com/hackerschoice/tmux/releases/latest/download/tmux-thc.tar.gz | tar xfz - -C "${SF_DATADIR}/share/"
+	(cd "${SF_DATADIR}/share/tmux" && echo 'if-shell "test -f ~/.config/tmux/tmux_thc.conf" "source-file ~/.config/tmux/tmux_thc.conf"' >>tmux.conf)
+	rm -f "${SF_DATADIR}/share/tmux/hackshell"
+	ln -s ../hackshell.sh "${SF_DATADIR}/share/tmux/hackshell"
+}
 [[ ! -f "${SF_DATADIR}/share/english.txt" ]] && WARN "Not found: data/share/english.txt - Try ${CDC}cp host/fs-root/etc/english.txt ${SF_DATADIR}/share/${CN}."
+[[ ! -f "${SF_DATADIR}/share/tmux.conf" ]] && WARN "Not found: data/share/tmux.conf - Try ${CDC}cp provision/tmux.conf ${SF_DATADIR}/share/${CN}."
+
 
 [[ ! -f "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] && WARN "Not found: data/share/relay-exit-nodes-mullvad.txt - ${CDM}See contrib/cronjob how to create it.${CN}"
 
@@ -332,7 +340,7 @@ systemctl status system.slice | grep -qFm1 "IO: " || WARN "IO Accounting not ena
 # Otherwise -o SetEnv DNS=127.0.0.1 will flood the logs with 'error' if user does not
 # run dnschef
 grep -qFm1 log-level /etc/docker/daemon.json 2>/dev/null || WARN "log-level should be fatal to prevent flooding.\n---> Try ${CDC}echo ewoJICAibG9nLWxldmVsIjogImZhdGFsIgp9Cg== | base64 -d >/etc/docker/daemon.json${CN}"
-grep -qFm1 /sf/docker /etc/default/docker 2>/dev/null || WARN "data-root is not /sf/docker\n---> Try ${CDC}echo 'DOCKER_OPTS=\"--data-root /sf/docker\"' >>/etc/default/docker${CN}"
+grep -qFm1 /sf/docker /etc/docker/daemon.json 2>/dev/null || WARN "data-root is not /sf/docker${CN}"
 
 
 [[ ! -d /var/lib/lxcfs/proc ]] && WARN "LG will report wrong uptime etc. Try ${CDC}apt-get install lxcfs && systemctl enable lxcfs && systemctl start lxcfs${CN}"

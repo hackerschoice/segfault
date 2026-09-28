@@ -11,7 +11,7 @@
 mk_haconf() {
     local fn="${1:?}"
     local src="${2:?}"
-    cat >"${fn}"<<-EOF
+    cat >"${fn}"<<EOF
 defaults
   timeout connect 15s
   timeout client 10s
@@ -34,9 +34,17 @@ EOF
     done >>"$fn" <"$src"
 }
 
+escape_redsocks_string() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    echo "$s"
+}
+
 do_conf() {
     local arr
     local str
+    local auth
     [ -z "$1" ] && return
     [[ "$1" == "on" ]] && return
 
@@ -46,25 +54,42 @@ do_conf() {
         return
     }
     unset HACONFIG
+    unset DLOGIN DPASSWORD
     str="$1"
+
+    # URI syntax: scheme://[user[:pass]@]host[:port]
+    if [[ "$str" == *"://"* ]]; then
+        str="${str#*://}"
+        if [[ "$str" == *@* ]]; then
+            auth="${str%%@*}"
+            str="${str#*@}"
+            DLOGIN="${auth%%:*}"
+            if [[ "$auth" == *:* ]]; then
+                DPASSWORD="${auth#*:}"
+            else
+                DPASSWORD=""
+            fi
+        fi
+    fi
+
     IFS=: read -ra arr <<<"${str}"
-    str="${arr[0]}"
+    DIP="${arr[0]}"
     [ "${#arr[@]}" -eq 2 ] && DPORT="${arr[1]}"
-    DIP="$str"
 }
 
 do_help() {
     echo -en "\
 proxy [SOCKS5-Server] <ROUTE> <...>
 
-${CDC}proxy               ${CN}- this help
-${CDC}proxy on            ${CN}- Round-Robin proxy over default EXIT nodes
-${CDC}proxy <file>        ${CN}- List of IP:PORT to proxy over
-${CDC}proxy off           ${CN}- disable proxy
-${CDC}proxy tor           ${CN}- proxy over TOR only
-${CDC}proxy 1.2.3.4:1080  ${CN}- Proxy via 1.2.3.4:1080
-${CDC}proxy pids          ${CN}- Show pids currently proxied
-${CDC}proxy pids <pid>    ${CN}- Add pids to be proxies.
+${CDC}proxy                           ${CN}- this help
+${CDC}proxy on                        ${CN}- Round-Robin proxy, default EXIT nodes
+${CDC}proxy <file>                    ${CN}- List of IP:PORT to proxy over
+${CDC}proxy off                       ${CN}- disable proxy
+${CDC}proxy tor                       ${CN}- proxy over TOR only
+${CDC}proxy 1.2.3.4:1080              ${CN}- Proxy via 1.2.3.4:1080
+${CDC}proxy socks5://u:p@1.2.3.4:1080 ${CN}- Proxy with SOCKS auth
+${CDC}proxy pids                      ${CN}- Show pids currently proxied
+${CDC}proxy pids <pid>                ${CN}- Add pids to be proxies.
 
 Proxy traffic for 1.0.0.0/8 and 2.0.0.0/8 only:
 ${CDC}proxy 1.2.3.4:1080 1.0.0.0/8 2.0.0.0/8${CN}
@@ -122,7 +147,9 @@ do_conf "$a1" "$@"
 # Make redsocks config
 # RSFN="/dev/shm/redsocks-${PPID}.conf"
 RSFN="/dev/shm/redsocks.conf"
-cat >"${RSFN}"<<-EOF
+RLOGIN="$(escape_redsocks_string "${DLOGIN:-}")"
+RPASSWORD="$(escape_redsocks_string "${DPASSWORD:-}")"
+cat >"${RSFN}"<<EOF
 base {
         log = "stderr";
         daemon = off;
@@ -135,6 +162,8 @@ redsocks {
         ip = ${DIP:-127.0.0.1};
         port = ${DPORT:-1080};
         type = socks5;
+        login = "${RLOGIN}";
+        password = "${RPASSWORD}";
 }
 EOF
 

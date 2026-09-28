@@ -1244,7 +1244,7 @@ fi
 	# login to secret@ to prompt for SECRET
     unset err
     while :; do
-        echo -e -n "\U1F480 ${CDY}SECRET${CN}: ${CDC}"
+        echo -e -n "\U1F31F ${CDY}SECRET${CN}: ${CDC}"
         read -r -n128 -t30 SECRET || err=1
         echo -en "${CN}"
         [[ -n $err ]] && exit 255
@@ -1291,10 +1291,11 @@ fi
 }
 
 [[ -n $TOKEN ]] && {
-	SF_TOKEN="${TOKEN//[^a-zA-Z0-9@]}"
+	TOKEN="${TOKEN//[^a-zA-Z0-9@]}"
 	# TOKEN=User@foobarBLah.helloAbc => foobarBLahhelloAbc
-	SF_TOKEN="${TOKEN##*@}"
-	SF_TOKEN="${SF_TOKEN:0:32}"
+	TOKEN="${TOKEN##*@}"
+	SF_TOKEN="${TOKEN:0:32}"
+	unset TOKEN
 }
 # Unset user supplied env variables
 unset SECRET HUSHLOGIN HIDEIP PRJ TOKEN DNS
@@ -1487,6 +1488,7 @@ exec_devnull docker run \
 	--env SF_FQDN="${SF_FQDN}" \
 	--env SF_HOSTNAME="${SF_HOSTNAME}" \
 	--env SF_LID="${LID}" \
+	--env USER="root" \
 	-e SF_PRJ \
 	-e SF_IS_GOLD_PROMPT \
 	-e SF_DEBUG \
@@ -1571,4 +1573,3 @@ echo_pty -e "....[${CG}OK${CN}]"
 # Spawn shell
 spawn_shell_exit "$@"
 # NOT REACHED
-

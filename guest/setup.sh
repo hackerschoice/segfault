@@ -35,6 +35,12 @@ ln -s openssh /usr/lib/ssh
 sed 's/\/root/\/sec\/root/g' -i /etc/passwd
 sed 's/\/home\//\/sec\/home\//g' -i /etc/passwd
 
+# Kali rolling and fallback to Debian sid.
+echo "deb http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware" >/etc/apt/sources.list
+echo "deb http://deb.debian.org/debian sid main" | tee /etc/apt/sources.list.d/debian-sid.list
+printf 'Package: *\nPin: release a=sid\nPin-Priority: 100\n' | tee /etc/apt/preferences.d/sid-pin
+apt update
+
 # Docker depends on /root to exist or otherwise throws a:
 # [process_linux.go:545: container init caused: mkdir /root: file exists: unknown]
 # shellcheck disable=SC2114
@@ -44,7 +50,7 @@ cp -a /etc/skel /sec/root
 ln -s /sec/root /root
 cd . # Prevent 'getcwd() failed' after deleting my own directory
 ln -s /sec/home /home
-mkdir /run/mysqld
+[ ! -d /run/mysqld ] && mkdir /run/mysqld
 
 echo "NOT ENCRYPTED" >/sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt
 
@@ -74,7 +80,7 @@ fixr /usr/share/www
 fixr /usr/share/source-highlight
 ln -s batcat /usr/bin/bat
 [[ ! -e /usr/bin/cme ]] && ln -s crackmapexec /usr/bin/cme
-command -v xfreerdp3 >/dev/null && ln -s xfreerdp3 /usr/bin/xfreerdp
+command -v xfreerdp3 >/dev/null && [ ! -e /usr/bin/xfreerdp ] && ln -s xfreerdp3 /usr/bin/xfreerdp
 ln -s /sf/bin/sf-motd.sh /usr/bin/motd
 ln -s /sf/bin/sf-motd.sh /usr/bin/info
 rm -f /usr/sbin/shutdown /usr/sbin/reboot
@@ -155,6 +161,7 @@ command  -v a2enmod >/dev/null && a2enmod php8.4
 	echo "Continuing in 5 seconds..."
 	sleep 5
 }
+
 
 # Fix curl-impersonate to use exec instead of forking and waiting...
 (cd /usr/bin

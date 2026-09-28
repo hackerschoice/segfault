@@ -6,29 +6,46 @@ CB="\e[1;34m" # blue
 CN="\e[0m"
 CUL="\e[4m"
 
-cleanup()
-{
-	kill -SIGTERM $PID_X $PID_F $PID_V
+cleanup() {
+	trap - EXIT HUP INT TERM
+	[ -n "$PID_X" ] && kill -SIGKILL "$PID_X" 2>/dev/null
+	[ -n "$PID_F" ] && kill -SIGKILL "$PID_F" 2>/dev/null
+	[ -n "$PID_V" ] && kill -SIGKILL "$PID_V" 2>/dev/null
 	killall ssh-agent gpg-agent
 	exit
 }
 
+DISP_NUM="${1:-0}"
+DISP_NUM="${DISP_NUM#:}"
+[[ "$DISP_NUM" =~ ^[0-9]+$ ]] || { echo >&2 "Invalid display number: $DISP_NUM"; exit 2; }
+
+# Keep GUI and clipboard handling in UTF-8 even when caller shell has C/POSIX locale.
+if locale -a 2>/dev/null | grep -qi '^en_US\.utf-\?8$'; then
+	export LANG=en_US.UTF-8
+	export LC_CTYPE=en_US.UTF-8
+else
+	export LANG=C.UTF-8
+	export LC_CTYPE=C.UTF-8
+fi
+export DISPLAY=":${DISP_NUM}"
+SESSION_SCOPE="${USER:-${USERNAME:-$UID}}@${DISPLAY}"
+VNC_PORT=$((5900 + DISP_NUM))
 unset VNC_OPTS
 VNC_OPTS+=("-shared")
 VNC_OPTS+=("-xkb")
-[ -z "$SF_FORCE" ] && VNC_OPTS+=("-timeout" "3600")
+# [ -z "$SF_FORCE" ] && VNC_OPTS+=("-timeout" "3600")
 [ -n "$PASSWORD" ] && VNC_OPTS+=("-usepw")
 VNC_OPTS+=("-forever")
 VNC_OPTS+=("-localhost")
+VNC_OPTS+=("-rfbport" "${VNC_PORT}")
 #VNC_OPTS+=("-wirecopyrect" "-scrollcopyrect")
 #VNC_OPTS+=("-nopw")
-VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY=:10 xterm-dark -geometry 120x25+250+50 & }")
-VNC_PASSWDFILE="${HOME}/.vnc/passwd"
+#VNC_OPTS+=("-afteraccept" "pidof xterm || { DISPLAY='${DISPLAY}' xterm-dark -geometry 120x25+250+50 & }")
+VNC_PASSWDFILE="${HOME}/.vnc/passwd-${DISPLAY}"
 
-mk_vncpass()
-{
+mk_vncpass() {
 	local str
-	[[ -z $PASSWORD ]] && {
+	[ -z "$PASSWORD" ] && {
 		str=$(echo -n "VNC-$USERNAME-${SF_SEC}" | sha512sum | base64 -w0)
 		str="${str//[^[:alpha:]]/}"
 		str="${str//[1lIi0ODG8B5S2Zmn]/}"
@@ -39,51 +56,61 @@ mk_vncpass()
 	x11vnc -storepasswd "${PASSWORD}" "${VNC_PASSWDFILE}" &>/dev/null
 }
 
-startonce()
-{
+startonce() {
 	local pid
-	pid=$(pidof "$1")
+	pid=$(pgrep -u "$UID" -n -f "^\\[${SESSION_SCOPE}\\]-$1( |$)")
 	[[ -n $pid ]] && { echo "$pid"; return 0; }
 
-	"$@" &>/dev/null &
+	( exec -a "[${SESSION_SCOPE}]-$1" "$@" ) &>/dev/null &
 	echo "$!"
 	return 0
 }
 
-sv_startx()
-{
-	local ppid=$1
-	trap "cleanup" SIGHUP
-	PID_X=$(startonce Xvfb ${DISPLAY} -screen 0 1920x1080x24)
-	PID_F=$(startonce "${DESKTOP}")
-	PID_V=$(startonce x11vnc "${VNC_OPTS[@]}")
-	trap "" SIGHUP
-	[ -n "$SF_FORCE" ] && return
-	jobs -p
-	while [[ -d /proc/$PPID && -d /proc/$PID_V ]]; do
-		sleep 5
+startdesktop() {
+	local pid i
+	for pid in $(pgrep -u "$UID" -x "$1"); do
+		tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "DISPLAY=${DISPLAY}" && { echo "$pid"; return 0; }
 	done
-	cleanup
+
+	unset DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
+
+	"$1" &>/dev/null &
+	echo "$!"
+	return 0
 }
 
-[[ -z $DISPLAY ]] && export DISPLAY=:10
+sv_startx() {
+	local ppid=$1
+	trap "cleanup" EXIT HUP INT TERM
+	PID_X="$(startonce Xvfb ${DISPLAY} -screen 0 1920x1080x24)"
+	PID_F="$(startdesktop "${DESKTOP}")"
+	PID_V="$(startonce x11vnc "${VNC_OPTS[@]}")"
+	if [ -n "$SF_FORCE" ]; then
+		trap - EXIT HUP INT TERM
+		return
+	fi
+	while [ -d "/proc/$ppid" ]; do
+		sleep 60
+	done
+}
+
 DESKTOP=${DESKTOP,,}
 if [[ -z $DESKTOP || ${DESKTOP} == *"xfce"* ]]; then
 	DESKTOP=xfce4-session
 fi
 command -v "${DESKTOP}" &>/dev/null || { echo >&2 "Window Manager not found: $DESKTOP"; exit 255; }
 
-[[ -n $PASSWORD ]] && {
+[ -n "$PASSWORD" ] && {
 	[[ ${#PASSWORD} -le 3 ]] && unset PASSWORD
 	mk_vncpass
 }
 sv_startx $PPID &>/dev/null &
 disown
 
-[[ -n $PASSWORD ]] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"
+[ -n "$PASSWORD" ] && echo -en "PASSWORD: ${CDY}${PASSWORD:-<NO PASSWORD>}${CN}\n\n"
 echo -e "Keep this shell running and open a SECOND ssh connection from your workstation:
 
-    ${CDC}ssh -L5900:0:5900 -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
+	${CDC}ssh -L${VNC_PORT}:0:${VNC_PORT} -o 'SetEnv SECRET=${SF_SEC}' root@${SF_FQDN}${CN}
 
 Then use your favourite VNC client and connect to ${CB}${CUL}127.0.0.1:5900${CN}.
 ${CDY}DO NOT EXIT THIS SHELL${CN}: Exiting this shell will terminate the GUI session."

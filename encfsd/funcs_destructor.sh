@@ -133,10 +133,12 @@ check_container()
 	[[ $((NOW - ts_logout)) -lt 60 ]] && return # Recently logged out.
 
 	# Filter out stale processes
-	echo "$comm" | grep -m1 -v -E '(^docker-init$|^sleep$|^encfs$|^gpg-agent$)' >/dev/null || {
-		# HERE: Nothing running but stale processes
-		stop_lg "${lid}" "${ts_born}" "encfs" "No processes running."
-		return
+	[ -z "$is_token" ] && {
+		echo "$comm" | grep -m1 -v -E '(^docker-init$|^sleep$|^encfs$|^gpg-agent$)' >/dev/null || {
+			# HERE: Nothing running but stale processes
+			stop_lg "${lid}" "${ts_born}" "encfs" "No processes running."
+			return
+		}
 	}
 	# HERE: Something running (but no shell, and no known processes)
 

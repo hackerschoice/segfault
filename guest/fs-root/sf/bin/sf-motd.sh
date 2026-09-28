@@ -9,6 +9,7 @@ source "/config/guest/vpn_status" 2>/dev/null
 print_ssh_access()
 {
 	local key_suffix
+	[ ! -f "/config/guest/id_ed25519" ] && return
 
 	key_suffix="sf-${SF_FQDN//./-}"
 	echo 1>&2 -e "\

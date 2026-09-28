@@ -38,7 +38,6 @@ cd "$SRCDIR"
 		--disable-wtmp \
 		--disable-utmpx \
 		--disable-wtmpx \
-		--disable-security-key \
 		--disable-lastlog \
 		--with-privsep-path=/var/empty \
 		--with-privsep-user=sshd \

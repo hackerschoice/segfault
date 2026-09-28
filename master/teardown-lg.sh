@@ -11,7 +11,17 @@ LID="${1:?}"
 
 source "/sf/bin/funcs.sh" || exit 255
 source "/dev/shm/config-lg.txt" || exit 255 # For SF_ROUTER_PID
+# Log LG_PID
 source "/dev/shm/sf/run/users/lg-${LID}/config.txt"
+
+# Wireguard bug in new Linux kernel:
+# 1. Assign port to WG
+# 2. Move WG into sf-guest
+# 3. Destroy sf-guest
+# => Port keeps listening: docker exec sf-wg ss -nlu
+# => Work-around: Destroy WG before container is killed
+lgns() { nsenter.u1000 --setuid 0 --setgid 0 "$@"; }
+lgns -t "$LG_PID" -n ip link delete group 31337
 
 # OpenVPN cleanup
 killall "openvpn-${LID}" 2>/dev/null

@@ -165,11 +165,6 @@ setup
 http://$(cat /config/guest/onion_hostname-80)/${SF_HOSTNAME,,}" >/onion/.your-onion-address.txt
 }
 
-[ ! -d ~/.config/tmux ] && mkdir -p ~/.config/tmux
-xln /sf/etc/tmux.conf ~/.config/tmux/tmux.conf
-xln ~/.config/tmux/tmux.conf ~/.tmux.conf
-xln /sf/share/hackshell.sh ~/.config/tmux/paste
-xln /sf/share/hackshell.sh ~/.config/tmux/upload
-xln /sf/share/hackshell.sh ~/.config/tmux/hackshell
+xln /sf/share/tmux ~/.config/tmux
 
 exit 0

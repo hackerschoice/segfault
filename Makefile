@@ -1,4 +1,4 @@
-VER := 0.5.9a1
+VER := 0.5.9a8uboot
 
 all:
 	make -C base
@@ -43,7 +43,6 @@ FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/proxychains.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/xdg/nvim/sysinit.vim"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/etc/ssh/ssh_config.d/segfault.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/etc/redsocks-1040.conf"
-FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/etc/tmux.conf"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/asnl"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/sf-motd.sh"
 FILES_GUEST += "segfault-$(VER)/guest/fs-root/sf/bin/funcs.sh"
@@ -148,6 +147,7 @@ FILES_PROVISION += "segfault-$(VER)/provision/system/sf.slice"
 FILES_PROVISION += "segfault-$(VER)/provision/system/sf-guest.slice"
 FILES_PROVISION += "segfault-$(VER)/provision/env.example"
 FILES_PROVISION += "segfault-$(VER)/provision/update.sh"
+FILES_PROVISION += "segfault-$(VER)/provision/tmux.conf"
 
 FILES_ENCFSD += "segfault-$(VER)/encfsd/Makefile"
 FILES_ENCFSD += "segfault-$(VER)/encfsd/Dockerfile"
@@ -186,6 +186,8 @@ FILES_CONFIG += "segfault-$(VER)/config/etc/logpipe/config.yaml"
 FILES_CONFIG += "segfault-$(VER)/config/etc/ssh/banner_example"
 FILES_CONFIG += "segfault-$(VER)/config/etc/dnscrypt/dnscrypt-proxy.toml"
 FILES_CONFIG += "segfault-$(VER)/config/etc/dnscrypt/forwarding-rules.txt"
+FILES_CONFIG += "segfault-$(VER)/config/db/token/netns-default.sh"
+FILES_CONFIG += "segfault-$(VER)/config/db/token/netns-block.sh"
 
 FILES_ROOT += "segfault-$(VER)/Makefile"
 FILES_ROOT += "segfault-$(VER)/ChangeLog"

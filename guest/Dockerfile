@@ -19,8 +19,10 @@ ARG BESTEFFORT
 
 COPY fs-root/sf/bin/pkg-install.sh /sf/bin/
 ENV PATH="/sf/bin:${PATH}"
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN	sed 's/^deb \(.*\)/deb \1\ndeb-src \1/g' -i /etc/apt/sources.list \
+RUN	grep -l "Types: deb" /etc/apt/sources.list.d/*.sources | xargs sed -i 's/^Types: deb$/Types: deb deb-src/' \
+	&& echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
 	&& apt-get update -y \
 	&& apt-get install -y --no-install-recommends ca-certificates
 RUN pkg-install.sh MINI apt-get install -y --no-install-recommends \
@@ -185,19 +187,18 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		dirsearch \
 		dnsenum \
 		dnsrecon \
-		dstat \
 		duf \
 		elinks \
 		emacs \
 		emailharvester \
 		enum4linux \
 		evil-winrm \
-		`### exa yanked from kali 2024.1` \
+		eza \
 		exiftool \
 		fastfetch \
 		fd-find \
 		flatpak \
-		fossil \
+		`### fossil yanked form kali 2026` \
 		fzf \
 		hashcat \
 		highlight \
@@ -232,13 +233,14 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		mycli \
 		mypager \
 		nfs-common \
-		`### neofetch yanked kali2025.1` \
+		neowofetch \
 		neovim \
 		nginx \
 		ngrep \
 		nikto \
 		openssh-client \
 		p7zip-full \
+		pcp \
 		peass \
 		pip \
 		proxychains \
@@ -252,7 +254,7 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		python3-full \
 		python3-scapy \
 		python3-poetry \
-		`### python3-pwntools yanked from kali2024.1` \
+		python3-pwntools \
 		python3-pwntools \
 		python3-pyaudio \
 		python3-pygments \
@@ -269,12 +271,11 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		radare2 \
 		recon-ng \
 		redis-tools \
-		rclone \
 		rlwrap \
 		smbclient \
 		smbmap \
 		snmp \
-		speedtest-cli \
+		`# speedtest-cli  ### yanked kali 2026` \
 		sqsh \
 		sslscan \
 		sshpass \
@@ -285,7 +286,7 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		theharvester \
 		tmate \
 		tree \
-		`### torsocks ### yanked from kali2024` \
+		torsocks \
 		urlcrazy \
 		uvicorn \
 		w3m \
@@ -379,14 +380,15 @@ RUN pkg-install.sh GUI bash -c '{ cd /tmp \
 		aqemu \
 		awesome \
 		brave-browser \
+		detect-it-easy \
 		evince \
-		`###eterm kali-2024 yanked` \
+		eterm \
 		enlightenment-data \
 		fluxbox \
 		fonts-noto-color-emoji \
 		fonts-symbola \
-		`### geany kali-2024 yanked` \
-		`### gimp kali-2024.4 yanked` \
+		geany \
+		gimp \
 		gnome \
 		gnome-terminal \
 		kate \
@@ -403,7 +405,7 @@ RUN pkg-install.sh GUI bash -c '{ cd /tmp \
 		syncthing-gtk \
 		terminator \
 		tigervnc-standalone-server \
-		`###tilix kali-2024 yanked` \
+		tilix \
 		wireshark \
 		x11vnc \
 		x11-xserver-utils \
@@ -415,18 +417,16 @@ RUN pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		code || { [ $(uname -m) != x86_64 ] && true; }
 RUN pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		`### xpra ### Using Xpra repo instead` \
-		libavformat61 \
-		libavif16 \
+		libavformat-dev libavformat-extra \
+		libavif-dev \
 		libjs-jquery-ui \
 		`###libprocps8 ### yanked from Kali` \
 		libqrencode4 \
 		libxres1 \
 		libxtst6 \
-		libswscale8 \
+		libswscale-dev \
 		libturbojpeg0 \
-		gir1.2-gtk-3.0 \
-		python3-cairo \
-		python3-gi \
+		gir1.2-gtk-4.0 \
 		python3-gi-cairo \
 		python3-opengl \
 		python3-pil \
@@ -512,26 +512,12 @@ RUN pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch6
 		&& git clone --depth 1 https://github.com/cheat/cheatsheets.git /usr/share/cheatsheets/community; }' \
 	&& pkg-install.sh HACK bash -c '{ cd /usr/share/nmap/scripts \
 		&& git clone --depth 1 https://github.com/scipag/vulscan; }'
-RUN pkg-install.sh HUGE ghbin pwndbg/pwndbg '_%arch1%.deb$'
-### x86_64 only
-# RUN pkg-install.sh HUGE bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/share \
-# 		&& git clone --depth 1 https://github.com/pwndbg/pwndbg \
-# 		&& cd pwndbg \
-# 		&& apt-get install -y --no-install-recommends python3-dev python3-setuptools libglib2.0-dev libc6-dbg  \
-# 		&& ./setup.sh \
-# 		&& echo "source /usr/share/pwndbg/gdbinit.py" >>/etc/gdb/gdbinit \
-# 		&& mkdir -p /usr/src/glibc \
-# 		&& cd /usr/src/glibc \
-# 		&& apt-src install glibc \
-# 		&& echo "directory \$cdir:\$cwd:$(find /usr/src/glibc -maxdepth 1 -type d | tail -n1)" >>/etc/gdb/gdbinit \
-# 		&& { dpkg --force-architecture --remove-architecture i386; \
-# 			rm -f /var/lib/apt/lists/*-i386*; apt-get update; } \
-# 		&& echo DONE; }'
+RUN pkg-install.sh HUGE bash -c '{ curl -qsL https://install.pwndbg.re | sh -s -- -t pwndbg-gdb; }'
 RUN pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		bloodhound.py \
-		`# python3-certipy CONFLICT with kali certipy4.0.1` \
+		`### python3-certipy 2026 conflict with netexec certpy-ad` \
 		python3-colorama \
-		crackmapexec \
+		`### crackmapexec 2026 use netexec` \
 		netexec \
 		python3-avahi \
 		python3-dnspython \
@@ -548,7 +534,7 @@ RUN pkg-install.sh HACK apt-get install -y --no-install-recommends \
 	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/fullhunt/log4j-scan/master/log4j-scan.py log4j-scan
 RUN pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		python3-aiohttp \
-		`###python3-discord yanked kali2024.1` \
+		python3-discord \
 		python3-harmony \
 		python3-irc
 RUN pkg-install.sh    HACK pipx install aort \
@@ -563,7 +549,7 @@ RUN pkg-install.sh    HACK pipx install aort \
 	&& pkg-install.sh HACK pipx install holehe \
 	&& pkg-install.sh HACK pipx install jishaku \
 	&& pkg-install.sh HACK pipx install git+https://github.com/codingo/Interlace \
-	&& pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret `### 2023-03-07 pipx repo fails on aiohttp/longintrepr.h` \
+	`### && pkg-install.sh HACK pipx install git+https://github.com/soxoj/maigret fails on CAIRO` \
 	&& pkg-install.sh HACK pipx install raccoon-scanner \
 	&& pkg-install.sh HACK pipx install git+https://github.com/EntySec/Shreder \
 	&& pkg-install.sh HACK pipx install trevorspray \
@@ -603,9 +589,9 @@ RUN pkg-install.sh    LARGE apt-get install -y --no-install-recommends \
 		python3-openai \
 		python3-python-telegram-bot \
 		python3-wsgidav
-RUN pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.4/geonet_0.4.4_%arch:x86_64=x86_64:DEFAULT=SKIP%.deb'    `# x86_64 only` \
-	&& pkg-install.sh MINI bash -c "{ [[ -f /usr/share/locale/locale.alias ]] && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8; }" \
-	&& pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
+RUN pkg-install.sh LARGE bin 'https://gitlab.com/api/v4/projects/32089582/packages/generic/geonet-rs/0.4.4/geonet_0.4.4_%arch:x86_64=x86_64:DEFAULT=SKIP%.deb'    `# x86_64 only` 
+RUN pkg-install.sh MINI bash -c "localedef -i en_US -c -f UTF-8 en_US.UTF-8"
+RUN pkg-install.sh DEVEL bash -c '{ arch=amd64; [[ $HOSTTYPE == "aarch64" ]] && arch=arm64; apt-get install -y --no-install-recommends linux-headers-${arch}; }'
 ### After 0.4.3a release
 #RUN pkg-install.sh GAMES apt-get install -y --no-install-recommends \
 #		pacman4console YANKED kali2024
@@ -632,8 +618,8 @@ RUN pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gobjc++-mingw-w64-i686-posix gobjc++-mingw-w64-i686-win32 gobjc-mingw-w64-i686-posix gobjc-mingw-w64-i686-win32 \
 		maven \
 		rust-src
-RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'linux_%arch:x86_64=x64:aarch64=arm64%$' fscan \
-	&& pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
+# YANKED 2026, changed package naming. RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_2*_linux_%arch:x86_64=x64:aarch64=arm64%$' fscan \
+RUN pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
 	&& pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest \
 		&& mkdir -p /usr/share/gf \
 		&& git clone --depth 1 https://github.com/tomnomnom/gf.git /tmp/gf \
@@ -679,12 +665,11 @@ RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'linux_%arch:x86_64=x64:aarch64=ar
 	&& pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/gitlab-subdomains | PREFIX=/usr/bin sh; }' \
 	&& pkg-install.sh HACK bash -c '{ curl -sf https://gobinaries.com/gwen001/github-endpoints | PREFIX=/usr/bin sh; }'
 RUN pkg-install.sh GUI apt-get install -y --no-install-recommends \
-		hexchat \
 		i3 \
 		jupyter \
 		pavucontrol \
 		pulseaudio \
-		`# telegram-desktop YANKED kali2024` \
+		telegram-desktop \
 		tigervnc-tools \
 	&& pkg-install.sh GUI npm install -g carbonyl
 RUN pkg-install.sh GUI bash -c '{ curl -SsfL https://telegram.org/dl/desktop/linux | tar Jxvf - --transform="flags=r;s|.*/||" --no-anchored  -C "/usr/bin/" --wildcards Telegram/Telegram; }'
@@ -732,7 +717,7 @@ RUN pkg-install.sh DEV apt-get install -y --no-install-recommends \
 RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		aria2 \
 		buildtorrent \
-		caddy \
+		`### caddy yanked from kali2025` \
 		ccache \
 		expat \
 		evilginx2 \
@@ -776,8 +761,7 @@ RUN pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                      
 	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/nitefood/asn/master/asn                         asn2 \
 	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr
 RUN pkg-install.sh HACK ghbin ginuerzh/gost                     'linux[_-]%arch:x86_64=amd64:aarch64=arm64%.*gz$' gost                          \
-	&& pkg-install.sh HACK ghbin tulir/gomuks                      'linux-%arch1%'                                gomuks                        \
-	&& pkg-install.sh HACK ghbin Snawoot/hola-proxy                'linux-%arch1%'                                hola-proxy                    \
+	&& pkg-install.sh HACK ghbin tulir/gomuks                      '-%arch1%'                                gomuks                        \
 	&& pkg-install.sh HACK ghbin maxmind/mmdbinspect               'linux_amd64.tar.gz$'                          mmdbinspect   `# x86_64 only` \
 	&& pkg-install.sh HACK ghbin shadowsocks/shadowsocks-rust      '%arch%-unknown-linux-musl.tar'                                              \
 	&& pkg-install.sh HACK ghbin shadowsocks/v2ray-plugin          'linux-%arch1%'                               'v2ray-plugin_*' "" v2ray-plugin \
@@ -814,7 +798,8 @@ RUN pkg-install.sh GUI bin 'https://download.anydesk.com/linux/anydesk_6.3.2-1_%
 RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		php-curl \
 		php-fpm \
-		php-xml
+		php-xml \
+		powershell
 RUN    pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
 	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& pkg-install.sh HACK pipx install pwncat-cs \
@@ -824,8 +809,7 @@ RUN    pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux
 	&& pkg-install.sh HACK bin 'https://github.com/xaitax/SploitScan/raw/main/sploitscan.py'                    sploitscan \
 	&& pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
 RUN    pkg-install.sh LARGE ghbin  PaddiM8/kalker                       'linux'                                 kalker \
-	&& pkg-install.sh LAREGE ghbin bvaisvil/zenith                      'x86_64-unknown-linux-musl.tgz'         zenith
- ## YANKED. Already in apt-get install powershell/pkg-install.sh LARGE ghbin PowerShell/PowerShell  'deb_%arch1%.deb'
+	&& pkg-install.sh LAREGE ghbin bvaisvil/zenith                      'x86_64.tar.gz'         zenith
 RUN pkg-install.sh LARGE bash -c '{ curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr bash; }'
 RUN	pkg-install.sh HACK bash -c '{ wget -O "/usr/bin/favfreak.py" https://raw.githubusercontent.com/devanshbatham/FavFreak/master/favfreak.py \
 		&& chmod 755 /usr/bin/favfreak.py \
@@ -874,11 +858,11 @@ RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
 	&& apt-get autoremove -y \
 	&& apt-get update
 RUN pkg-install.sh HACK bash -c '{ curl -fL https://github.com/pixelb/scripts/raw/refs/heads/master/scripts/ansi2html.sh | sed "/^pre { white-.*/d" >/usr/bin/ansi2html \
-		&& chmod 755 /usr/bin/ansi2html; }'
+		&& chmod 755 /usr/bin/ansi2html; }' \
+	&& pkg-install.sh HACK bash -c 'curl https://rclone.org/install.sh | bash -s beta'
 RUN pkg-install.sh GUI apt-get install -y --no-install-recommends \
 		libqt5scripttools5 \
-		sxiv \
-	&& pkg-install.sh GUI ghbin horsicq/DIE-engine "Kali_20"
+		sxiv
 # Keep the apt/lists in case user does an apt update -y
 #RUN rm -rf /var/lib/apt/lists/*
 

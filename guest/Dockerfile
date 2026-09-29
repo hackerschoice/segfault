@@ -335,7 +335,6 @@ RUN pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		debootstrap \
 		libguestfs-tools \
 		qemu-efi-aarch64 \
-		qemu-efi-arm \
 		qemu-system \
 		qemu-user \
 		qemu-utils \

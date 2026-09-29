@@ -8,6 +8,8 @@
 source "/sf/bin/funcs.sh"
 source "/sf/bin/funcs_redis.sh"
 
+PROVIDER="${PROVIDER,,}"
+
 ipbydev()
 {
 	local _ip
@@ -154,7 +156,7 @@ delstale_cs()
 	IFS=$'\n'
 
 	# Assigned to containers
-	rarr=($(redr SMEMBERS "portd:assigned-CryptoStorm"))
+	rarr=($(redr SMEMBERS "portd:assigned-cryptostorm"))
 	for str in "${rarr[@]}"; do
 		r+=("${str##* }")
 	done
@@ -162,7 +164,7 @@ delstale_cs()
 	# Assigned in pool of available ports
 	rarr=($(redr SMEMBERS "portd:ports"))
 	for str in "${rarr[@]}"; do
-		[[ "${str%% *}" != "CryptoStorm" ]] && continue
+		[[ "${str%% *}" != "cryptostorm" ]] && continue
 		r+=("${str##* }")
 	done
 
@@ -226,7 +228,10 @@ cmd_moreports()
 		res="${res%%:${port}*}"
 		ip="${res##*$'\n'}"
 
-		[[ "$ip" =~ [^0-9.] ]] && break
+		valid_ipport "${ip}:${port}" || {
+			WARN "${PROVIDER}: Port request ${port} failed: ${res%%$'\n'*}"
+			break
+		}
 		members+="${PROVIDER} ${ip}:${port}"$'\n'
 		((members_num++))
 

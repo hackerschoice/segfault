@@ -705,12 +705,13 @@ Alternatively, set up your own reverse port like so: https://tinyurl.com/thctips
 
 	red RPUSH portd:cmd "remport ${LID}" >/dev/null
 	sleep 1  # Stop DoS attack: flood-requesting reverse ports
-	ipport=$(echo -e "DEL portd:response-${LID}\"\n\
-RPUSH portd:blcmd \"getport ${LID}\"\n\
-BLPOP portd:response-${LID} 5" | redr) || return
+	# Keep Redis command acknowledgments out of the endpoint response.
+	redr DEL "portd:response-${LID}" >/dev/null || BAIL "Could not clear the port response."
+	redr RPUSH portd:blcmd "getport ${LID}" >/dev/null || BAIL "Could not request a port."
+	ipport=$(redr BLPOP "portd:response-${LID}" 12) || ipport=""
 	# DEBUGF "ipport='$ipport'"
 	ipport="${ipport##*$'\n'}"
-	[[ ! "${ipport##*:}" -gt 0 ]] && BAIL "Ports not available. Please report this to a SysCop." "BAD sf/port (ipport='$ipport')"
+	valid_ipport "$ipport" || BAIL "Ports not available. Please report this to a SysCop." "BAD sf/port (ipport='$ipport')"
 
 	# The PortD add's a /sf/run/self/reverse_forward.
 	echo -e "\

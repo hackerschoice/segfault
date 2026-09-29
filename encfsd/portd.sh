@@ -25,7 +25,7 @@ config_port()
 	local lid
 	local provider
 	lid="$1"
-	provider="$2"
+	provider="${2,,}"
 	r_ip="$3"
 	r_port="$4"
 
@@ -54,7 +54,9 @@ got_port()
 	local lid
 	lid="$1"
 	provider="${2%% *}"
+	provider="${provider,,}"
 	str="${2##* }"
+	valid_ipport "$str" || { ERR "Invalid port allocation: $str"; return 255; }
 	r_ip="${str%%:*}"
 	r_port="${str##*:}"
 	selfdir="/config/self-for-guest/lg-${lid}"
@@ -101,6 +103,7 @@ cmd_getport()
 	# [PROVIDER] [PORT]
 	i=0
 	unset err
+	redr RPUSH portd:cmd fillstock >/dev/null
 	while :; do
 		res=$(redr SPOP portd:ports) && break
 		# Dont wait unless there is a provider serving us..
@@ -142,7 +145,7 @@ remport_provider()
 	local lid
 	local provider
 	lid="$1"
-	provider="$2"
+	provider="${2,,}"
 
 	[[ "${provider,,}" != "cryptostorm" ]] && return
 	shift 2
@@ -215,9 +218,9 @@ cmd_remport()
 	done
 
 	# Delete ports for each provider
-	remport_provider "${lid}" "CryptoStorm" "${c_ipports[@]}"
-	remport_provider "${lid}" "NordVPN" "${n_ipports[@]}"
-	remport_provider "${lid}" "Mullvad" "${m_ipports[@]}"
+	remport_provider "${lid}" "cryptostorm" "${c_ipports[@]}"
+	remport_provider "${lid}" "nordvpn" "${n_ipports[@]}"
+	remport_provider "${lid}" "mullvad" "${m_ipports[@]}"
 }
 
 # VPN provider goes UP.
@@ -226,11 +229,13 @@ cmd_remport()
 cmd_vpnup()
 {
 	local provider
-	provider="$1"
+	provider="${1,,}"
 
 	DEBUGF "VPN UP ${provider}"
 
 	[[ "${provider,,}" != "cryptostorm" ]] && return
+	# The VPN up hook deletes provider-side forwards, even if down was missed.
+	cmd_vpndown "$provider"
 	redr SADD portd:providers "${provider}" >/dev/null
 }
 
@@ -239,40 +244,48 @@ cmd_vpnup()
 cmd_vpndown()
 {
 	local provider res lid LG_PID C_IP
-	local ipport
-	provider="$1"
+	local ipport member name key
+	provider="${1,,}"
 
 	DEBUGF "VPN DOWN ${provider}"
-	redr SREM portd:providers "${provider}" >/dev/null
+	# Also remove legacy provider spellings already stored in Redis.
+	while IFS= read -r name; do
+		[[ "${name,,}" == "$provider" ]] || continue
+		redr SREM portd:providers "$name" >/dev/null
+	done < <(redr SMEMBERS portd:providers)
+
+	# Unused forwards are separate from assigned forwards; both expire on reconnect.
+	while IFS= read -r member; do
+		name="${member%% *}"
+		[[ "${name,,}" == "$provider" ]] || continue
+		redr SREM portd:ports "$member" >/dev/null
+	done < <(redr SMEMBERS portd:ports)
 
 	# Update all containers that used this provider.
-	while :; do
-		res=$(redr SPOP "portd:assigned-${provider}") || break
-		# [LID] [PORT]
-		lid="${res%% *}"
-		ipport="${res##* }"
-		[ -z "$ipport" ] && break
+	while IFS= read -r key; do
+		name="${key#portd:assigned-}"
+		[[ "${name,,}" == "$provider" ]] || continue
+		while :; do
+			res=$(redr SPOP "$key") || break
+			# [LID] [PORT]
+			lid="${res%% *}"
+			ipport="${res##* }"
+			[ -z "$ipport" ] && break
 
-		[ -f "/config/self-for-guest/lg-${lid}/reverse_port" ] && {
-			rm -f "/config/self-for-guest/lg-${lid}/reverse_ip" "/config/self-for-guest/lg-${lid}/reverse_port" &>/dev/null
-			unset LG_PID
-			source "/sf/run/users/lg-${lid}/config.txt"
-			# Bump port to make it stop listen. Jump via sf-master for nsenter.
-			[ -n "$LG_PID" ] && timeout 5 docker exec sf-master nsenter.u1000 --setuid 0 --setgid 0  -n -t "${LG_PID}" bash -c ":>/dev/tcp/0/${ipport##*:}"
-			# [ -n "$pid" ] && timeout 5 docker exec sf-master nsenter.u1000 --setuid 0 --setgid 0  -n -t "${pid}" fuser -s -k "${ipport##*:}/tcp" 2>/dev/null
-		}
-		# Normally that's 1 member per lg but the lg may have multiple
-		# port forwards assigned to it.
-		# Remove Lid's key/value for this port forward.
-		red SREM "portd:assigned-${lid}" "${provider} ${ipport}" >/dev/null
-		value+=("${provider} ${ipport}")
-	done
-
-	# Remove from portd:ports
-	red SREM "portd:ports" "${value[@]}" >/dev/null
-
-	# Remove ports from assigned list
-	red DEL "portd:assigned-${provider}" >/dev/null
+			[ -f "/config/self-for-guest/lg-${lid}/reverse_port" ] && {
+				rm -f "/config/self-for-guest/lg-${lid}/reverse_ip" "/config/self-for-guest/lg-${lid}/reverse_port" &>/dev/null
+				unset LG_PID
+				source "/sf/run/users/lg-${lid}/config.txt"
+				# Bump port to make it stop listen. Jump via sf-master for nsenter.
+				[ -n "$LG_PID" ] && timeout 5 docker exec sf-master nsenter.u1000 --setuid 0 --setgid 0  -n -t "${LG_PID}" bash -c ":>/dev/tcp/0/${ipport##*:}"
+				# [ -n "$pid" ] && timeout 5 docker exec sf-master nsenter.u1000 --setuid 0 --setgid 0  -n -t "${pid}" fuser -s -k "${ipport##*:}/tcp" 2>/dev/null
+			}
+			# Normally that's 1 member per lg but the lg may have multiple
+			# port forwards assigned to it.
+			# Remove Lid's key/value for this port forward.
+			redr SREM "portd:assigned-${lid}" "${name} ${ipport}" >/dev/null
+		done
+	done < <("${REDCMD[@]}" --scan --pattern 'portd:assigned-*')
 }
 
 
@@ -306,6 +319,7 @@ cmd_fillstock()
 		req_num=$(( $max_needed / ${#arr[@]} + 1))
 		[[ $req_num -gt $max_needed ]] && req_num="$max_needed"
 		for provider in "${arr[@]}"; do
+			provider="${provider,,}"
 			members=($(docker exec "sf-${provider,,}" /sf/bin/rportfw.sh moreports "${req_num}"))
 			ret=$?
 			# Fatal error. Never try this provider again.

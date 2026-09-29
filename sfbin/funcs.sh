@@ -31,6 +31,19 @@ ASSERT_EMPTY()
 }
 
 
+# Validate a reverse-port endpoint before publishing or configuring it.
+valid_ipport()
+{
+	[[ $1 =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$ ]] || return 1
+	local ip="${1%:*}" port="${1##*:}" octet
+	((10#$port > 0 && 10#$port <= 65535)) || return 1
+	local IFS=.
+	for octet in $ip; do
+		((10#$octet <= 255)) || return 1
+	done
+	return 0
+}
+
 ERR()
 {
 	echo -e >&2 "[$(date '+%F %T' -u)] [${CR}ERROR${CN}] $*"

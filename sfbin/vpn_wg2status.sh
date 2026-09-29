@@ -19,6 +19,8 @@ IS_REDIRECTS_DNS=\"${IS_REDIRECTS_DNS}\"\n\
 PROVIDER=\"${PROVIDER}\"\n" >/dev/shm/env.txt
 fi
 
+PROVIDER="${PROVIDER,,}"
+
 source /sf/bin/funcs.sh
 source /sf/bin/funcs_redis.sh
 

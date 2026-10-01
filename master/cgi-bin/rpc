@@ -117,6 +117,7 @@ GetFormVars()
 		[[ ${key} == "privatekey" ]] && key="private"
 		[[ ${key} == "private" ]] && R_WG_PRIVATE="${val//[^[:alnum:]+\/]}="
 		[[ ${key} == "name" ]] && { val="${val//[^[:alnum:]]}"; R_WT_NAME="${val:0:13}"; }
+		[[ ${key} == "type" ]] && [ "$val" == "manual" ] && IS_MANUAL=1
 		[[ ${key} == "token" ]] && { val="${val//[^a-zA-Z0-9@]}"; val="${val##*@}"; TOKEN_NAME="${val:0:64}"; }
 		### wgOUT
 		[[ ${key} == "fw" ]] && { val="${val//[^[:alnum:]]}"; FW="${val:0:10}"; }
@@ -176,26 +177,81 @@ GenSecret()
 	echo "$str"
 }
 
+net_print_example_manual()
+{
+	local name
+	name="${1}"
+	local C="$C" F="$F" G="$G" M="$M" N="$N" W="$W" Y="$Y" color
+
+	# Decode only color escapes; keep PowerShell paths literal in the here-document.
+	for color in C F G M N W Y; do
+		printf -v "$color" '%b' "${!color}"
+	done
+
+	cat <<EOF
+Manual WINDOWS connection instructions for ${G}${name}${N}:
+${F}#################### BEGIN CUT & PASTE #################################${N}
+${C}\$NAME${N} = ${G}"wirewarp"${N}
+${C}\$EP${N} = ${G}"${WG_EP_HOST}:${WG_PORT}"${N}
+${C}\$WT_PATH${N} = ${G}"${C}\$env:APPDATA${G}\\${C}\$NAME${G}"${N}
+${Y}mkdir${N} ${C}\$WT_PATH${N}
+
+${F}# 2. Add Defender exclusion (requires admin)${N}
+${M}try${N} { ${Y}Add-MpPreference${N} ${W}-ExclusionPath${N} ${G}"${C}\$WT_PATH${G}"${N} } ${M}catch${N} {}
+
+${F}# 3. Download${N}
+(${Y}New-Object${N} ${C}System.Net.WebClient${N}).${Y}DownloadFile${N}(${G}"https://github.com/sandialabs/wiretap/releases/download/v0.9.0/wiretap_0.9.0_windows_amd64.zip"${N}, ${G}"${C}\$WT_PATH${G}\wiretap.zip"${N})
+
+${F}# 4. Extract, rename & clean up${N}
+${Y}Expand-Archive${N} ${W}-Path${N} ${G}"${C}\$WT_PATH${G}\wiretap.zip"${N} ${W}-DestinationPath${N} ${G}"${C}\$WT_PATH${G}"${N}
+${Y}Remove-Item${N} ${G}"${C}\$WT_PATH${G}\wiretap.zip"${N}
+${Y}Rename-Item${N} ${W}-Path${N} ${G}"${C}\$WT_PATH${G}\wiretap.exe"${N} ${W}-NewName${N} ${G}"${C}\$NAME${G}.exe"${N}
+
+${F}# 5. Prevent FW pop-up and allow network traffic.${N}
+${M}try${N} { ${Y}netsh${N} advfirewall firewall add rule name=${G}"${C}\$NAME${G}"${N} dir=in action=allow program=${G}"${C}\$WT_PATH${G}\\${C}\$NAME${G}.exe"${N} enable=yes profile=any } ${M}catch${N} {}
+
+${F}# 6. Set config env vars${N}
+${C}\$env:WIRETAP_RELAY_INTERFACE_PRIVATEKEY${N} = ${G}"${WT_PRIVATE}"${N}
+${C}\$env:WIRETAP_RELAY_PEER_PUBLICKEY${N}       = ${G}"${WG_PUBLIC}"${N}
+${C}\$env:WIRETAP_RELAY_PEER_ENDPOINT${N}        = ${C}\$EP${N}
+${C}\$env:WIRETAP_SIMPLE${N}                     = ${G}"true"${N}
+
+${F}# 7. start${N}
+${Y}Start-Process${N} ${W}-FilePath${N} ${G}"${C}\$WT_PATH${G}\\${C}\$NAME${G}.exe"${N} ${W}-ArgumentList${N} ${G}"serve"${N}, ${G}"-q"${N}, ${G}"--conn-timeout"${N}, ${G}"5000"${N}, ${G}"--allowed"${N}, ${G}"${WG_IPS//x/0}"${N} ${W}-WindowStyle${N} Hidden
+${F}#################### END CUT & PASTE #################################${N}
+EOF
+}
+
 net_print_example()
 {
 	local name
 	name="${1}"
 
-	echo -en "\
+	[ -n "$IS_MANUAL" ] && {
+		net_print_example_manual "$@"
+		return
+	}
+
+	local C="$C" CY="$CY" F="$F" G="$G" N="$N" color
+	for color in C CY F G N; do
+		printf -v "$color" '%b' "${!color}"
+	done
+
+	cat <<EOF
 To connect ${G}${name}${N} use this command on the LINUX Exit Node:
-${C}[ -z \"\$EP\" ] && EP='${WG_EP_HOST}:${WG_PORT}'
+${C}[ -z "\$EP" ] && EP='${WG_EP_HOST}:${WG_PORT}'
 X='${WT_VER}-${WT_PRIVATE}'
 X+='-${WG_PUBLIC}'
-X+=\"-\${EP}-${WG_IPS}\"
+X+="-\${EP}-${WG_IPS}"
 U='https://github.com/hackerschoice/segfault/raw/refs/heads/main/contrib/sfwg'
-DL=\"curl -fsSL \$U || wget --no-verbose -qO- \$U\"
-X=\"\$X\" bash -c \"\$(sh -c \"\$DL\")\"${N}
+DL="curl -fsSL \$U || wget --no-verbose -qO- \$U"
+X="\$X" bash -c "\$(sh -c "\$DL")"${N}
 or this command on the WINDOWS Exit Node:
 ${CY}${F}\$env:X='${WT_VER}-${WT_PRIVATE}'
 \$env:X+='-${WG_PUBLIC}'
 \$env:X+='-${WG_EP_HOST}:${WG_PORT}-${WG_IPS}'
-irm https://thc.org/sfwg.ps1 | iex${N}
-"
+irm https://github.com/hackerschoice/segfault/raw/refs/heads/main/contrib/sfwg.ps1 | iex${N}
+EOF
 }
 
 net_print_commands()

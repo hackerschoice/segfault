@@ -3,7 +3,7 @@
 # CONTEXT: VPN context. Called when WG goes UP or DOWN
 # from sfbin/* and mounted into each VPN container
 
-# PARAMETERS: [output filename] [up/down] [interface]
+# PARAMETERS: [output filename] [up/down/check/monitor] [interface]
 
 # NOTE:
 # POST_UP has all the set environment variables but
@@ -26,10 +26,14 @@ source /sf/bin/funcs_redis.sh
 
 # From all files update the VPN status file
 create_vpn_status()
-{
+(
 	local exit_ip
 	local geoip
 	local provider
+	local f status_lock tmp
+
+	exec {status_lock}>"${DSTDIR}/.status.lock" || return
+	flock "$status_lock" || return
 
 	for f in "${DSTDIR}"/status-*.log; do
 		[[ ! -f "${f}" ]] && break
@@ -47,18 +51,92 @@ create_vpn_status()
 		return
 	fi
 
+	tmp=$(mktemp /config/guest/.vpn_status.XXXXXX) || return
 	echo -en "\
 IS_VPN_CONNECTED=1\n\
 VPN_GEOIP=(${geoip})\n\
 VPN_PROVIDER=(${provider})\n\
-VPN_EXIT_IP=(${exit_ip})\n" >"/config/guest/vpn_status"
+VPN_EXIT_IP=(${exit_ip})\n" >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" /config/guest/vpn_status || { rm -f "$tmp"; return 1; }
+)
+
+valid_exit_ip()
+{
+	local a b c d
+	valid_ipport "$1:1" || return 1
+	IFS=. read -r a b c d <<<"$1"
+	((10#$a > 0 && 10#$a < 224 && 10#$a != 10 && 10#$a != 127)) || return 1
+	((10#$a != 100 || 10#$b < 64 || 10#$b > 127)) || return 1
+	((10#$a != 169 || 10#$b != 254)) || return 1
+	((10#$a != 172 || 10#$b < 16 || 10#$b > 31)) || return 1
+	((10#$a != 192 || 10#$b != 168))
 }
+
+observed_exit_ip()
+{
+	[[ "$PROVIDER" == cryptostorm ]] || return 1
+	local response ip
+	local -a options=(-4 -fsS --noproxy '*' --interface "${DEV}" --connect-timeout 3 --max-time 8)
+	# Forwarding belongs to this address, even if browsing uses another exit.
+	response=$(curl "${options[@]}" -A Mozilla/5.0 http://10.31.33.7/fwd) || return 1
+	ip=$(sed -nE 's/.*A firewall rule will be added to this VPN server \(([0-9.]+)\).*/\1/p' <<<"$response")
+	valid_exit_ip "$ip" || return 1
+	printf '%s\n' "$ip"
+}
+
+check_exit_ip()
+(
+	[[ "$PROVIDER" == cryptostorm ]] || return 0
+	local check_lock candidate ip previous tmp queued
+	local SFVPN_EXIT_IP SFVPN_PROVIDER
+	exec {check_lock}>"${STATE_PREFIX}.lock" || return
+	flock -n "$check_lock" || return 0
+	candidate="${STATE_PREFIX}.candidate"
+	if [[ ! -f "$LOGFNAME" ]] || ! wg show "$DEV" >/dev/null 2>&1; then
+		rm -f "$candidate"
+		return 0
+	fi
+	source "$LOGFNAME"
+	[[ "${SFVPN_PROVIDER,,}" == "$PROVIDER" ]] || return 1
+	previous="$SFVPN_EXIT_IP"
+	ip=$(observed_exit_ip) || { rm -f "$candidate"; return 0; }
+	[[ "$ip" == "$previous" ]] && { rm -f "$candidate"; return 0; }
+	# Require the same valid new address on two consecutive checks.
+	if [[ ! -f "$candidate" || "$(cat "$candidate")" != "$ip" ]]; then
+		printf '%s\n' "$ip" >"$candidate"
+		return
+	fi
+
+	tmp=$(mktemp "${STATE_PREFIX}.XXXXXX") || return
+	sed "s/^SFVPN_EXIT_IP=.*/SFVPN_EXIT_IP=\"${ip}\"/" "$LOGFNAME" >"$tmp" || { rm -f "$tmp"; return 1; }
+	chmod 644 "$tmp" || { rm -f "$tmp"; return 1; }
+	# The port manager invalidates this provider's pool and guest assignments,
+	# then refills it. Do not run the VPN-up hook or change the tunnel routes.
+	queued=$(redr RPUSH portd:cmd "vpnup ${PROVIDER}")
+	[[ "$queued" =~ ^[1-9][0-9]*$ ]] || { rm -f "$tmp"; return 1; }
+	mv -f "$tmp" "$LOGFNAME" || { rm -f "$tmp"; return 1; }
+	create_vpn_status || return
+	rm -f "$candidate"
+	LOG "VPN" "${PROVIDER} exit IP changed: ${previous} -> ${ip}"
+)
+
+monitor_exit_ip()
+(
+	[[ "$PROVIDER" == cryptostorm ]] || return 0
+	local monitor_lock
+	exec {monitor_lock}>"${STATE_PREFIX}.monitor.lock" || return
+	flock -n "$monitor_lock" || return 0
+	while :; do
+		check_exit_ip || WARN "${PROVIDER}: exit-IP status update failed"
+		sleep 120
+	done
+)
 
 down()
 {
 	# NOTE: DEBUGF wont work because stderr is closed during
 	# WireGuard PRE_DOWN/POST_DOWN
 	[[ -f "${LOGFNAME}" ]] && rm -f "${LOGFNAME}"
+	rm -f "${STATE_PREFIX}.candidate"
 	create_vpn_status
 
 	ip route del "${NETWORK}" via "${NET_VPN_ROUTER_IP}" 2>/dev/null
@@ -108,6 +186,10 @@ up()
 		[ -z "$exit_ip" ] && exit_ip="$(curl -SsfL --max-time 5 https://api.ipify.org 2>/dev/null)"
 		[ -z "$exit_ip" ] && exit_ip="$(curl -SsfL --max-time 5 https://icanhazip.com 2>/dev/null)"
 		exit_ip="${exit_ip//[^0-9.]}"
+		# CryptoStorm's forwarding address also identifies its cached reverse ports.
+		if [[ "$PROVIDER" == cryptostorm ]]; then
+			t=$(observed_exit_ip) && exit_ip="$t"
+		fi
 	} # wg show
 
 	if [[ -z $ep_ip ]]; then
@@ -147,9 +229,17 @@ LOGFNAME="$1"
 OP="$2"
 DEV="${3:-wg0}"
 DSTDIR="$(dirname "${LOGFNAME}")"
+STATE_PREFIX="${DSTDIR}/.${LOGFNAME##*/}"
 
 [[ ! -d "${DSTDIR}" ]] && { umask 077; mkdir -p "${DSTDIR}"; }
+if [[ "$OP" == up || "$OP" == down ]]; then
+	exec {lifecycle_lock}>"${STATE_PREFIX}.lock" || exit
+	flock "$lifecycle_lock" || exit
+	rm -f "${STATE_PREFIX}.candidate"
+fi
 [[ "$OP" == "down" ]] && { down; exit; }
+[[ "$OP" == "check" ]] && { check_exit_ip; exit; }
+[[ "$OP" == "monitor" ]] && { monitor_exit_ip; exit; }
 
 # This is executed by PostUp. wg-quick (in run.sh) will wait until this has finished executing.
 # - Make sure VPN is up correctly and we can get geo-ip infos.
@@ -171,5 +261,5 @@ wait_for_handshake "${DEV}" || { echo -e "Handshake did not complete"; exit 255;
 }
 
 echo >&2 "OP=${OP}"
-echo >&2 "Usage: [output filename] [up/down] [interface] <mullvad/cryptostorm/nordvpn>"
+echo >&2 "Usage: [output filename] [up/down/check/monitor] [interface]"
 exit 255

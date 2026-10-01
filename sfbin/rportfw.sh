@@ -224,9 +224,11 @@ cmd_moreports()
 		[[ "$res" == *"You already have "* ]] && { ERR "${PROVIDER} Out of ports!!!"; err=255; break; }        # Max Port Forward reached.
 		# 2024-09-22, CS changed api. 
 		#[[ "$res" != *"is now forwarding"* ]] && { WARN "${PROVIDER} Failed to get port=${port}."; continue; } # Failed. Try again.
+		# 2026-08-16 CS again changed api. Best to extract any public ip:
+		ip="$(echo "$res" | awk '{for(i=1;i<=NF;i++) if($i~/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ && $i!~/^10\./ && $i!~/^192\.168\./ && $i!~/^172\.(1[6-9]|2[0-9]|3[01])\./) {print $i;exit}}')"
 
-		res="${res%%:${port}*}"
-		ip="${res##*$'\n'}"
+		#res="${res%%:${port}*}"
+		#ip="${res##*$'\n'}"
 
 		valid_ipport "${ip}:${port}" || {
 			WARN "${PROVIDER}: Port request ${port} failed: ${res%%$'\n'*}"

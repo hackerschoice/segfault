@@ -23,7 +23,8 @@ arp -s "${C_IP:?}" "${LG_MAC:?}"
 
 # Flush if exist or create new.
 iptables -F "${FORWARD_USER}" 2>/dev/null || iptables -N "${FORWARD_USER}"
-iptables -C FORWARD -i "${DEV_LG:?}" -s "${C_IP}" -j "${FORWARD_USER}" &>/dev/null || iptables -I FORWARD 1 -i "${DEV_LG}" -s "${C_IP}" -j "${FORWARD_USER}"
+# Leave the first FORWARD rule (the non-TCP onion guard) ahead of guest policies.
+iptables -C FORWARD -i "${DEV_LG:?}" -s "${C_IP}" -j "${FORWARD_USER}" &>/dev/null || iptables -I FORWARD 2 -i "${DEV_LG}" -s "${C_IP}" -j "${FORWARD_USER}"
 [ -n "$SF_USER_FW" ] && {
     [ ! -f "$fn" ] && { echo >&2 "File ${fn} not found"; exit 255; }
     set -e

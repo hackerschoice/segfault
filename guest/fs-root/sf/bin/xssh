@@ -15,7 +15,7 @@ xssh()
     [[ $(ssh -V 2>&1) == OpenSSH_[67]* ]] && a="no"
     ssh -o UpdateHostKeys=no -o StrictHostKeyChecking="${a:-accept-new}" -T \
         "$@" \
-        "unset SSH_CLIENT SSH_CONNECTION; TERM=xterm-256color BASH_HISTORY=/dev/null exec -a [ntp] script -qc 'exec -a [uid] /bin/bash -i' /dev/null"
+	'unset SSH_CLIENT SSH_CONNECTION; command -v script >/dev/null && c=("script" "-qc" "exec -a [uid] /bin/bash -i" "/dev/null"); [ -z "$c" ] && command -v python >/dev/null && c=("python" "-c" "import pty; pty.spawn(\"/bin/bash\")"); [ -z "$c" ] && perl -e "use Expect" 2>/dev/null && { c=("perl" "-e" "use Expect; my \$exp = Expect->new; \$exp->raw_pty(1); \$exp->spawn(\"/bin/bash\"); \$exp->interact;");echo "May need: stty sane";}; [ -z "$c" ] && c=("bash" "-i"); LESSHISTFILE=- MYSQL_HISTFILE=/dev/null TERM=xterm-256color BASH_HISTORY=/dev/null HISTFILE=/dev/null exec -a "[ntp]" "${c[@]}"'
     stty "${ttyp}"
 }
 

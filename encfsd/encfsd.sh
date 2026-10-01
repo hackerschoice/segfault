@@ -18,7 +18,7 @@ BAD()
 do_exit_err()
 {
 	# Kill the redis-loop
-	[[ -z $CPID ]] && { kill $CPID; unset CPID; }
+	[[ -n $CPID ]] && { kill "$CPID"; unset CPID; }
 
 	killall encfs # This will unmount
 	ERREXIT "$1" "Exiting main thread"

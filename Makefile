@@ -1,4 +1,4 @@
-VER := 0.5.9a8uboot
+VER := 0.6.1rc1
 
 all:
 	make -C base

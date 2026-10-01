@@ -327,20 +327,23 @@ command -v batcat >/dev/null && {
 
 [[ -e /sec/THIS-DIRECTORY-IS-NOT-ENCRYPTED--DO-NOT-USE.txt ]] && { echo >&2 "WARNING: /sec is NOT encrypted. PRESS ENTER to continue..."; read -r; }
 
-[[ -n $SF_IS_GOLD_PROMPT ]] && [[ -n $PROMPT ]] && {
-	PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%F{%(#.yellow.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{yellow}#.%F{blue}$)%b%F{reset} '
-}
-
 [[ -n $PROMPT ]] && {
-	prompt_symbol=㉿
-    [ "$EUID" -eq 0 ] && prompt_symbol=💀
-	[[ -n $SF_IS_GOLD_PROMPT ]] && prompt_symbol=💛
+	_sf_prompt_route() {
+		local exit_name="" route=""
 
-	if [[ -e /config/self/prompt ]]; then
-		PROMPT=$'%F{%(#.blue.green)}┌──$(</config/self/prompt)${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
-	else
-		PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
-	fi
+		# The exit is shared by the guest; proxy membership belongs to this shell.
+		[[ -r /config/self/prompt ]] && exit_name=$(</config/self/prompt)
+		exit_name=${exit_name#*"EXIT:%B"}
+		exit_name=${exit_name%%"%b"*}
+		grep -Fq proxy1040 "/proc/$$/cgroup" 2>/dev/null && route="PROXY%F{red}»%F{yellow}"
+		[[ -n $exit_name ]] && route+="${exit_name}%F{red}»%F{yellow}"
+		[[ -n $route ]] && print -r -- "(%F{yellow}${route}EXIT%F{%(#.blue.green)})"
+	}
+
+	prompt_symbol=㉿
+	[ "$EUID" -eq 0 ] && prompt_symbol=✨
+
+	PROMPT=$'%F{%(#.blue.green)}┌──$(_sf_prompt_route)${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n%{%G└%}%{%G─%}%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
 	unset prompt_symbol
 }
 

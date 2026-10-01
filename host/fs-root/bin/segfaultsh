@@ -155,17 +155,22 @@ logout()
 
 sem_wait()
 {
-	IS_SEM_WAIT=1
 	redq BLPOP "${LG_SEM:?}" 5 || ERREXIT 238 "Could not get lock: ${LG_SEM}"
+	IS_SEM_WAIT=1
 	redq BLPOP "sema:destructor" 5 || ERREXIT 238 "Could not get lock: destructor"
+	IS_SEM_DESTRUCTOR=1
 }
 
 sem_release()
 {
-	[[ -z $IS_SEM_WAIT ]] && return
-	# unset _before_ potential call to ERREXIT().
-	unset IS_SEM_WAIT
-	echo "DEL '${LG_SEM}'"$'\n'"RPUSH '${LG_SEM}' 1" | red1 || ERREXIT 237 "Could not release lock: ${LG_SEM}"
+	if [[ -n $IS_SEM_WAIT ]]; then
+		# Clear before releasing so repeated cleanup does not release twice.
+		unset IS_SEM_WAIT
+		echo "DEL '${LG_SEM}'"$'\n'"RPUSH '${LG_SEM}' 1" | red1 || LOG_E "Could not release lock: ${LG_SEM}"
+	fi
+	# The shared lock is owned only after its BLPOP succeeds.
+	[[ -z $IS_SEM_DESTRUCTOR ]] && return
+	unset IS_SEM_DESTRUCTOR
 	echo "DEL 'sema:destructor'"$'\n'"RPUSH 'sema:destructor' 1" | red1 || LOG_E "Could not release lock: sema:destructor"
 }
 
@@ -1453,7 +1458,6 @@ write_guest_limits
 
 # Note: cgroup-parents: with cgroup-v1 the full path needs to be specified (e.g. sf.slice/sf-guest.slice) whereas with
 # cgroup-v2 only sf-guest.slice need to be specified.
-[[ -n $SF_IS_GOLD_PROMPT ]] && export SF_IS_GOLD_PROMPT
 [[ -n $SF_PRJ ]] && export SF_PRJ
 [[ -n $SF_DEBUG ]] && export SF_DEBUG
 [[ -z $SF_USER_DNS ]] && SF_USER_DNS="$SF_DNS"
@@ -1490,7 +1494,6 @@ exec_devnull docker run \
 	--env SF_LID="${LID}" \
 	--env USER="root" \
 	-e SF_PRJ \
-	-e SF_IS_GOLD_PROMPT \
 	-e SF_DEBUG \
 	--log-driver "${SF_DOCKER_LOG}" \
 	--tmpfs /tmp:exec,size="${SF_SHM_SIZE:-64m}"            `# GoLang needs /tmp to be executeable ` \
@@ -1536,6 +1539,8 @@ LG_PID=${arr[1]}
 C_IP=${arr[2]}
 LG_MAC=${arr[3]}
 [[ -z $C_IP ]] && ERREXIT 249 "[${LID}] ${SF_FQ_HOSTNAME} Could not get container's IP address."
+# The init PID can disappear before the destructor runs; retain the namespace identity.
+LG_NETNS=$(readlink "/proc/${LG_PID:?}/ns/net") || STOPEXIT "$LID" 249 "Could not identify guest network namespace."
 
 IDX=$((0x${YOUR_IP_HASH} % 1024))
 [[ $IDX -lt 0 ]] && IDX=$((IDX * -1))
@@ -1548,6 +1553,7 @@ USER_DL_RATE='${SF_USER_DL_RATE}'
 USER_UL_RATE='${SF_USER_UL_RATE}'
 CID='${CID}'
 LG_PID='${LG_PID:?}'
+LG_NETNS='${LG_NETNS:?}'
 LG_MAC='${LG_MAC:?}'
 C_IP='$C_IP'" "${LG_RUN_DIR:?}/config.txt"
 

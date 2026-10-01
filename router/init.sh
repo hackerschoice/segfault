@@ -99,19 +99,17 @@ init_revport_once()
 
 	echo -e >&2 "[$(date '+%F %T' -u)] RevPort set up for ${ips[*]}"
 
-	# Route return traffic back to VPN-GW the packet came in from.
-	# Every return packet is marked (11nnn). If it is marked (e.g. it is a return packet)
-	# then also mark it as 12nnn. Then use customer routing rule for all packets
-	# marked 12nnn.
-	# Note: We can not route on 11nnn because this would as well incoming packets (and
-	# we only need to route return packets). 
+	# Route replies through the VPN-GW that received the connection. Keep the
+	# connection mark (11nnn) separate from the reply's routing mark (12nnn).
 
 	# Load the ConnTrack MARKS:
 	# ..but only if not from MOSH's redirections (to 169.254.224.1)
 	iptables -A PREROUTING -t mangle -i "${DEV_LG}" ! -d "${NET_LG_ROUTER_IP}" -j CONNMARK --restore-mark
 	for idx in "${ips_idx[@]}"; do
-		# On return path (-i DEV), add 12nnn mark for every packet that was initially tracked (11nnn).
-		iptables -A PREROUTING -t mangle -i "${DEV_LG}" -m mark --mark "11${idx}" -j MARK --set-mark "12${idx}"
+		# Reverse replies must precede direct-destination and other guest policies.
+		# Insert RETURN first so MARK executes before it at the head of the chain.
+		iptables -I PREROUTING 1 -t mangle -i "${DEV_LG}" -m conntrack --ctdir REPLY -m connmark --mark "11${idx}" -j RETURN
+		iptables -I PREROUTING 1 -t mangle -i "${DEV_LG}" -m conntrack --ctdir REPLY -m connmark --mark "11${idx}" -j MARK --set-mark "12${idx}"
 		# Add a routing table for return packets to force them via GW (mac) they came in from.
 		ip rule add fwmark "12${idx}" table "8${idx}"
 		ip route add default via "${VPN_IPS[$idx]}" dev "${DEV_GW}" table "8${idx}"
@@ -445,6 +443,10 @@ set -e
 ipt_set
 
 ipt_syn_limit
+
+# Tor's virtual address space only supports TCP, regardless of routing marks.
+# Keep this first; ready-lg-router.sh inserts guest policies after this rule.
+iptables -I FORWARD 1 -d "${NET_ONION:?}" ! -p tcp -j REJECT --reject-with icmp-proto-unreachable
 
 set +e
 ipt_direct

@@ -1,12 +1,11 @@
 
-# [LID] <1=encfs> <1=Container> <message>
-# Either parameter can be "" to not stop encfs or lg-container 
+# [LID] [birth timestamp] [nonempty=stop EncFS] [message]
 stop_lg()
 {
 	local is_encfs
 	local lid
 	local ts_born
-	local msg="$5"
+	local msg="$4"
 	lid="$1"
 	ts_born="$2"
 	is_encfs="$3"
@@ -17,7 +16,10 @@ stop_lg()
 	red RPUSH portd:cmd "remport ${lid}" >/dev/null
 
 	# Teardown LG
-	docker exec sf-master /teardown-lg.sh "${lid}"
+	docker exec sf-master /teardown-lg.sh "${lid}" || {
+		ERR "[${lid}] Teardown failed; retaining cleanup state for retry."
+		return 1
+	}
 
 	# Remove files
 	rm -f 	"/sf/run/encfsd/user/lg-${lid}"\

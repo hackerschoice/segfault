@@ -58,7 +58,10 @@ genkey_hidden()
 	find "${dir}" -type f -exec chmod 600 {} \; || ERREXIT "$?"
 }
 
-# Route all traffic that comes to this instance through TOR.
+# Tor terminates proxy connections locally; it must never forward IP packets.
+iptables -P FORWARD DROP || ERREXIT "$?" "Could not block forwarded traffic"
+
+# Redirect TCP connections to Tor's transparent proxy.
 iptables -t nat -A PREROUTING -p tcp ! -d sf-tor --syn -j REDIRECT --to-ports 9040
 
 if [[ -n $SF_TOR_VIA_VPN ]]; then

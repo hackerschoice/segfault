@@ -6,3 +6,4 @@ set incsearch
 set hlsearch
 set viminfo=""
 set noswapfile
+set paste

@@ -10,6 +10,8 @@
 # possible, but leave them commented.  Uncommented options override the
 # default value.
 
+Include /config/host/etc/ssh/sshd_config
+
 #Port 22
 #AddressFamily any
 AddressFamily inet # disable IPv6 to make X11 work in docker
@@ -41,7 +43,8 @@ StrictModes no
 
 # The default is to check both .ssh/authorized_keys and .ssh/authorized_keys2
 # but this is overridden so installations will only check .ssh/authorized_keys
-AuthorizedKeysFile	.ssh/authorized_keys
+#AuthorizedKeysFile	/config/etc/ssh/authorized_keys
+AuthorizedKeysFile	.ssh/authorized_keys 
 #AuthorizedKeysFile	/config/etc/ssh/id_ed25519.pub
 
 #AuthorizedPrincipalsFile none
@@ -122,6 +125,7 @@ ClientAliveCountMax 3
 #PidFile /run/sshd.pid
 #MaxStartups 10:30:100
 MaxStartups 128:10:1024
+PerSourcePenalties authfail:1 noauth:0 crash:90 grace-exceeded:5 refuseconnection:0 max:60 min:30 max-sources4:65536 max-sources6:65536 overflow:permissive overflow6:permissive
 #PermitTunnel no
 #ChrootDirectory none
 #VersionAddendum none

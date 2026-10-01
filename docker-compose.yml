@@ -103,21 +103,22 @@ services:
     - "${SF_BASEDIR:-.}/config:${SF_BASEDIR:-.}/config"
     - "/sys/fs/cgroup:/sys/fs/cgroup"
 
-  sf-logpipe:
-    build: tools/logpipe
-    image: sf-logpipe
-    container_name: sf-logpipe
-    restart: ${SF_RESTART:-on-failure}
-    cgroup_parent: sf.slice
-    volumes:
-      - "${SF_BASEDIR:-.}/config/etc/logpipe/:/app/config/:ro"    
-      - "${SF_SHMDIR:-/dev/shm/sf}/run/logpipe/:/app/sock/:rw"
-    entrypoint:
-      - sh
-      - -c
-      - |
-        [ ! -d /app/config/config.yaml ] && exit 0
-        exec /app/logpipe
+  # 2026-04-15 disabled. no longer used.
+  # sf-logpipe:
+  #   build: tools/logpipe
+  #   image: sf-logpipe
+  #   container_name: sf-logpipe
+  #   restart: ${SF_RESTART:-on-failure}
+  #   cgroup_parent: sf.slice
+  #   volumes:
+  #     - "${SF_BASEDIR:-.}/config/etc/logpipe/:/app/config/:ro"    
+  #     - "${SF_SHMDIR:-/dev/shm/sf}/run/logpipe/:/app/sock/:rw"
+  #   entrypoint:
+  #     - sh
+  #     - -c
+  #     - |
+  #       [ ! -s /app/config/config.yaml ] && exit 0
+  #       exec /app/logpipe
       
   sf-portd:
     build: encfsd
@@ -610,6 +611,7 @@ services:
       - SF_DEBUG
       - SF_SEED=${SF_SEED}
       - SSHD_IP=${SF_SSHD_IP}
+      - SF_GSNC=${SF_GSNC:-yes}
     volumes:
       - "${SF_SHMDIR:-/dev/shm/sf}/config-for-guest:/config/guest"
     entrypoint: ["/sf-gsnc.sh", "${SF_SSHD_IP}"]
@@ -646,7 +648,7 @@ services:
       - SF_BASEDIR=${SF_BASEDIR}
       - SF_SHMDIR=${SF_SHMDIR:-/dev/shm/sf}
       - SF_USER=${SF_USER:-root}
-      - SF_USER_PASSWORD=${SF_USER_PASSWORD:-segfault}
+      - SF_USER_PASSWORD=${SF_USER_PASSWORD}
       - SF_FQDN=${SF_FQDN:-SF_FQDN-NOT-SET.hack.segfault.net}
       - SF_REDIS_AUTH=${SF_REDIS_AUTH}
       - SF_RPC_IP=${SF_RPC_IP}
@@ -669,8 +671,8 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/lxcfs:/var/lib/lxcfs:ro"
       - "${SF_SHMDIR:-/dev/shm/sf}/run/redis/sock:/redis-sock"
-      # - /research/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro # FIXME-TESTING
-      # - /research/segfault/host:/host:ro # FIXME-TESTING sshd debug
+      # - "/src/segfault/host/fs-root/bin/segfaultsh:/bin/segfaultsh:ro" # FIXME-TESTING
+      # - "/research/segfault/host:/host:ro" # FIXME-TESTING sshd debug
 
   nginx:
     image: nginx

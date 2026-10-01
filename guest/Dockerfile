@@ -1,6 +1,6 @@
 # FROM kalilinux/kali-rolling
 # FROM kalilinux/kali-bleeding-edge
-FROM kalilinux/kali-last-release
+FROM kalilinux/kali-rolling
 # FROM kalilinux/kali-rolling
 
 WORKDIR /root/
@@ -16,6 +16,7 @@ WORKDIR /root/
 ARG SF_PACKAGES
 ARG GITHUB_TOKEN
 ARG BESTEFFORT
+ARG SF_MAX_PACKAGE_FAILURES=100
 
 COPY fs-root/sf/bin/pkg-install.sh /sf/bin/
 ENV PATH="/sf/bin:${PATH}"
@@ -469,6 +470,7 @@ RUN pkg-install.sh GUI bash -c '{ [[ $HOSTTYPE != x86_64 ]] && exit 0; cd /usr/l
 		&& ln -s /usr/lib/firefox/firefox /usr/bin/firefox; }'
 RUN pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; \
+		echo "deb http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware" >/etc/apt/sources.list; \
 		apt-get update ; }'
 RUN pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aarch64=arm64%.'   sing-box \
 	&& pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-%arch1%.zip' loclx \
@@ -655,7 +657,7 @@ RUN pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%
 	&& pkg-install.sh HACK bin 'https://github.com/projectdiscovery/mapcidr/releases/download/v1.1.9/mapcidr_1.1.9_linux_%arch1%.zip' mapcidr   `# often missing binary assets.` \
 	&& pkg-install.sh HACK ghbin glebarez/cero               'linux-amd64'                                cero      `# x86_64 only` \
 	&& pkg-install.sh HACK ghbin dwisiswant0/crlfuzz         'inux_%arch:x86_64=amd64:aarch64=arm64%'     crlfuzz \
-	&& pkg-install.sh HACK ghbin hahwul/dalfox               'inux-%arch:x86_64=amd64:aarch64=arm64%'     'dalfox*' "" dalfox \
+	&& pkg-install.sh HACK ghbin hahwul/dalfox               'linux-%arch%[.]tar[.]gz$'                 dalfox \
 	&& pkg-install.sh HACK ghbin pwnesia/dnstake             'linux_%arch:x86_64=amd64:aarch64=arm64%'    dnstake \
 	&& pkg-install.sh HACK ghbin KathanP19/Gxss              'inux_x86_64'                                Gxss      `# x86_64 only` \
 	&& pkg-install.sh HACK ghbin qsocket/qs-netcat           'linux_%arch:x86_64=amd64:aarch64=arm64%'    qs-netcat \
@@ -872,5 +874,7 @@ COPY setup.sh gitconfig-stub /fs-root/ /
 COPY /fs-root-amd64/ /
 RUN		/setup.sh \
 	&& rm -f /setup.sh /gitconfig-stub
+
+RUN pkg-install.sh --report
 
 CMD ["zsh", "-il"]

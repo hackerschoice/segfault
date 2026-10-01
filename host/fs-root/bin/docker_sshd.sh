@@ -41,18 +41,25 @@ setup_sshd()
 	# The uid/gid must match the 'sleep' process in guest's container
 	# so that sshd can be moved (setns()) to the guest's network namespace.
 	addgroup -g 1000 user && \
-	adduser -D "${SF_USER}" -G user -s /bin/segfaultsh && \
-	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd || return
-
+	adduser -D "${SF_USER}" -G user -s /bin/segfaultsh &&
 	echo 'webshell:x:1000:1000:SF webshell,,,:/home/webshell:/bin/webshellsh' >>/etc/passwd && \
+
 	addgroup webshell user && \
 	mkdir -p /home/webshell/.ssh && \
 	chmod 700 /home/webshell/.ssh && \
 	chown -R webshell:user /home/webshell || return
 
 	echo "secret:x:1000:1000:SF asksec,,,:/home/${SF_USER}:/bin/asksecsh" >>/etc/passwd && \
-	echo "secret:*::0:::::" >>/etc/shadow && \
+	echo "secret:*::0:::::" >>/etc/shadow &&
+
+	[ -z "$SF_USER_PASSWORD" ] && {
+		# Enable account with disabled password.
+		sed -i 's/^root:!:/root:*:/' /etc/shadow
+		return #SF_USER_PASSWORD="$(openssl rand -base64 12)"
+	}
+
 	echo "secret:${SF_USER_PASSWORD}" | chpasswd || return
+	echo "${SF_USER}:${SF_USER_PASSWORD}" | chpasswd || return
 }
 
 vboxfix()
@@ -142,28 +149,33 @@ mk_userkey()
 	}
 }
 
-mk_userkey ""
-mk_userkey "webshell"
+if [ -f "${SF_CFG_HOST_DIR}/etc/ssh/authorized_keys" ]; then
+	chown "${SF_USER}":user /config/host/etc/ssh/authorized_keys
+	# delete common key if we are now using authorized_keys.
+	[ -f "${SF_CFG_GUEST_DIR}/id_ed25519" ] && rm -f "${SF_CFG_GUEST_DIR}/id_ed25519"
+else
+	# No authorized_keys, use common key for all users.
+	mk_userkey ""
+	mk_userkey "webshell"
+	chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
+	# Copy login-key to fake root's home directory
+	[[ ! -e /home/"${SF_USER}"/.ssh/authorized_keys ]] && {
+		[[ -d "/home/${SF_USER}/.ssh" ]] || { mkdir "/home/${SF_USER}/.ssh"; chown "${SF_USER}":user "/home/${SF_USER}/.ssh"; }
+		cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519.pub" "/home/${SF_USER}/.ssh/authorized_keys"
+		# Copy of private key so that segfaultsh (in uid=1000 context)
+		# can display the private key for future logins.
+		cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "/home/${SF_USER}/.ssh/"
+		chown "${SF_USER}":user "/home/${SF_USER}/.ssh/authorized_keys" "/home/${SF_USER}/.ssh/id_ed25519"
+	}
 
-chmod 644 "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519"
-# Copy login-key to fake root's home directory
-[[ ! -e /home/"${SF_USER}"/.ssh/authorized_keys ]] && {
-	[[ -d "/home/${SF_USER}/.ssh" ]] || { mkdir "/home/${SF_USER}/.ssh"; chown "${SF_USER}":user "/home/${SF_USER}/.ssh"; }
-	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519.pub" "/home/${SF_USER}/.ssh/authorized_keys"
-	# Copy of private key so that segfaultsh (in uid=1000 context)
-	# can display the private key for future logins.
-	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "/home/${SF_USER}/.ssh/"
-	chown "${SF_USER}":user "/home/${SF_USER}/.ssh/authorized_keys" "/home/${SF_USER}/.ssh/id_ed25519"
-}
+	[[ ! -e /home/webshell/.ssh/authorized_keys ]] && {
+		cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519-webshell.pub" "/home/webshell/.ssh/authorized_keys"
+		chown webshell:user "/home/webshell/.ssh/authorized_keys"
+	}
 
-[[ ! -e /home/webshell/.ssh/authorized_keys ]] && {
-	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519-webshell.pub" "/home/webshell/.ssh/authorized_keys"
-	chown webshell:user "/home/webshell/.ssh/authorized_keys"
-}
-
-# Always copy as it may have gotten updated:
-cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
-# [[ ! -f "${SF_CFG_GUEST_DIR}/id_ed25519" ]] && cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
+	# Always copy as it may have gotten updated:
+	cp "${SF_CFG_HOST_DIR}/etc/ssh/id_ed25519" "${SF_CFG_GUEST_DIR}/id_ed25519"
+fi
 
 # Create semaphore (buckets)
 i=0
@@ -263,6 +275,7 @@ vboxfix /sf/bin
 [[ -n $SF_DEBUG_SSHD ]] && sleep infinity
 # This will execute 'segfaultsh' on root-login (uid=1000)
 exec 0<&- # Close STDIN
-exec /usr/sbin/sshd -u0 -D
+(/usr/sbin/sshd -u0 -D &>/dev/null)
+exec sleep infinity # Fallback in case sshd exits for some reason. This should never be reached.
 ### NOT REACHED
 exit 255

@@ -15,8 +15,8 @@ PROVIDER="${PROVIDER,,}"
 
 [[ -n $CONFIG ]] && is_ok=1
 [[ -z $is_ok ]] && {
-    [[ $PROVIDER == "cryptostorm" && -n ADDRESS && -n $SERVER && -n $PRIVATE_KEY && -n $PSK ]] && is_ok=1
-    [[ $PROVIDER == "mullvad" && -n ADDRESS && -n $SERVER && -n $PRIVATE_KEY ]] && is_ok=1
+    [[ $PROVIDER == "cryptostorm" && -n $ADDRESS && -n $SERVER && -n $PRIVATE_KEY && -n $PSK ]] && is_ok=1
+    [[ $PROVIDER == "mullvad" && -n $ADDRESS && -n $SERVER && -n $PRIVATE_KEY ]] && is_ok=1
     [[ $PROVIDER == "nordvpn" && -n $PRIVATE_KEY ]] && is_ok=1
 }
 
@@ -415,6 +415,9 @@ EOF
         need_reconnect && break
         sleep 120
         check_vpn "${PROVIDER}" wg0 || { WARN "[${CDM}${sname}${CN}] VPN check failed."; wg_finish; return 255; }
+        if [[ "$PROVIDER" == cryptostorm ]]; then
+            /sf/bin/vpn_wg2status.sh "/sf/run/vpn/status-${PROVIDER}.log" check wg0 || WARN "${PROVIDER}: exit-IP status update failed"
+        fi
     done
 
     # HERE: Reconnect time expired => RECONNECT to next server.

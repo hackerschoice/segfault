@@ -82,7 +82,7 @@ init_host_sshd()
   [[ "${port}" -eq 22 ]] && grep "Port 22" /etc/ssh/sshd_config >/dev/null && {
     sed -i -E "s/#Port ${port}/Port ${SF_SSH_PORT_MASTER}/g" /etc/ssh/sshd_config
     DEBUGF "Restarting SSHD on port ${SF_SSH_PORT_MASTER}"
-    service sshd restart
+    systemctl restart ssh
     IS_SSH_GOT_MOVED=1
   }
 }
@@ -162,10 +162,12 @@ init_config_run()
   mergedir "config/etc/nginx"
   mergedir "config/etc/redis"
   mergedir "config/etc/resolv.conf"
+  mergedir "config/etc/dnscrypt"
 
   [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ -n "${MAXMIND_KEY}" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='"${MAXMIND_KEY}"'&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
   [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
   [[ ! -f "${SF_DATADIR}/share/english.txt" ]] && cp "${SFI_SRCDIR}/host/fs-root/etc/english.txt" "${SF_DATADIR}/share/english.txt"
+  [[ ! -f "${SF_DATADIR}/share/tmux.conf" ]] && cp "${SFI_SRCDIR}/provision/tmux.conf" "${SF_DATADIR}/share/tmux.conf"
 
   # Setup /dev/shm/sf/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then
@@ -227,6 +229,21 @@ xinstall()
 
 docker_config()
 {
+  grep -qFm1 log-level /etc/docker/daemon.json 2>/dev/null || {
+    cat >/etc/docker/daemon.json<<'EOF'
+{
+        "log-level": "fatal",
+        "data-root": "/sf/docker",
+        "features": {
+                "containerd-snapshotter": false
+        }
+}
+EOF
+  }
+  grep -qm1 ^root /etc/containerd/config.toml 2>/dev/null || {
+  	echo 'root = "/sf/containerd"' >>/etc/containerd/config.toml
+	[ -d /var/lib/containerd ] && rsync -a /var/lib/containerd/ /sf/containerd/
+  }
   xinstall sf.slice /etc/systemd/system
   xinstall sf-guest.slice /etc/systemd/system
   sed 's/^Restart=always.*$/Restart=on-failure/' -i /lib/systemd/system/docker.service

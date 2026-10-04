@@ -1501,6 +1501,8 @@ exec_devnull docker run \
 	--sysctl net.ipv6.conf.all.disable_ipv6=0               `# Allow IPv6 (used by WireGuard FOBs) ` \
 	--sysctl net.ipv4.tcp_tw_reuse=1                        `# Immediately reuse TIME_WAIT sockets ` \
 	--sysctl net.ipv4.tcp_fin_timeout=10 \
+	--sysctl net.ipv4.tcp_fwmark_accept=1 \
+	--sysctl net.ipv4.conf.all.src_valid_mark=1 \
 	-v "${SF_BASEDIR}/data/share/:/sf/share:ro" \
 	-v "${SF_CFG_GUEST_DIR:?}/:/config/guest:ro" \
 	-v "${SF_GUEST_SELFDIR:?}/lg-${LID}:/config/self:ro,slave" \

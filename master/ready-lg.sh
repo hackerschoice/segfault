@@ -28,6 +28,15 @@ set -e
 nsenter.u1000 -t "${LG_PID:?}" --setuid 0 --setgid 0 -n arp -s "${SF_NET_LG_ROUTER_IP}" "${LG_ROUTER_MAC}"
 nsenter.u1000 -t "${LG_PID:?}" --setuid 0 --setgid 0 -n arp -s "${SF_RPC_IP}"           "${LG_RPC_MAC}"
 
+# Keep replies to connections arriving on eth0 routed through the guest router.
+nsenter.u1000 -t "${LG_PID}" --setuid 0 --setgid 0 -n ip -4 route add table 100 default via "${SF_NET_LG_ROUTER_IP:?}" dev eth0 onlink
+nsenter.u1000 -t "${LG_PID}" --setuid 0 --setgid 0 -n ip -4 rule add priority 100 fwmark 0x100/0x100 lookup 100
+
+# Reserve only bit 0x100; restore it before source validation and reply routing.
+nsenter.u1000 -t "${LG_PID}" -n /usr/sbin/iptables -t mangle -A PREROUTING -i eth0 -m conntrack --ctstate NEW --ctdir ORIGINAL -j CONNMARK --set-xmark 0x100/0x100
+nsenter.u1000 -t "${LG_PID}" -n /usr/sbin/iptables -t mangle -A PREROUTING -i eth0 -m connmark --mark 0x100/0x100 -j CONNMARK --restore-mark --nfmask 0x100 --ctmask 0x100
+nsenter.u1000 -t "${LG_PID}" -n /usr/sbin/iptables -t mangle -A OUTPUT -m conntrack --ctdir REPLY -m connmark --mark 0x100/0x100 -j CONNMARK --restore-mark --nfmask 0x100 --ctmask 0x100
+
 # 255.0.0.1 always points to guest's localhost: user can now set up a ssh -D1080 and connect with browser to
 # 255.0.0.1 and reach guest's 127.0.0.1.
 # iptables is u+s and does not need --setuid

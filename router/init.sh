@@ -359,6 +359,10 @@ ipt_direct()
 		ipset_add_ip "$ip" || ERR "IP=$ip"
 	done
 
+	# Cloudflare Tunnel
+	ipset_add_domain region1.v2.argotunnel.com
+	ipset_add_domain region2.v2.argotunnel.com
+
 	# PROTON drive
 	# ipset_add_domain zrh-storage.proton.me
 
@@ -374,9 +378,10 @@ ipt_direct()
 	# 	ipset -A direct gs${x}.thc.org 2>/dev/null
 	# done
 
-	# Do not add CloudFlared/ArgoTunnels, ngrok, pagekite etc etc.
+	# Do not add ngrok, pagekite etc etc.
 
 	ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_LG}" -p tcp -m set --match-set direct dst
+	ipt_mark_ret "22" -t mangle -A PREROUTING -i "${DEV_LG}" -p udp -m set --match-set direct dst
 }
 
 ipt_syn_limit_set()
@@ -587,6 +592,8 @@ iptables -t nat -A POSTROUTING -o "${DEV_DMZ}" -j MASQUERADE
 iptables -t nat -A POSTROUTING -o "${DEV_DIRECT}" -m mark --mark 22 -m state --state NEW,ESTABLISHED -j MASQUERADE
 iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_DIRECT}" -p tcp -m mark --mark 22 -j ACCEPT
 iptables -A FORWARD -i "${DEV_DIRECT}" -o "${DEV_LG}" -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i "${DEV_LG}" -o "${DEV_DIRECT}" -p udp -m mark --mark 22 -j ACCEPT
+iptables -A FORWARD -i "${DEV_DIRECT}" -o "${DEV_LG}" -p udp -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # TOR traffic (10.111.0.0/16) always goes to TOR (transparent proxy)
 ip route add "${NET_ONION}" via "${TOR_IP}"

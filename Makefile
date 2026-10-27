@@ -1,4 +1,4 @@
-VER := 0.6.1rc1
+VER := 0.6.1rc2
 
 all:
 	make -C base

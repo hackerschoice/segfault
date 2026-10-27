@@ -253,6 +253,8 @@ netns() {
 	nsenter -t "${pid}" -n "$@"
 }
 
+lgns() { netns "$@"; }
+
 # Load xfs Project-id <-> LID mapping
 # FIXME: could be loaded from user/prjid?
 _sf_mkp2lid()

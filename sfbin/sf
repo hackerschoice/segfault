@@ -270,7 +270,7 @@ sysdec fs.suid_dumpable 1
 # Each Hugepagesize is 2MB (grep HUGE /proc/meminfo)
 #  512 => 1g as HUGE 
 # 8192 => 16g as HUGE
-[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN "Huge Tables not set. Consider ${CDC}echo \"vm.nr_hugepages=8192\" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192${CN}"
+#[[ ! $(cat /proc/sys/vm/nr_hugepages) -gt 0 ]] && WARN "Huge Tables not set. Consider ${CDC}echo \"vm.nr_hugepages=8192\" >>/etc/sysctl.conf && sysctl -w vm.nr_hugepages=8192${CN}"
 
 # Warn for outdated files in /sf/config/* (that are older and different size)
 mapfile -t arr < <(cd "${BINDIR}/../" || exit; find config -type f ! -name '*example*')

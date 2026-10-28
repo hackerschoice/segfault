@@ -734,6 +734,74 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
     entrypoint: ["/finish-bootup.sh"]
   
+  maintenance:
+    build: maintenance
+    image: sf-maintenance
+    container_name: sf-maintenance
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE, FOWNER]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 45s
+    pids_limit: 128
+    networks:
+      - incoming-net
+    depends_on:
+      bootup:
+        condition: service_completed_successfully
+    environment:
+      - SF_MULLVAD_ENABLED=${SF_MULLVAD_CONFIG:+1}
+      - SF_QUOTA_CONTAINER=sf-encfsd
+    volumes:
+      - "${SF_BASEDIR:-.}/sfbin:/sf/sfbin:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "${SF_BASEDIR:-.}/data:/sf/data"
+      - "${SF_BASEDIR:-.}/config/.env:/sf/config/.env:ro"
+      - "${SF_BASEDIR:-.}/config/etc/sf:/sf/config/etc/sf:ro"
+      - "${SF_BASEDIR:-.}/config/db/user:/sf/config/db/user"
+      - "${SF_BASEDIR:-.}/config/db/hn:/sf/config/db/hn"
+      - "${SF_BASEDIR:-.}/config/db/cg:/sf/config/db/cg"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/www-root:/dev/shm/sf/encfs-sec/www-root:slave"
+      - "${SF_SHMDIR:-/dev/shm/sf}/encfs-sec/everyone-root:/dev/shm/sf/encfs-sec/everyone-root:slave"
+    entrypoint: ["/sf/sfbin/cronjob", "daemon"]
+
+  banhammer:
+    build: maintenance
+    image: sf-maintenance
+    container_name: sf-banhammer
+    restart: ${SF_RESTART:-on-failure}
+    cgroup_parent: sf.slice
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 45s
+    pids_limit: 128
+    depends_on:
+      bootup:
+        condition: service_completed_successfully
+    environment:
+      - SF_DEBUG
+      - SF_FQDN=${SF_FQDN:-SEGFAULT}
+    volumes:
+      - "${SF_BASEDIR:-.}/sfbin:/sf/sfbin:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "${SF_BASEDIR:-.}/config/db:/sf/config/db:ro"
+      - "${SF_BASEDIR:-.}/config/db/user:/sf/config/db/user"
+      - "${SF_BASEDIR:-.}/config/db/banned:/sf/config/db/banned"
+      - "${SF_BASEDIR:-.}/data/maintenance:/sf/data/maintenance"
+      - "${SF_SHMDIR:-/dev/shm/sf}/self-for-guest:/dev/shm/sf/self-for-guest:ro"
+    entrypoint: ["/sf/sfbin/banhammer.sh"]
+
 networks:
   # Force docker0 
   default:

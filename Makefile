@@ -4,6 +4,7 @@ DISTDIR ?= .
 
 all:
 	make -C base
+	make -C maintenance
 	make -C router
 	make -C tools/cg
 	make -C tools/logpipe
@@ -20,6 +21,9 @@ all:
 
 FILES_BASE += "segfault-$(VER)/base/Dockerfile"
 FILES_BASE += "segfault-$(VER)/base/Makefile"
+
+FILES_BASE += "segfault-$(VER)/maintenance/Dockerfile"
+FILES_BASE += "segfault-$(VER)/maintenance/Makefile"
 
 FILES_GUEST += "segfault-$(VER)/guest/setup.sh"
 FILES_GUEST += "segfault-$(VER)/guest/gitconfig-stub"

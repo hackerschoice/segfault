@@ -9,10 +9,10 @@ unset _basedir
 
 _cgbdir="/sys/fs/cgroup"
 [[ -d /sys/fs/cgroup/unified/ ]] && _cgbdir="/sys/fs/cgroup/unified"
-_sf_shmdir="/dev/shm/sf-u1000"
-[[ -d "/dev/shm/sf" ]] && _sf_shmdir="/dev/shm/sf"
+_sf_shmdir="${SF_SHMDIR:-/dev/shm/sf-u1000}"
+[[ -z $SF_SHMDIR && -d "/dev/shm/sf" ]] && _sf_shmdir="/dev/shm/sf"
 _self_for_guest_dir="${_sf_shmdir}/self-for-guest"
-_sf_basedir="/sf"
+_sf_basedir="${SF_BASEDIR:-/sf}"
 _sf_dbdir="${_sf_basedir}/config/db"
 unset _sf_isinit
 _sf_region="$(hostname)"
@@ -225,20 +225,13 @@ container_df()
 # [lg-LID] [message]
 lgwall()
 {
-	# This 
-	local pid
-	local cid
-	local fn
-	[[ -z $2 ]] && { echo >&2 "lgwall LID [message]"; return; }
-	cid=$(docker inspect --format='{{.Id}}' "$1") || return
-	pid=$(<"/var/run/containerd/io.containerd.runtime.v2.task/moby/${cid}/init.pid") || return
-	for fn in "/proc/${pid}/root/dev/pts"/*; do
-		[[ "${fn##*/}" =~ [^0-9] ]] && continue
-		[[ ! -c "$fn" ]] && continue
-		hex=$(stat -c %t "$fn")
-		maj="$((16#$hex))"
-		[[ "$maj" -ge 136 ]] && [[ "$maj" -le 143 ]] && timeout 1 echo -e "\n@@@@@ SYSTEM MESSAGE\n${2}\n@@@@@" >>"${fn}"
-	done
+    [[ -n $1 && -n $2 ]] || { echo >&2 "lgwall LID [message]"; return 1; }
+    docker exec -u 0 "$1" /bin/bash -c '
+        for fn in /dev/pts/*; do
+            [[ ${fn##*/} =~ ^[0-9]+$ && -c $fn ]] || continue
+            timeout 1 /bin/bash -c '\''printf "\\n@@@@@ SYSTEM MESSAGE\\n%b\\n@@@@@\\n" "$2" >"$1"'\'' _ "$fn" "$1"
+        done
+    ' _ "$2"
 }
 
 # Enter a docker network namespace
@@ -298,7 +291,15 @@ _sf_load_xfs_usage()
 	echo >&2 "Loading XFS Quota DB..."
 	set -o noglob
 
-	mapfile -t all < <(xfs_quota -x -c "report -p -ibnN ${_sf_basedir}/data")
+	# The storage service already owns quota/device access in Compose.
+	if [[ -n $SF_QUOTA_CONTAINER ]]; then
+		all=$(docker exec "$SF_QUOTA_CONTAINER" xfs_quota -x -c "report -p -ibnN" /encfs/raw) || return 1
+	else
+		all=$(xfs_quota -x -c "report -p -ibnN" "${_sf_basedir}/data") || return 1
+	fi
+	# xfs_quota can report a device error while still returning zero.
+	grep -qE '^#[0-9]+[[:space:]]' <<<"$all" || { echo >&2 "Cannot read project quotas; cleanup skipped."; return 1; }
+	mapfile -t all <<<"$all"
 	echo >&2 "Entries XFS: ${#all[@]}"
 	unset IFS
 	for l in "${all[@]}"; do
@@ -378,6 +379,7 @@ lgpurge()
 	local str
 	
 	_sf_init
+	_sf_load_xfs_usage || { _sf_deinit; return 1; }
 	_lgclean
 
 	pdays=$1
@@ -590,7 +592,11 @@ lgstop()
 	[[ -n $2 ]] && {
 		lgwall "${1}" "$2"
 		echo -e "$2" >"${_sf_dbdir}/user/${1}/syscop-msg.txt"
-		docker top "$1" -e -o pid,ppid,%cpu,rss,start_time,exe,comm,cmd | cut -c -512  >"${_sf_dbdir}/user/${1}/syscop-ps.txt"
+		if [[ $SF_G_PS_LID == "$1" && -n $SF_G_PS ]]; then
+			printf '%s\n' "$SF_G_PS" | cut -c -512 >"${_sf_dbdir}/user/${1}/syscop-ps.txt"
+		else
+			docker top "$1" -e -o pid,ppid,%cpu,rss,start_time,exe,comm,cmd | cut -c -512 >"${_sf_dbdir}/user/${1}/syscop-ps.txt"
+		fi
 	}
 	docker stop "${1}"
 }
@@ -754,6 +760,10 @@ lgxcall() {
 	shift 3
 
 	[ -z "$cb_func" ] && { echo >&2 "ERROR: No callback function given"; return 255; }
+	# An empty-match expression must never select guests for an action.
+	[[ -n $match ]] || { echo >&2 "ERROR: Empty match expression"; return 255; }
+	[[ "" =~ $match ]]
+	[[ $? -eq 1 ]] || { echo >&2 "ERROR: Invalid or empty-matching expression"; return 255; }
     mapfile -t arr < <(_sfcg_forall "$skip_token")
 	for lglid in "${arr[@]}"; do
 		_sfcg_psarr "$lglid" "$match" >/dev/null && continue

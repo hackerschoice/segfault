@@ -1,7 +1,6 @@
 #! /usr/bin/env bash
 
-# Run regular maintenance jobs in host's crontab after 'sf up' has been started
-# PHY: crontab -l | grep -v cronjob | echo "15 0 * * sun /sf/sfbin/cronjob all >/dev/shm/sf/run/logs/cronjob.out 2>/dev/shm/sf/run/logs/cronjob.err" | crontab -
+# Run individual maintenance tasks, or use the Compose maintenance service.
 
 SF_BASEDIR="${SF_BASEDIR:-/sf}"
 SF_DATADIR="${SF_DATADIR:-${SF_BASEDIR}/data}"
@@ -9,6 +8,11 @@ SF_MV_EXIT_FN="${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt"
 SF_MV_RELAY_FN="${SF_DATADIR}/share/proxies.txt"
 SF_HA_CONF="${SF_DATADIR}/share/haproxy-1040.conf"
 SF_TOR_EXIT_FN="${SF_DATADIR}/share/tor-exit-nodes.txt"
+SF_SHMDIR="${SF_SHMDIR:-/dev/shm/sf}"
+export SF_BASEDIR SF_DATADIR SF_SHMDIR
+
+# Bound Docker calls, including VPN proxy probes.
+docker() { command timeout --kill-after=5 30 docker "$@"; }
 
 [ "$PATH" != *"sbin" ] && PATH=/usr/sbin:/usr/local/sbin:$PATH
 
@@ -54,7 +58,8 @@ mk_mullvad_relays()
     local ips
     local proxies
 
-    docker exec sf-mullvad true 2>/dev/null || { echo >&2 "sf-mullvad not running. Execute this after ${CDC}sfbin/sf${CN} up"; return 1; }
+    [[ $(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' sf-mullvad 2>/dev/null) == healthy ]] ||
+        { echo >&2 "Mullvad is not ready; keeping existing relay lists."; return 1; }
 
     IFS=""
     str=$(curl -fsSL --retry 3 --max-time 15 https://api.mullvad.net/www/relays/all/ 2>/dev/null | jq -r '.[] |  select(.socks_name != null) | select(.socks_port != null)  | "\(.socks_name):\(.socks_port)"' |grep -v ^-)
@@ -84,8 +89,8 @@ mk_tor_relays()
     local str
     IFS=""
     str=$(curl -SsfL --retry 3 --max-time 15 'https://www.dan.me.uk/torlist/?exit')
-    [[ -z $str ]] && return
-    echo -n "$str" >"${SF_TOR_EXIT_FN}"
+    [[ -z $str ]] && return 1
+    printf '%s\n' "$str" >"${SF_TOR_EXIT_FN}"
 }
 
 mk_global_relays()
@@ -101,42 +106,131 @@ mk_global_relays()
     # echo "$str" >"${SF_GLOBAL_EXIT_FN}"
 }
 
-mk_geolite() {
-    local fn="GeoLite2-City.mmdb"
-    [ ! -f "${SF_BASEDIR:-/sf}/config/.env" ] && return 0
-    eval "$(grep ^MAX "${SF_BASEDIR:-/sf}/config/.env")"
-    [ -z "$MAXMIND_KEY" ] && return 0
-
-    curl -fL "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz" | tar xfvz  - --strip-components=1  --no-anchored -C '/tmp' "${fn}" || return
-    rm -f "${SF_DATADIR}/share/${fn}"
-    chmod 644 "/tmp/${fn}"
-    mv "/tmp/${fn}" "${SF_DATADIR}/share/${fn}"
+mk_geolite()
+{
+    local fn="GeoLite2-City.mmdb" stage
+    [ -f "${SF_BASEDIR}/config/.env" ] && eval "$(grep ^MAX "${SF_BASEDIR}/config/.env")"
+    [ -n "$MAXMIND_KEY" ] || return 0
+    stage=$(mktemp -d "${SF_DATADIR}/share/.geolite.XXXXXX") || return
+    if ! curl -fsSL --retry 3 --max-time 60 "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY}&suffix=tar.gz" |
+        tar xfz - --strip-components=1 --no-anchored -C "$stage" "$fn"; then
+        rm -rf "$stage"
+        return 1
+    fi
+    chmod 644 "$stage/$fn" && mv "$stage/$fn" "${SF_DATADIR}/share/$fn"
+    local ret=$?
+    rm -rf "$stage"
+    return "$ret"
 }
 
-status=0
-maintenance=0
-[[ $# -gt 0 ]] || { echo "Usage: $0 [mullvad, tor, all]"; exit 2; }
+purge_guests()
+{
+    source "${SF_BASEDIR}/sfbin/funcs_admin.sh" >/dev/null || return
+    [[ -f "${SF_BASEDIR}/config/etc/sf/timers.conf" ]] &&
+        source "${SF_BASEDIR}/config/etc/sf/timers.conf"
+    lgpurge "${SF_TIMEOUT_IDLE_DAYS}" "${SF_TIMEOUT_NAUGHTY_DAY}"
+}
+
+stop_service()
+{
+    stopping=1
+    if [[ -n ${worker_pid:-} ]]; then
+        kill -TERM -- "-$worker_pid" 2>/dev/null
+        wait "$worker_pid" 2>/dev/null
+    fi
+    [[ -n ${sleep_pid:-} ]] && kill "$sleep_pid" 2>/dev/null
+}
+
+daemon()
+{
+    local job last now interval result
+    local -A due
+    local -a jobs=(tor geolite purge)
+    [[ -n $SF_MULLVAD_ENABLED ]] && jobs=(mullvad "${jobs[@]}")
+    local relay_interval=${SF_MAINTENANCE_RELAY_INTERVAL:-86400}
+    local purge_interval=${SF_MAINTENANCE_PURGE_INTERVAL:-604800}
+    if [[ ! $relay_interval =~ ^[1-9][0-9]{0,8}$ || ! $purge_interval =~ ^[1-9][0-9]{0,8}$ ]]; then
+        echo >&2 "Maintenance intervals must be positive seconds."
+        return 2
+    fi
+    now=$(date -u +%s)
+    # A new installation waits a full purge interval; restarts keep that deadline.
+    [[ -f "$state_dir/last-purge" ]] || printf '%s\n' "$now" >"$state_dir/last-purge"
+    for job in "${jobs[@]}"; do
+        interval=$relay_interval
+        [[ $job == purge ]] && interval=$purge_interval
+        last=0
+        [[ -f "$state_dir/last-$job" ]] && read -r last <"$state_dir/last-$job"
+        [[ $last =~ ^[0-9]{1,10}$ ]] || { echo >&2 "Invalid maintenance timestamp: $job"; return 1; }
+        due[$job]=$((last + interval))
+    done
+    stopping=0
+    trap stop_service TERM INT
+    echo "Maintenance service started."
+    while [[ $stopping -eq 0 ]]; do
+        now=$(date -u +%s)
+        for job in "${jobs[@]}"; do
+            [[ $stopping -eq 1 ]] && break
+            [[ $now -lt ${due[$job]} ]] && continue
+            setsid env SF_MAINTENANCE_WORKER=1 "$0" "$job" &
+            worker_pid=$!
+            wait "$worker_pid"
+            result=$?
+            unset worker_pid
+            [[ $stopping -eq 1 ]] && break
+            if [[ $result -eq 0 ]]; then
+                interval=$relay_interval
+                [[ $job == purge ]] && interval=$purge_interval
+                now=$(date -u +%s)
+                printf '%s\n' "$now" >"$state_dir/last-$job"
+                due[$job]=$((now + interval))
+                echo "Maintenance completed: $job"
+            else
+                due[$job]=$((now + 60))
+                echo >&2 "Maintenance failed: $job; retrying in 60 seconds."
+            fi
+        done
+        [[ $stopping -eq 1 ]] && break
+        sleep 5 & sleep_pid=$!
+        wait "$sleep_pid"
+        unset sleep_pid
+    done
+    return 0
+}
+
+[[ $# -gt 0 ]] || { echo "Usage: $0 [mullvad, tor, geolite, purge, all, daemon]"; exit 2; }
 for arg in "$@"; do
     case "$arg" in
-        mullvad|tor|all) ;;
+        mullvad|tor|geolite|purge|all) ;;
+        daemon) [[ $# -eq 1 ]] || { echo >&2 "daemon cannot be combined with tasks."; exit 2; } ;;
         *) echo >&2 "Unknown maintenance task: $arg"; exit 2 ;;
     esac
 done
+state_dir="${SF_DATADIR}/maintenance"
+mkdir -p "$state_dir" "${SF_DATADIR}/share" || exit 1
+if [[ -z $SF_MAINTENANCE_WORKER ]]; then
+    exec 9>"$state_dir/maintenance.lock"
+    flock -n 9 || { echo "Maintenance is already running; skipping duplicate invocation."; exit 0; }
+fi
+if [[ $1 == daemon ]]; then
+    [[ -f "${SF_BASEDIR}/config/etc/sf/timers.conf" ]] &&
+        source "${SF_BASEDIR}/config/etc/sf/timers.conf"
+    daemon
+    exit $?
+fi
+
+status=0
 str=" $* "
 if [[ $str == *" all "* ]]; then
-    mk_geolite || status=$?
-    str=" mullvad tor "
-    maintenance=1
+    str=" mullvad tor geolite purge "
 fi
 [[ $str == *" mullvad "* ]] && { mk_mullvad_relays || status=$?; }
 [[ $str == *" tor "* ]] && { mk_tor_relays || status=$?; }
-
-# Guest cleanup and log truncation belong to full maintenance only.
-if [[ $maintenance -eq 1 ]]; then
-    source "${SF_BASEDIR:?}/sfbin/funcs_admin.sh" >/dev/null
-    source "${SF_BASEDIR}/config/etc/sf/timers.conf" 2>/dev/null
-    lgpurge "${SF_TIMEOUT_IDLE_DAYS}" "${SF_TIMEOUT_NAUGHTY_DAY}" || status=$?
-    fn="${SF_SHMDIR:-/dev/shm/sf}/run/logs/segfault.log"
-    [ -f "$fn" ] && :>"${fn:?}"
+[[ $str == *" geolite "* ]] && { mk_geolite || status=$?; }
+[[ $str == *" purge "* ]] && { purge_guests || status=$?; }
+# Preserve explicit all's historical log cleanup, never on a service restart.
+if [[ " $* " == *" all "* ]]; then
+    fn="${SF_SHMDIR}/run/logs/segfault.log"
+    [[ ! -f $fn ]] || :>"$fn"
 fi
 exit "$status"

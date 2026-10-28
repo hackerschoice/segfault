@@ -187,7 +187,7 @@ grep -qFm1 "${SF_TOR_IP}:5353" "${SF_BASEDIR}/config/etc/dnscrypt/forwarding-rul
 
 
 if [[ -n $SF_MULLVAD_CONFIG ]] && { [[ ! -s "${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt" ]] || [[ ! -s "${SF_DATADIR}/share/proxies.txt" ]]; }; then
-    printf 'Mullvad relay lists missing; after VPN startup run: %s/sfbin/cronjob mullvad\n' "$SF_BASEDIR"
+    printf 'Mullvad relay lists missing; maintenance will create them after VPN startup.\n'
 fi
 [[ ! -f "${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt" ]] && {
 	WARN "Not found: ${SF_BASEDIR}/config/etc/relay-exit-nodes-global.txt"

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # FROM kalilinux/kali-rolling
 # FROM kalilinux/kali-bleeding-edge
 FROM kalilinux/kali-rolling
@@ -14,7 +15,6 @@ WORKDIR /root/
 #   SF_PACKAGES=ALLALL make  # All _and_ kali-linux-everything
 # Default is "MINI BASE NET" (see pkg-install.sh)
 ARG SF_PACKAGES
-ARG GITHUB_TOKEN
 ARG BESTEFFORT
 ARG SF_MAX_PACKAGE_FAILURES=100
 
@@ -136,7 +136,7 @@ RUN pkg-install.sh NET apt-get install -y --no-install-recommends \
 		traceroute \
 		wireguard-tools \
 		whois
-RUN pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
+RUN --mount=type=secret,id=github_token pkg-install.sh NET ghbin hackerschoice/gsocket '_%arch%.deb' \
 	&& pkg-install.sh NET ghbin vi/websocat                       '%arch%.*linux-musl'                           websocat
 RUN pkg-install.sh HACK apt-get install -y --no-install-recommends \
 		adb \
@@ -472,7 +472,7 @@ RUN pkg-install.sh GUI bash -c '{ true; \
 		rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; \
 		echo "deb http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware" >/etc/apt/sources.list; \
 		apt-get update ; }'
-RUN pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aarch64=arm64%.'   sing-box \
+RUN --mount=type=secret,id=github_token pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aarch64=arm64%.'   sing-box \
 	&& pkg-install.sh HACK bin 'https://api.localxpose.io/api/v2/downloads/loclx-linux-%arch1%.zip' loclx \
 	&& pkg-install.sh HACK bin 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-%arch1%.tgz' ngrok \
 	&& pkg-install.sh HUGE ghbin tomnomnom/waybackurls 'linux-amd64-' waybackurls \                            
@@ -490,7 +490,7 @@ RUN pkg-install.sh    HUGE ghbin SagerNet/sing-box 'linux-%arch:x86_64=amd64:aar
 	&& pkg-install.sh HACK ghbin projectdiscovery/tlsx          'linux_%arch1%.zip$'                tlsx \
 	&& pkg-install.sh HACK ghbin projectdiscovery/uncover       'linux_%arch1%.zip$'                uncover \
 	&& pkg-install.sh HACK ghbin s0md3v/smap                    'linux_%arch1%.tar.xz$'             smap
-RUN pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch64=arm64%.deb$' \
+RUN --mount=type=secret,id=github_token pkg-install.sh    LARGE ghbin Peltoche/lsd 'lsd_.*_%arch:x86_64=amd64:aarch64=arm64%.deb$' \
 	&& pkg-install.sh LARGE ghbin cloudflare/cloudflared 'linux-%arch:x86_64=amd64:aarch64=arm64%.deb$' \
 	&& pkg-install.sh LARGE ghbin filebrowser/filebrowser '^linux-%arch:x86_64=amd64:aarch64=arm64%-filebrowser.tar.gz$' filebrowser \
 	&& pkg-install.sh LARGE ghbin cheat/cheat 'linux-%arch:x86_64=amd64:aarch64=arm64%.gz$' cheat \
@@ -613,14 +613,14 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		parallel \
 		ranger \
 		sshuttle
-RUN pkg-install.sh HUGE apt-get install -y --no-install-recommends \
+RUN --mount=type=secret,id=github_token pkg-install.sh HUGE apt-get install -y --no-install-recommends \
 		gopls \
 		golang-golang-x-tools \
 		gobjc++-mingw-w64-i686-posix gobjc++-mingw-w64-i686-win32 gobjc-mingw-w64-i686-posix gobjc-mingw-w64-i686-win32 \
 		maven \
 		rust-src
 # YANKED 2026, changed package naming. RUN pkg-install.sh HACK ghbin shadow1ng/fscan 'fscan_2*_linux_%arch:x86_64=x64:aarch64=arm64%$' fscan \
-RUN pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
+RUN --mount=type=secret,id=github_token pkg-install.sh HACK ghbin 'theaog/spirit' 'spirit%arch:x86_64=:DEFAULT=SKIP%.tgz$' spirit   `# x86_64 only, spirit-arm bad` \
 	&& pkg-install.sh HACK bash -c '{ GOBIN=/usr/bin go install github.com/tomnomnom/gf@latest \
 		&& mkdir -p /usr/share/gf \
 		&& git clone --depth 1 https://github.com/tomnomnom/gf.git /tmp/gf \
@@ -715,7 +715,7 @@ RUN pkg-install.sh DEV apt-get install -y --no-install-recommends \
 		ninja-build \
 		repo
 # Android build tools:
-RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
+RUN --mount=type=secret,id=github_token pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		aria2 \
 		buildtorrent \
 		`### caddy yanked from kali2025` \
@@ -758,10 +758,10 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		g++-multilib \
 		gcc-multilib \
 		lib32ncurses-dev lib32z1-dev || { [ $(uname -m) != x86_64 ] && true; }
-RUN pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                                                       fq \
+RUN --mount=type=secret,id=github_token pkg-install.sh    HACK ghbin wader/fq '_linux_%arch1%'                                                       fq \
 	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/nitefood/asn/master/asn                         asn2 \
 	&& pkg-install.sh HACK bin https://raw.githubusercontent.com/trustedsec/hardcidr/master/hardCIDR.sh          hardcidr
-RUN pkg-install.sh HACK ghbin ginuerzh/gost                     'linux[_-]%arch:x86_64=amd64:aarch64=arm64%.*gz$' gost                          \
+RUN --mount=type=secret,id=github_token pkg-install.sh HACK ghbin ginuerzh/gost                     'linux[_-]%arch:x86_64=amd64:aarch64=arm64%.*gz$' gost                          \
 	&& pkg-install.sh HACK ghbin tulir/gomuks                      '-%arch1%'                                gomuks                        \
 	&& pkg-install.sh HACK ghbin maxmind/mmdbinspect               'linux_amd64.tar.gz$'                          mmdbinspect   `# x86_64 only` \
 	&& pkg-install.sh HACK ghbin shadowsocks/shadowsocks-rust      '%arch%-unknown-linux-musl.tar'                                              \
@@ -775,7 +775,7 @@ RUN pkg-install.sh HACK ghbin ginuerzh/gost                     'linux[_-]%arch:
 # doesnt work like this. Impossible to install system-wide. Instead each user
 # shall check out his own. No system-wide install for gophish. Sorry. Someone
 # give gophish a helping hand or send them a Unix manual...
-RUN pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish             `# x86_64 only` \
+RUN --mount=type=secret,id=github_token pkg-install.sh LARGE ghdir gophish/gophish 'linux-64bit.zip$' /usr/gophish             `# x86_64 only` \
 		&& bash -c '{ [[ ! -d /usr/gophish ]] && exit 0; chmod 755 /usr/gophish/gophish \
 			&& echo -e "#! /bin/bash\ncd /usr/gophish && exec ./gophish \"\$@\"" >/usr/bin/gophish \
 			&& chmod 755 /usr/bin/gophish; }'
@@ -801,7 +801,7 @@ RUN pkg-install.sh LARGE apt-get install -y --no-install-recommends \
 		php-fpm \
 		php-xml \
 		powershell
-RUN    pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
+RUN --mount=type=secret,id=github_token    pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux' \
 	&& pipx install git+https://github.com/bluet/proxybroker2.git \
 	&& pkg-install.sh HACK pipx install pwncat-cs \
 	&& pkg-install.sh HACK ghbin praetorian-inc/noseyparker         '%arch%-unknown-linux-'                                    bin/noseyparker '' noseyparker \
@@ -809,7 +809,7 @@ RUN    pkg-install.sh HACK ghbin ekzhang/bore  '%arch:aarch64=arm%-unknown-linux
 	&& pkg-install.sh HACK bin 'https://github.com/RustScan/RustScan/releases/download/2.0.1/rustscan_2.0.1_amd64.deb'            `# x86_64 only` \
 	&& pkg-install.sh HACK bin 'https://github.com/xaitax/SploitScan/raw/main/sploitscan.py'                    sploitscan \
 	&& pkg-install.sh HACK ghbin hueristiq/xurlfind3r               'linux_%arch:x86_64=amd64:aarch64=arm64%'   xurlfind3r
-RUN    pkg-install.sh LARGE ghbin  PaddiM8/kalker                       'linux'                                 kalker \
+RUN --mount=type=secret,id=github_token    pkg-install.sh LARGE ghbin  PaddiM8/kalker                       'linux'                                 kalker \
 	&& pkg-install.sh LAREGE ghbin bvaisvil/zenith                      'x86_64.tar.gz'         zenith
 RUN pkg-install.sh LARGE bash -c '{ curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr bash; }'
 RUN	pkg-install.sh HACK bash -c '{ wget -O "/usr/bin/favfreak.py" https://raw.githubusercontent.com/devanshbatham/FavFreak/master/favfreak.py \
@@ -819,10 +819,10 @@ RUN	pkg-install.sh HACK bash -c '{ wget -O "/usr/bin/favfreak.py" https://raw.gi
 		&& wget -O /usr/share/wordlists/meg/openredirects "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/openredirects" \
 		&& wget -O /usr/share/wordlists/meg/configfiles   "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/configfiles" \
 		&& wget -O /usr/share/wordlists/meg/crlfinjection "https://raw.githubusercontent.com/tomnomnom/meg/master/lists/crlfinjection"; }'
-RUN pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx \
+RUN --mount=type=secret,id=github_token pkg-install.sh DEV ghbin helix-editor/helix '-%arch%-linux.tar.xz' hx \
 	&& pkg-install.sh DEV ghbin dandavison/delta '_%arch1%.deb' \
 	&& pkg-install.sh DEV ghbin watchexec/watchexec '%arch%-unknown-linux-musl.deb' '' '' '' --force-overwrite
-RUN pkg-install.sh HACK pipx install yxdump \
+RUN --mount=type=secret,id=github_token pkg-install.sh HACK pipx install yxdump \
 	&& pkg-install.sh HACK ghbin hackerschoice/dsniff 'linux-%arch%' dsniff "/usr/sbin" \
 	&& pkg-install.sh HACK ghbin lwthiker/curl-impersonate  'curl-impersonate.*%arch%-linux' \
 	&& pkg-install.sh HACK bin https://paste.c-net.org/pbenc pbenc \
@@ -839,9 +839,9 @@ RUN pkg-install.sh DEV apt-get install -y --no-install-recommends \
 	maildir-utils \
 	mpack \
 	mb2md
-RUN pkg-install.sh HUGE ghbin microsoft/go-sqlcmd 'linux-%arch1%.tar.bz2' sqlcmd
-RUN pkg-install.sh HACK ghbin kitabisa/mubeng '_linux_%arch1%' mubeng
-RUN pkg-install.sh HACK bash -c '{ cd /tmp \
+RUN --mount=type=secret,id=github_token pkg-install.sh HUGE ghbin microsoft/go-sqlcmd 'linux-%arch1%.tar.bz2' sqlcmd
+RUN --mount=type=secret,id=github_token pkg-install.sh HACK ghbin kitabisa/mubeng '_linux_%arch1%' mubeng
+RUN --mount=type=secret,id=github_token pkg-install.sh HACK bash -c '{ cd /tmp \
 		&& curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
 		&& echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
 		&& apt-get update; }' \
@@ -855,7 +855,7 @@ RUN pkg-install.sh BASE bash -c '{ true \
 RUN pkg-install.sh HACK bin 'https://github.com/milio48/serveo/raw/refs/heads/master/serveo.sh' serveo \
 	&& pkg-install.sh HACK bin 'https://github.com/nitefood/asn/raw/refs/heads/master/asn' asn \
 	&& pkg-install.sh HACK bin 'https://download.mikrotik.com/routeros/winbox/4.0beta21/WinBox_Linux.zip' WinBox '' winbox
-RUN sed 's/deb-src.*//' -i /etc/apt/sources.list \
+RUN if [ -f /etc/apt/sources.list ]; then sed 's/deb-src.*//' -i /etc/apt/sources.list; fi \
 	&& apt-get autoremove -y \
 	&& apt-get update
 RUN pkg-install.sh HACK bash -c '{ curl -fL https://github.com/pixelb/scripts/raw/refs/heads/master/scripts/ansi2html.sh | sed "/^pre { white-.*/d" >/usr/bin/ansi2html \

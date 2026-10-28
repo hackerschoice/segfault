@@ -195,9 +195,6 @@ echo -e "DEL 'sema:destructor'\nRPUSH 'sema:destructor' 1" | red
 	LXCFS_STR=$str
 }
 
-# Find out if the host has /dev/kvm 
-docker run --rm --device=/dev/kvm sf-host true && SF_HAS_DEV_KVM=1
-
 # SSHD resets the environment variables. The environment variables relevant to the guest
 # are stored in a file here and then read by `segfaultsh'.
 # Edit 'segfaultsh' and add them to 'docker run --env' to pass any of these

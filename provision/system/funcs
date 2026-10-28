@@ -120,3 +120,15 @@ ENV_LOAD()
 
 }
 
+
+# Install optional firewall templates without replacing local policies.
+INSTALL_TOKEN_TEMPLATES()
+{
+    local name dst
+    for name in netns-default.sh netns-block.sh; do
+        dst="${SF_BASEDIR}/config/db/token/${name}"
+        [[ -e "$dst" || -L "$dst" ]] && continue
+        mkdir -p "$(dirname "$dst")" || ERREXIT 240 "Cannot create template directory"
+        cp -p "${SFI_SRCDIR}/config/db/token/${name}" "$dst" || ERREXIT 240 "Cannot install $name"
+    done
+}

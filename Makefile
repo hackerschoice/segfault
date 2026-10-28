@@ -1,4 +1,6 @@
 VER := 0.6.1rc2
+SOURCE_REVISION ?= auto
+DISTDIR ?= .
 
 all:
 	make -C base
@@ -230,8 +232,25 @@ install:
 	@ echo "Try provision/init-ubuntu.sh"
 
 dist:
-	rm -rf segfault-$(VER) 2>/dev/null
-	ln -sf . segfault-$(VER)
-	$(TARX) cfz segfault-$(VER).tar.gz --owner=0 --group=0  $(FILES)
-	rm -f segfault-$(VER)
-	ls -al segfault-$(VER).tar.gz
+	@set -eu; \
+	mkdir -p "$(DISTDIR)"; \
+	stage=$$(mktemp -d "$(abspath $(DISTDIR))/.segfault-dist.XXXXXX"); \
+	for file in $(FILES); do \
+		rel=$${file#segfault-$(VER)/}; \
+		install -d -m 755 "$$stage/$$(dirname "$$file")"; \
+		if [ -d "$$rel" ] && [ ! -L "$$rel" ]; then \
+			install -d -m 755 "$$stage/$$file"; cp -RPp "$$rel/." "$$stage/$$file/"; \
+		else cp -Pp "$$rel" "$$stage/$$file"; fi; \
+	done; \
+	revision='$(SOURCE_REVISION)'; \
+	if [ "$$revision" = auto ]; then \
+		revision=$$(git rev-parse --verify HEAD 2>/dev/null || printf unknown); \
+		if [ "$$revision" != unknown ] && ! git diff --quiet HEAD -- .; then revision="$$revision+modified"; fi; \
+	fi; \
+	sed "s/^SOURCE_REVISION ?=.*/SOURCE_REVISION ?= $$revision/" "$$stage/segfault-$(VER)/Makefile" >"$$stage/Makefile"; \
+	mv "$$stage/Makefile" "$$stage/segfault-$(VER)/Makefile"; \
+	chmod 644 "$$stage/segfault-$(VER)/Makefile"; \
+	find "$$stage/segfault-$(VER)" -type d -exec chmod 755 {} +; \
+	$(TARX) --owner=0 --group=0 -czf "$(abspath $(DISTDIR))/segfault-$(VER).tar.gz" -C "$$stage" "segfault-$(VER)"; \
+	rm -rf "$$stage"; \
+	ls -l "$(DISTDIR)/segfault-$(VER).tar.gz"

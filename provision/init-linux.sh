@@ -132,7 +132,7 @@ mergedir()
   [[ ! -d "${SF_BASEDIR}/${dst}" ]] && mkdir -p "${SF_BASEDIR}/${dst}"
 
   DEBUGF "Merge $src $dst"
-  if [[ -d "${SF_BASEDIR}/${src}" ]]; then
+  if [[ -e "${SF_BASEDIR}/${src}" || -L "${SF_BASEDIR}/${src}" ]]; then
     CONFLICT+=("${src}")
     return 1
   fi
@@ -163,11 +163,11 @@ init_config_run()
   mergedir "config/etc/redis"
   mergedir "config/etc/resolv.conf"
   mergedir "config/etc/dnscrypt"
+  INSTALL_TOKEN_TEMPLATES
 
   [[ ! -f "${SF_DATADIR}/share/GeoLite2-City.mmdb" ]] && [[ -n "${MAXMIND_KEY}" ]] && curl 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key='"${MAXMIND_KEY}"'&suffix=tar.gz' | tar xfvz  - --strip-components=1  --no-anchored -C "${SF_DATADIR}/share/" 'GeoLite2-City.mmdb'
   [[ ! -f "${SF_DATADIR}/share/tor-exit-nodes.txt" ]] && curl 'https://www.dan.me.uk/torlist/?exit' >"${SF_DATADIR}/share/tor-exit-nodes.txt"
   [[ ! -f "${SF_DATADIR}/share/english.txt" ]] && cp "${SFI_SRCDIR}/host/fs-root/etc/english.txt" "${SF_DATADIR}/share/english.txt"
-  [[ ! -f "${SF_DATADIR}/share/tmux.conf" ]] && cp "${SFI_SRCDIR}/provision/tmux.conf" "${SF_DATADIR}/share/tmux.conf"
 
   # Setup /dev/shm/sf/run/log (in-memory /var/run...)
   if [[ -d /dev/shm ]]; then
@@ -179,6 +179,7 @@ init_config_run()
   # Copy over sfbin
   [[ ! "$SFI_SRCDIR" -ef "$SF_BASEDIR" ]] && [[ -d "${SF_BASEDIR}/sfbin" ]] && rm -rf "${SF_BASEDIR}/sfbin"
   mergedir "sfbin"
+  cp -p "${SFI_SRCDIR}/contrib/cronjob" "${SF_BASEDIR}/sfbin/cronjob" || ERREXIT 240 "Cannot install cronjob"
 
   grep -F .bashrc /root/.bash_profile >/dev/null || echo ". .bashrc" >>/root/.bash_profile
   grep -F funcs_admin.sh /root/.bash_profile >/dev/null || echo ". ${SF_BASEDIR}/sfbin/funcs_admin.sh" >>/root/.bash_profile

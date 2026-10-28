@@ -3,8 +3,8 @@
 # Run regular maintenance jobs in host's crontab after 'sf up' has been started
 # PHY: crontab -l | grep -v cronjob | echo "15 0 * * sun /sf/sfbin/cronjob all >/dev/shm/sf/run/logs/cronjob.out 2>/dev/shm/sf/run/logs/cronjob.err" | crontab -
 
-SF_BASEDIR="/sf"
-SF_DATADIR="${SF_BASEDIR}/data"
+SF_BASEDIR="${SF_BASEDIR:-/sf}"
+SF_DATADIR="${SF_DATADIR:-${SF_BASEDIR}/data}"
 SF_MV_EXIT_FN="${SF_DATADIR}/share/relay-exit-nodes-mullvad.txt"
 SF_MV_RELAY_FN="${SF_DATADIR}/share/proxies.txt"
 SF_HA_CONF="${SF_DATADIR}/share/haproxy-1040.conf"
@@ -16,9 +16,8 @@ SF_TOR_EXIT_FN="${SF_DATADIR}/share/tor-exit-nodes.txt"
 # aka curl -H "Auth: hAV2fDFN..." http://92.x.x.x:50613 >/sf/config/etc/relay-exit-nodes-global.txt
 
 mk_haproxy1040_conf() {
-    local fn="$(mktemp)"
-
-    [[ -z $fn ]] && return
+    local fn
+    fn=$(mktemp "${SF_DATADIR}/share/.haproxy-1040.XXXXXX") || return
 
     cat >"${fn}"<<-'EOF'
 defaults
@@ -55,12 +54,12 @@ mk_mullvad_relays()
     local ips
     local proxies
 
-    docker exec sf-mullvad true 2>/dev/null || { echo >&2 "sf-mullvad not running. Execute this after ${CDC}sfbin/sf${CN} up"; return; }
+    docker exec sf-mullvad true 2>/dev/null || { echo >&2 "sf-mullvad not running. Execute this after ${CDC}sfbin/sf${CN} up"; return 1; }
 
     IFS=""
     str=$(curl -fsSL --retry 3 --max-time 15 https://api.mullvad.net/www/relays/all/ 2>/dev/null | jq -r '.[] |  select(.socks_name != null) | select(.socks_port != null)  | "\(.socks_name):\(.socks_port)"' |grep -v ^-)
     str=${str//[^a-z0-9-:.$'\n']}
-    [[ -z $str ]] && return
+    [[ -z $str ]] && return 1
 
     IFS=$'\n'
     arr=($str)
@@ -73,6 +72,7 @@ mk_mullvad_relays()
         ips+="$ip"$'\n'
         proxies+="$h"$'\n'
     done
+    [[ -n $proxies && -n $ips ]] || { echo >&2 "No working Mullvad proxies found; keeping existing relay lists."; return 1; }
     echo -n "$proxies" >"${SF_MV_RELAY_FN}"
     echo -n "$ips" >"${SF_MV_EXIT_FN}"
     mk_haproxy1040_conf
@@ -103,9 +103,9 @@ mk_global_relays()
 
 mk_geolite() {
     local fn="GeoLite2-City.mmdb"
-    [ ! -f "${SF_BASEDIR:-/sf}/config/.env" ] && return
+    [ ! -f "${SF_BASEDIR:-/sf}/config/.env" ] && return 0
     eval "$(grep ^MAX "${SF_BASEDIR:-/sf}/config/.env")"
-    [ -z "$MAXMIND_KEY" ] && return
+    [ -z "$MAXMIND_KEY" ] && return 0
 
     curl -fL "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_KEY:-KEY-NOT-SET}&suffix=tar.gz" | tar xfvz  - --strip-components=1  --no-anchored -C '/tmp' "${fn}" || return
     rm -f "${SF_DATADIR}/share/${fn}"
@@ -113,23 +113,30 @@ mk_geolite() {
     mv "/tmp/${fn}" "${SF_DATADIR}/share/${fn}"
 }
 
-str="$*"
-[[ $str == *all* ]] && {
-    mk_geolite
-    str="mullvad tor global"
-}
+status=0
+maintenance=0
+[[ $# -gt 0 ]] || { echo "Usage: $0 [mullvad, tor, all]"; exit 2; }
+for arg in "$@"; do
+    case "$arg" in
+        mullvad|tor|all) ;;
+        *) echo >&2 "Unknown maintenance task: $arg"; exit 2 ;;
+    esac
+done
+str=" $* "
+if [[ $str == *" all "* ]]; then
+    mk_geolite || status=$?
+    str=" mullvad tor "
+    maintenance=1
+fi
+[[ $str == *" mullvad "* ]] && { mk_mullvad_relays || status=$?; }
+[[ $str == *" tor "* ]] && { mk_tor_relays || status=$?; }
 
-[[ $str == *mullvad* ]] && { mk_mullvad_relays; is_ran=1; }
-[[ $str == *tor* ]] && { mk_tor_relays; is_ran=1; }
-# [[ $str == *global* ]] && { mk_global_relays; is_ran=1; }
-
-source "${SF_BASEDIR:?}/sfbin/funcs_admin.sh" >/dev/null
-source "${SF_BASEDIR:-/sf}/config/etc/sf/timers.conf" 2>/dev/null
-lgpurge "${SF_TIMEOUT_IDLE_DAYS}" "${SF_TIMEOUT_NAUGHTY_DAY}"
-
-fn="/dev/shm/sf/run/logs/segfault.log"
-[ -f "$fn" ] && :>"${fn:?}"
-
-[[ -n $is_ran ]] && exit
-
-echo "Usage: $0 [mullvad, tor, all]"
+# Guest cleanup and log truncation belong to full maintenance only.
+if [[ $maintenance -eq 1 ]]; then
+    source "${SF_BASEDIR:?}/sfbin/funcs_admin.sh" >/dev/null
+    source "${SF_BASEDIR}/config/etc/sf/timers.conf" 2>/dev/null
+    lgpurge "${SF_TIMEOUT_IDLE_DAYS}" "${SF_TIMEOUT_NAUGHTY_DAY}" || status=$?
+    fn="${SF_SHMDIR:-/dev/shm/sf}/run/logs/segfault.log"
+    [ -f "$fn" ] && :>"${fn:?}"
+fi
+exit "$status"

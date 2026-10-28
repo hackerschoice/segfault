@@ -34,9 +34,14 @@ merge_file()
 	(
 		IFS=""
 		[[ "${sfn}" -ef "${dfn}" ]] && return # Symlink
-		[[ -e "${dfn}" ]] && {
+		[[ -e "${dfn}" || -L "${dfn}" ]] && {
 			# Already installed
 			[[ $mode == "diff" ]] && {
+				# Comment-only templates have no active settings to preserve.
+				if [[ -f $sfn && -f $dfn ]] && ! grep -qEv '^[[:space:]]*(#|$)' "$sfn" && ! grep -qEv '^[[:space:]]*(#|$)' "$dfn"; then
+					cp -p "$sfn" "$dfn" || ERREXIT 240 "Cannot update $dfn"
+					return
+				fi
 				res=$(diff --color=always -u "${dfn}" "${sfn}")
 				[[ $? -gt 1 ]] && ERREXIT 240 "diff failed"
 				[[ -z $res ]] && return
@@ -50,6 +55,7 @@ merge_file()
 			}
 		}
 		echo -e "${CDG}Installing ${CG}${dfn}${CDG}...${CN}"
+		mkdir -p "$(dirname "${dfn}")" || ERREXIT
 		cp -a "${sfn}" "${dfn}" || ERREXIT
 	)
 }
@@ -71,7 +77,7 @@ merge()
 
 merge_file force "${SFI_SRCDIR}/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt" "${SF_BASEDIR}/config/etc/sf/WARNING---SHARED-BETWEEN-ALL-SERVERS---README.txt"
 merge_file force "${SFI_SRCDIR}/config/etc/hosts" "${SF_BASEDIR}/config/etc/hosts"
-merge_file force "${SFI_SRCDIR}/config/etc/resolv.conf" "${SF_BASEDIR}/config/etc/resolv.conf"
 merge force "${SFI_SRCDIR}/sfbin" "${SF_BASEDIR}/sfbin"
+merge_file force "${SFI_SRCDIR}/contrib/cronjob" "${SF_BASEDIR}/sfbin/cronjob"
 merge diff "${SFI_SRCDIR}/config" "${SF_BASEDIR}/config"
 merge_file diff "${SFI_SRCDIR}/provision/env.example" "${SFI_SRCDIR}/.env"

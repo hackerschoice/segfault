@@ -109,3 +109,37 @@ WARN_ENTER()
 	echo "Press Enter to continue. Aborting in 10 seconds otherwise..."
 	read -r -t 10 || ERREXIT 255 "Aborting. User did not press Enter."
 }
+
+# Keep a deployment's Compose identity when its source directory changes.
+sf_compose_init()
+{
+	local projects
+	local -a names
+	projects=$(docker ps -a --filter 'name=^/sf-' --filter label=com.docker.compose.project --format '{{.Label "com.docker.compose.project"}}') || return
+	mapfile -t names < <(printf '%s\n' "$projects" | sed '/^$/d' | sort -u)
+	[[ ${#names[@]} -gt 1 ]] && { ERR "Segfault containers belong to multiple Compose projects: ${names[*]}"; return 1; }
+	if [[ -n $COMPOSE_PROJECT_NAME && -n ${names[0]} && $COMPOSE_PROJECT_NAME != "${names[0]}" ]]; then
+		ERR "Existing Segfault containers belong to Compose project '${names[0]}', not '$COMPOSE_PROJECT_NAME'."
+		return 1
+	fi
+	export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${names[0]:-segfault}}"
+}
+
+sf_compose_down()
+{
+	local guests
+	local -a ids
+	guests=$(docker ps -q --filter 'name=^/lg-') || return
+	mapfile -t ids < <(printf '%s\n' "$guests" | sed '/^$/d')
+	if [[ ${#ids[@]} -gt 0 ]]; then
+		docker stop "${ids[@]}" || return
+	fi
+	docker-compose "$@"
+}
+
+sf_check_docker_root()
+{
+	local actual
+	actual=$(docker info --format '{{.DockerRootDir}}') || return
+	[[ "$actual" -ef "${SF_BASEDIR}/docker" ]] || WARN "Docker data-root is '$actual'; expected '${SF_BASEDIR}/docker'."
+}

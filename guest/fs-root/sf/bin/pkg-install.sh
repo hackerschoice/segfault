@@ -6,6 +6,10 @@ export PIPX_BIN_DIR=/usr/bin
 export GNUPGHOME=/tmp
 COPTS=("-SsfL" "--connect-timeout" "7" "-m900" "--retry" "3")
 
+if [[ -z $GITHUB_TOKEN && -r /run/secrets/github_token ]]; then
+	export GITHUB_TOKEN="$(</run/secrets/github_token)"
+fi
+
 [[ -n $BESTEFFORT ]] && force_exit_code=0
 
 # A positive limit collects failures across Docker RUN layers. Zero stays strict.
